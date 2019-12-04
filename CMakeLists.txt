@@ -511,18 +511,10 @@ endif ()
 ####  Find OpenMP
 ################################
 find_package(OpenMP)
-message("Debugging openmp")
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-message("${OpenMP_CXX_FLAGS}")
-message("${OpenMP_CXX_LIB_NAMES}")
-message("${OpenMP_CXX_LIBRARIES}")
-#list (APPEND Chaste_INCLUDES "${OpenMP_CXX_INCLUDE}" "${XSD_INCLUDE_DIRS}")
-#list (APPEND Chaste_LINK_LIBRARIES "${OpenMP_CXX_LIBRARIES}")
-#target_link_libraries(TestRunningDeltaNotchOMPSimulationsTutorial PUBLIC OpenMP::OpenMP_CXX)
-#if(OpenMP_CXX_FOUND)
-#    target_link_libraries(TestRunningDeltaNotchOMPSimulationsTutorial PUBLIC OpenMP::OpenMP_CXX)
-#endif()
+if(OpenMP_FOUND)
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+endif()
 
 
 ###########################################

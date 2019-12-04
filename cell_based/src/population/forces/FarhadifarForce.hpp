@@ -55,6 +55,7 @@ template<unsigned DIM>
 class FarhadifarForce : public AbstractForce<DIM>
 {
 friend class TestForces;
+friend class TestForcesOMP;
 
 private:
 
@@ -120,6 +121,16 @@ public:
      * @param rCellPopulation reference to the cell population
      */
     virtual void AddForceContribution(AbstractCellPopulation<DIM>& rCellPopulation);
+
+    /**
+     * Implementation of AddForceContribution() method optimised using OpenMP.
+     *
+     * Calculates the force on each node in the vertex-based cell population based on the energy function
+     * Farhadifar's model.
+     *
+     * @param rCellPopulation reference to the cell population
+     */
+    void AddForceContributionOMP(AbstractCellPopulation<DIM>& rCellPopulation);
 
     /**
      * Get the line tension parameter for the edge between two given nodes.

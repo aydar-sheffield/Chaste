@@ -67,7 +67,7 @@ template<unsigned DIM>
 void DeltaNotchTrackingModifier<DIM>::UpdateCellData(AbstractCellPopulation<DIM,DIM>& rCellPopulation)
 {
     // Make sure the cell population is updated
-    rCellPopulation.Update();
+    //rCellPopulation.Update();
 
     // First recover each cell's Notch and Delta concentrations from the ODEs and store in CellData
     for (typename AbstractCellPopulation<DIM>::Iterator cell_iter = rCellPopulation.Begin();

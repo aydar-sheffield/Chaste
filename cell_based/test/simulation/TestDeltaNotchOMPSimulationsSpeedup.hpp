@@ -102,8 +102,10 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
  * We include the OMP version of the FarhadifarForce
  */
+#ifdef OPENMP
 #include "omp.h"
-#include "FarhadifarForceOMP.hpp"
+#endif
+
 
 /*
  * The next header file defines a simple subcellular reaction network model that includes the functionality
@@ -117,21 +119,30 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "DeltaNotchTrackingModifier.hpp"
 
+#include "OpenMPCheck.hpp"
+
 /* Having included all the necessary header files, we proceed by defining the test class.
  */
-class TestRunningDeltaNotchOMPSimulationsTutorial : public AbstractCellBasedTestSuite
+class TestDeltaNotchOMPSimulationsSpeedup : public AbstractCellBasedTestSuite
 {
 public:
 
-    void TestVertexBasedMonolayerWithDeltaNotch()
+    long RunSimulation(unsigned num_x_cells, unsigned num_y_cells, double end_time, std::string output_dir)
     {
-        /* We include the next line because Vertex simulations cannot be run in parallel */
-        EXIT_IF_PARALLEL;
+
+
+        // Define the seed
+        RandomNumberGenerator::Instance()->Reseed(0);
+
+        // Set up time parameters
+        SimulationTime::Destroy();
+        SimulationTime::Instance()->SetStartTime(0.0);
+
 
         auto start = std::chrono::high_resolution_clock::now();
 
         /* First we create a regular vertex mesh. */
-        HoneycombVertexMeshGenerator generator(10, 10);
+        HoneycombVertexMeshGenerator generator(num_x_cells, num_y_cells);
         MutableVertexMesh<2,2>* p_mesh = generator.GetMesh();
 
         /* We then create some cells, each with a cell-cycle model, {{{UniformG1GenerationalCellCycleModel}}} and a subcellular reaction network model
@@ -175,9 +186,9 @@ public:
         /* We are now in a position to create and configure the cell-based simulation object, pass a force law to it,
          * and run the simulation. We can make the simulation run for longer to see more patterning by increasing the end time. */
         OffLatticeSimulation<2> simulator(cell_population);
-        simulator.SetOutputDirectory("TestVertexBasedMonolayerWithDeltaNotch");
+        simulator.SetOutputDirectory(output_dir);
         simulator.SetSamplingTimestepMultiple(10);
-        simulator.SetEndTime(1.0);
+        simulator.SetEndTime(end_time);
 
         /* Then, we define the modifier class, which automatically updates the values of Delta and Notch within the cells in {{{CellData}}} and passes it to the simulation.*/
         MAKE_PTR(DeltaNotchTrackingModifier<2>, p_modifier);
@@ -195,176 +206,43 @@ public:
         auto stop = std::chrono::high_resolution_clock::now();
 
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-        cout << "Normal took: " << duration.count() << "ms" << endl;
+
+        // Tidy up
+        SimulationTime::Destroy();
+        RandomNumberGenerator::Destroy();
+
+        return duration.count();
+
     }
 
-
-
-    void TestVertexBasedMonolayerWithDeltaNotchOMP()
+    void TestSimulationSpeedup()
     {
         /* We include the next line because Vertex simulations cannot be run in parallel */
         EXIT_IF_PARALLEL;
 
-        auto start = std::chrono::high_resolution_clock::now();
+        double end_time = 1.0;
+        std::vector<unsigned> cell_sizes = {2, 5, 10, 25};
 
-        /* First we create a regular vertex mesh. */
-        HoneycombVertexMeshGenerator generator(10, 10);
-        MutableVertexMesh<2,2>* p_mesh = generator.GetMesh();
-
-        /* We then create some cells, each with a cell-cycle model, {{{UniformG1GenerationalCellCycleModel}}} and a subcellular reaction network model
-         * {{{DeltaNotchSrnModel}}}, which
-         * incorporates a Delta/Notch ODE system, here we use the hard coded initial conditions of 1.0 and 1.0.
-         * In this example we choose to make each cell differentiated,
-         * so that no cell division occurs. */
-        std::vector<CellPtr> cells;
-        MAKE_PTR(WildTypeCellMutationState, p_state);
-        MAKE_PTR(DifferentiatedCellProliferativeType, p_diff_type);
-
-        for (unsigned elem_index=0; elem_index<p_mesh->GetNumElements(); elem_index++)
+        for ( auto cell_size: cell_sizes )
         {
-            UniformG1GenerationalCellCycleModel* p_cc_model = new UniformG1GenerationalCellCycleModel();
-            p_cc_model->SetDimension(2);
+            UseOMP(false);
+            auto standard_duration = this->RunSimulation(cell_size, cell_size, end_time, std::string("TestDeltaNotchOMPSimulationsSpeedup"));
 
-            /* We choose to initialise the concentrations to random levels in each cell. */
-            std::vector<double> initial_conditions;
-            initial_conditions.push_back(RandomNumberGenerator::Instance()->ranf());
-            initial_conditions.push_back(RandomNumberGenerator::Instance()->ranf());
-            DeltaNotchSrnModel* p_srn_model = new DeltaNotchSrnModel();
-            p_srn_model->SetInitialConditions(initial_conditions);
+            UseOMP(true);
+            auto omp_duration = this->RunSimulation(cell_size, cell_size, end_time, std::string("TestDeltaNotchOMPSimulationsSpeedup"));
 
-            CellPtr p_cell(new Cell(p_state, p_cc_model, p_srn_model));
-            p_cell->SetCellProliferativeType(p_diff_type);
-            double birth_time = -RandomNumberGenerator::Instance()->ranf()*12.0;
-            p_cell->SetBirthTime(birth_time);
-            cells.push_back(p_cell);
+            auto duration_diff = (float)standard_duration/(float)omp_duration;
+
+            cout << "Grid size " << cell_size << "x" << cell_size << " Non-OMP: " << standard_duration << "ms, OMP: " << omp_duration << "ms. Speedup of " << duration_diff << "\n";
+
+
         }
 
-        /* Using the vertex mesh and cells, we create a cell-based population object, and specify which results to
-         * output to file. */
-        VertexBasedCellPopulation<2> cell_population(*p_mesh, cells);
-        cell_population.AddCellPopulationCountWriter<CellMutationStatesCountWriter>();
-        cell_population.AddCellPopulationCountWriter<CellProliferativeTypesCountWriter>();
-        cell_population.AddCellPopulationCountWriter<CellProliferativePhasesCountWriter>();
-        cell_population.AddCellWriter<CellProliferativePhasesWriter>();
-        cell_population.AddCellWriter<CellAgesWriter>();
-        cell_population.AddCellWriter<CellVolumesWriter>();
-
-        /* We are now in a position to create and configure the cell-based simulation object, pass a force law to it,
-         * and run the simulation. We can make the simulation run for longer to see more patterning by increasing the end time. */
-        OffLatticeSimulation<2> simulator(cell_population);
-        simulator.SetOutputDirectory("TestVertexBasedMonolayerWithDeltaNotch");
-        simulator.SetSamplingTimestepMultiple(10);
-        simulator.SetEndTime(1.0);
-
-        /* Then, we define the modifier class, which automatically updates the values of Delta and Notch within the cells in {{{CellData}}} and passes it to the simulation.*/
-        MAKE_PTR(DeltaNotchTrackingModifier<2>, p_modifier);
-        simulator.AddSimulationModifier(p_modifier);
-
-        MAKE_PTR(FarhadifarForceOMP<2>, p_force);
-        simulator.AddForce(p_force);
-
-        /* This modifier assigns target areas to each cell, which are required by the {{{NagaiHondaForce}}}.
-         */
-        MAKE_PTR(SimpleTargetAreaModifier<2>, p_growth_modifier);
-        simulator.AddSimulationModifier(p_growth_modifier);
-        simulator.Solve();
-
-        auto stop = std::chrono::high_resolution_clock::now();
-
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-        cout << "OMP took: " << duration.count() << "ms" << endl;
     }
 
-//    /*
-//     * EMPTYLINE
-//     *
-//     * To visualize the results, use Paraview. See the UserTutorials/VisualizingWithParaview tutorial for more information.
-//     *
-//     * Load the file {{{/tmp/$USER/testoutput/TestVertexBasedMonolayerWithDeltaNotch/results_from_time_0/results.pvd}}}.
-//     *
-//     * EMPTYLINE
-//     *
-//     * == Test 2 - a node-based monolayer with Delta/Notch signalling ==
-//     *
-//     * EMPTYLINE
-//     *
-//     * In the next test we run a similar simulation as before, but this time with node-based
-//     * 'overlapping spheres' model.
-//     */
-//    void TestNodeBasedMonolayerWithDeltaNotch()
-//    {
-//        /* We include the next line because HoneycombMeshGenerator, used in this test, is not
-//         *  yet implemented in parallel. */
-//        EXIT_IF_PARALLEL;
-//
-//        /*
-//         * Most of the code in this test is the same as in the previous test,
-//         * except we now create a 'nodes-only mesh' and {{{NodeBasedCellPopulation}}}.
-//         */
-//        HoneycombMeshGenerator generator(5, 5);
-//        MutableMesh<2,2>* p_generating_mesh = generator.GetMesh();
-//        NodesOnlyMesh<2> mesh;
-//        /* The mechanics cut-off length (second argument) is used in this simulation to determine nearest
-//         * neighbours for the purpose of the Delta/Notch intercellular signalling model.
-//         */
-//        mesh.ConstructNodesWithoutMesh(*p_generating_mesh, 1.5);
-//
-//        std::vector<CellPtr> cells;
-//        MAKE_PTR(WildTypeCellMutationState, p_state);
-//        MAKE_PTR(DifferentiatedCellProliferativeType, p_diff_type);
-//        for (unsigned i=0; i<mesh.GetNumNodes(); i++)
-//        {
-//            UniformG1GenerationalCellCycleModel* p_cc_model = new UniformG1GenerationalCellCycleModel();
-//            p_cc_model->SetDimension(2);
-//
-//            /* We choose to initialise the concentrations to random levels in each cell. */
-//            std::vector<double> initial_conditions;
-//            initial_conditions.push_back(RandomNumberGenerator::Instance()->ranf());
-//            initial_conditions.push_back(RandomNumberGenerator::Instance()->ranf());
-//            DeltaNotchSrnModel* p_srn_model = new DeltaNotchSrnModel();
-//            p_srn_model->SetInitialConditions(initial_conditions);
-//
-//            CellPtr p_cell(new Cell(p_state, p_cc_model, p_srn_model));
-//            p_cell->SetCellProliferativeType(p_diff_type);
-//            double birth_time = -RandomNumberGenerator::Instance()->ranf()*12.0;
-//            p_cell->SetBirthTime(birth_time);
-//            cells.push_back(p_cell);
-//        }
-//
-//        NodeBasedCellPopulation<2> cell_population(mesh, cells);
-//        cell_population.AddCellPopulationCountWriter<CellProliferativeTypesCountWriter>();
-//        cell_population.AddCellPopulationCountWriter<CellMutationStatesCountWriter>();
-//        cell_population.AddCellWriter<CellIdWriter>();
-//        cell_population.AddCellPopulationCountWriter<CellProliferativePhasesCountWriter>();
-//        cell_population.AddCellWriter<CellAgesWriter>();
-//
-//        OffLatticeSimulation<2> simulator(cell_population);
-//        simulator.SetOutputDirectory("TestNodeBasedMonolayerWithDeltaNotch");
-//        simulator.SetSamplingTimestepMultiple(10);
-//        simulator.SetEndTime(5.0);
-//
-//        /* Again we define the modifier class, which automatically updates the values of Delta and Notch within the cells in {{{CellData}}} and passes it to the simulation.*/
-//        MAKE_PTR(DeltaNotchTrackingModifier<2>, p_modifier);
-//        simulator.AddSimulationModifier(p_modifier);
-//
-//        /* As we are using a node-based cell population, we use an appropriate force law. */
-//        MAKE_PTR(GeneralisedLinearSpringForce<2>, p_force);
-//        p_force->SetCutOffLength(1.5);
-//        simulator.AddForce(p_force);
-//
-//        simulator.Solve();
-//    }
-//    /*
-//     * EMPTYLINE
-//     *
-//     * To visualize the results, use Paraview. See the UserTutorials/VisualizingWithParaview tutorial for more information.
-//     *
-//     * Load the file {{{/tmp/$USER/testoutput/TestNodeBasedMonolayerWithDeltaNotch/results_from_time_0/results.pvd}}},
-//     * and add a spherical glyph.
-//     *
-//     * Note that, for larger simulations, you may need to unclick "Mask Points" (or similar) so as not to limit the number of glyphs
-//     * displayed by Paraview.
-//     */
+
+
+
 };
 
 #endif /*TESTRUNNINGDELTANOTCHSIMULATIONSTUTORIAL_HPP_*/

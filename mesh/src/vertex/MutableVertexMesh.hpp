@@ -166,6 +166,15 @@ protected:
     bool CheckForIntersections();
 
     /**
+     * Helper method for ReMesh(). Re-implemented in OpenMP
+     *
+     * Check if any elements have become intersected and correct this by implementing the appropriate
+     * local remeshing operation (a T3 swap or node merge).
+     * @return
+     */
+    bool CheckForIntersectionsOMP();
+
+    /**
      * Helper method for ReMesh(), called by CheckForSwapsFromShortEdges() when
      * neighbouring nodes in an element have been found to be closer than the mCellRearrangementThreshold
      * and do not share any triangular elements.

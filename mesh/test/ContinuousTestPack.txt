@@ -7,6 +7,7 @@ TestElementAttributes.hpp
 TestMixedDimensionMesh.hpp
 TestMutableMesh.hpp
 TestMutableMeshRemesh.hpp
+TestMutableMeshRemeshOMP.hpp
 TestNode.hpp
 TestNodeAttributes.hpp
 TestNodesOnlyMesh.hpp

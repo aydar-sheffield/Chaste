@@ -38,6 +38,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "LogFile.hpp"
 #include "UblasCustomFunctions.hpp"
 #include "Warnings.hpp"
+#include "OpenMPCheck.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::MutableVertexMesh(std::vector<Node<SPACE_DIM>*> nodes,
@@ -1015,6 +1016,12 @@ bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForT2Swaps(VertexElementMap
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForIntersections()
 {
+    if (DoUseOMP())
+    {
+        return CheckForIntersectionsOMP();
+    }
+
+
     // If checking for internal intersections as well as on the boundary, then check that no nodes have overlapped any elements...
     if (mCheckForInternalIntersections)
     {
@@ -1100,6 +1107,130 @@ bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForIntersections()
             }
         }
 
+    }
+    return false;
+
+
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForIntersectionsOMP()
+{
+    bool swap_found = false;
+    Node<SPACE_DIM>* swap_node = nullptr;
+    unsigned swap_element_index = 0;
+
+    // If checking for internal intersections as well as on the boundary, then check that no nodes have overlapped any elements...
+    if (mCheckForInternalIntersections)
+    {
+
+        unsigned num_nodes = this->GetNumNodes();
+        unsigned num_elements = this->GetNumElements();
+
+        #pragma omp parallel for collapse(2)
+        for (unsigned node_index = 0; node_index < num_nodes; ++node_index)
+        {
+            for (unsigned element_index = 0; element_index < num_elements; ++element_index)
+            {
+                auto node = this->GetNode(node_index);
+
+                if (!swap_found)
+                {
+                    // Check that the node is not part of this element
+                    if (node->rGetContainingElementIndices().count(element_index) == 0)
+                    {
+                        if (this->ElementIncludesPoint(node->rGetLocation(), element_index))
+                        {
+                            #pragma omp critical
+                            {
+                                if (!swap_found)
+                                {
+                                    swap_found = true;
+                                    swap_node = node;
+                                    swap_element_index = element_index;
+
+
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (swap_found)
+        {
+            PerformIntersectionSwap(swap_node, swap_element_index);
+            return true;
+        }
+    }
+    else
+    {
+        // ...otherwise, just check that no boundary nodes have overlapped any boundary elements
+        // First: find all boundary element and calculate their centroid only once
+        std::vector<unsigned> boundary_element_indices;
+        std::vector< c_vector<double, SPACE_DIM> > boundary_element_centroids;
+        for (typename VertexMesh<ELEMENT_DIM, SPACE_DIM>::VertexElementIterator elem_iter = this->GetElementIteratorBegin();
+             elem_iter != this->GetElementIteratorEnd();
+             ++elem_iter)
+        {
+            if (elem_iter->IsElementOnBoundary())
+            {
+                unsigned element_index = elem_iter->GetIndex();
+                boundary_element_indices.push_back(element_index);
+                // should be a map but I am too lazy to look up the syntax
+                boundary_element_centroids.push_back(this->GetCentroidOfElement(element_index));
+            }
+        }
+
+
+        unsigned num_nodes = this->GetNumNodes();
+        unsigned num_elements = boundary_element_indices.size();
+
+        #pragma omp parallel for collapse(2)
+        for (unsigned node_index = 0; node_index < num_nodes; ++node_index)
+        {
+            for (unsigned boundary_element_index = 0; boundary_element_index < num_elements; ++boundary_element_index)
+            {
+                auto node = this->GetNode(node_index);
+                auto element_index = boundary_element_indices[boundary_element_index];
+
+                if (!swap_found && node->IsBoundaryNode())
+                {
+                    assert(!(node->IsDeleted()));
+
+                    if (node->rGetContainingElementIndices().count(element_index) == 0)
+                    {
+                        c_vector<double, SPACE_DIM> node_location = node->rGetLocation();
+                        c_vector<double, SPACE_DIM> element_centroid = boundary_element_centroids[boundary_element_index];
+                        double node_element_distance = norm_2(this->GetVectorFromAtoB(node_location, element_centroid));
+
+                        if ( node_element_distance < mDistanceForT3SwapChecking )
+                        {
+                            if (this->ElementIncludesPoint(node->rGetLocation(), element_index))
+                            {
+                                #pragma omp critical
+                                {
+                                    if (!swap_found)
+                                    {
+                                        swap_found = true;
+                                        swap_node = node;
+                                        swap_element_index = element_index;
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+        }
+
+        if (swap_found)
+        {
+            this->PerformT3Swap(swap_node, swap_element_index);
+            return true;
+        }
     }
     return false;
 }
