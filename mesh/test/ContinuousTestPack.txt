@@ -40,6 +40,8 @@ vertex/TestVertexMesh.hpp
 vertex/TestVertexMeshReader.hpp
 vertex/TestVertexMeshWriter.hpp
 vertex/TestVoronoiVertexMeshGenerator.hpp
+vertex/TestDCELMesh.hpp
 writer/TestMeshWriters.hpp
 writer/TestXmlMeshWriters.hpp
+
 
