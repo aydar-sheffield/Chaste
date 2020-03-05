@@ -14,6 +14,8 @@ TestNonCachedTetrahedralMesh.hpp
 TestQuadraticMesh.hpp
 TestTetrahedralMesh.hpp
 TestTransformations.hpp
+TestDCELVertex.hpp
+TestDCELElement.hpp
 mutable/TestCylindrical2dMesh.hpp
 mutable/TestCylindrical2dNodesOnlyMesh.hpp
 mutable/TestCylindricalHoneycombMeshGenerator.hpp

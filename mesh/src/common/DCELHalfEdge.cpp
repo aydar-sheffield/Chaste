@@ -96,3 +96,7 @@ void DCELHalfEdge<SPACE_DIM>::SetElement(DCELElement<SPACE_DIM>* element)
     mElement = element;
 }
 
+template class DCELHalfEdge<1>;
+template class DCELHalfEdge<2>;
+template class DCELHalfEdge<3>;
+

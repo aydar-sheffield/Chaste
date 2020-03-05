@@ -19,7 +19,7 @@ public:
     DCELVertex(const double x, const double y, const double z = 0.0);
     ~DCELVertex();
     DCELHalfEdge<SPACE_DIM>* GetOutgoingEdge() const;
-    void SetOutgoingEdge(const DCELHalfEdge<SPACE_DIM>* edge);
+    void SetOutgoingEdge(DCELHalfEdge<SPACE_DIM>* edge);
     DCELHalfEdge<SPACE_DIM>* GetIncomingEdge() const;
     DCELVertex<SPACE_DIM>* GetNextVertex() const;
     void SetNextVertex();
@@ -54,5 +54,6 @@ private:
     DCELVertex<SPACE_DIM>* mNextVertex;
     DCELVertex<SPACE_DIM>* mPreviousVertex;
 };
+
 
 #endif /* DCELVERTEX_HPP_ */

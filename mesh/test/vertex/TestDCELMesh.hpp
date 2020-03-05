@@ -7,7 +7,6 @@
 #include "DCELVertex.hpp"
 
 #include "FakePetscSetup.hpp"
-
 class TestDCELMesh : public CxxTest::TestSuite
 {
 public:
@@ -28,13 +27,18 @@ public:
         DCELElement<2> element_2(element_2_vertices);
 
         DCELHalfEdge<2>* edge_1 = element_1.GetHalfEdge();
-        DCELHalfEdge<2>* walker = edge_1->GetNextHalfEdge();
         c_vector<double, 2> vert = edge_1->GetTargetVertex()->rGetLocation();
-        std::cout<<vert(0)<<" "<<vert(1)<<std::endl;
+        TS_ASSERT_DELTA(vert(0), 1.0,1e-12);
+        TS_ASSERT_DELTA(vert(1), 0.0,1e-12);
+        DCELHalfEdge<2>* edge_1_twin = edge_1->GetTwinHalfEdge();
+        c_vector<double, 2> vert_twin = edge_1_twin->GetTargetVertex()->rGetLocation();
+        TS_ASSERT_DELTA(vert_twin(0), 0.0,1e-12);
+        TS_ASSERT_DELTA(vert_twin(1), 0.0,1e-12);
+        DCELHalfEdge<2>* walker = edge_1->GetNextHalfEdge();
         while(walker!=edge_1)
         {
             c_vector<double, 2> target_vertex = walker->GetTargetVertex()->rGetLocation();
-            std::cout<<target_vertex(0)<<" "<<target_vertex(1)<<std::endl;
+            DCELHalfEdge<2>* walker_twin = walker->GetTwinHalfEdge();
             walker=walker->GetNextHalfEdge();
         }
         std::cout<<"Backwards: "<<std::endl;
@@ -65,7 +69,6 @@ public:
             std::cout<<target_vertex(0)<<" "<<target_vertex(1)<<std::endl;
             walker=walker->GetPreviousHalfEdge();
         }
-        TS_ASSERT(5==5);
     }
 };
 #endif /*TESTDCELMESH_HPP_*/

@@ -57,7 +57,7 @@ DCELHalfEdge<SPACE_DIM>* DCELVertex<SPACE_DIM>::GetOutgoingEdge() const
 }
 
 template <unsigned int SPACE_DIM>
-void DCELVertex<SPACE_DIM>::SetOutgoingEdge(const DCELHalfEdge<SPACE_DIM>* edge)
+void DCELVertex<SPACE_DIM>::SetOutgoingEdge(DCELHalfEdge<SPACE_DIM>* edge)
 {
     mEdge = edge;
 }
@@ -81,6 +81,9 @@ c_vector<double, SPACE_DIM>& DCELVertex<SPACE_DIM>::rGetModifiableLocation()
     return mLocation;
 }
 
+template class DCELVertex<1>;
+template class DCELVertex<2>;
+template class DCELVertex<3>;
 
 
 

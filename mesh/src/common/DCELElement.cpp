@@ -17,13 +17,14 @@ template<unsigned int SPACE_DIM>
 DCELElement<SPACE_DIM>::DCELElement(std::vector<DCELVertex<SPACE_DIM>* > vertex_list)
 {
     const unsigned int n_nodes = vertex_list.size();
+
     for (unsigned int i=0; i<n_nodes; ++i)
     {
         DCELHalfEdge<SPACE_DIM>* out_edge = vertex_list[i]->GetOutgoingEdge();
         DCELHalfEdge<SPACE_DIM>* edge;
         const unsigned int next_index = (i+1)%n_nodes;
         bool construct_edge = true;
-        if (out_edge!=nullptr)
+        if (!out_edge)
         {
             if (out_edge->GetPreviousHalfEdge()->GetTwinHalfEdge()->GetTargetVertex()==vertex_list[next_index])
             {
@@ -45,6 +46,7 @@ DCELElement<SPACE_DIM>::DCELElement(std::vector<DCELVertex<SPACE_DIM>* > vertex_
         vertex_list[i]->SetOutgoingEdge(edge);
         edge->SetElement(this);
     }
+
     //Linking edges
     for (unsigned int i=0; i<n_nodes; ++i)
     {
@@ -86,4 +88,7 @@ void DCELElement<SPACE_DIM>::SetHalfEdge(DCELHalfEdge<SPACE_DIM>* edge)
     mHalfEdge = edge;
 }
 
+template class DCELElement<1>;
+template class DCELElement<2>;
+template class DCELElement<3>;
 
