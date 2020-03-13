@@ -45,11 +45,15 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ChastePoint.hpp"
 #include "NodeAttributes.hpp"
 
+
 //#include <boost/serialization/vector.hpp>
 //#include <boost/serialization/set.hpp>
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 class AbstractTetrahedralMesh;
+
+template<unsigned int SPACE_DIM>
+class HalfEdge;
 
 /**
  * A node in a finite element mesh.
@@ -184,7 +188,7 @@ public:
     /**
      * Explicit destructor to free memory from mpNodeAttributes.
      */
-    ~Node();
+    virtual ~Node();
 
     /**
      * Set the node's location.
@@ -425,6 +429,19 @@ public:
      * Defaults to 0 if no NodeAttributes have been setup.
      */
     unsigned GetRegion() const;
+
+    /**
+     * Returns outgoing half edge
+     * To be used in HalfEdge DS. The method is overriden in HEVertex class
+     * @return outgoing halfedge
+     */
+    virtual HalfEdge<SPACE_DIM>* GetOutgoingEdge() const;
+    /**
+     * Sets the outgoing half edge.
+     * To be used in HalfEdge DS. The method is overriden in HEVertex class
+     * @param edge that is emanating from this vertex
+     */
+    virtual void SetOutgoingEdge(HalfEdge<SPACE_DIM>* edge);
 
     /**
      * An iterator over the indices of elements which contain this node.

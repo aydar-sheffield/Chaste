@@ -446,6 +446,16 @@ unsigned Node<SPACE_DIM>::GetRegion() const
     return region;
 }
 
+template<unsigned SPACE_DIM>
+HalfEdge<SPACE_DIM>* Node<SPACE_DIM>::GetOutgoingEdge() const
+{
+    return nullptr;
+}
+
+template<unsigned SPACE_DIM>
+void Node<SPACE_DIM>::SetOutgoingEdge(HalfEdge<SPACE_DIM>* edge)
+{
+}
 // Explicit instantiation
 template class Node<1>;
 template class Node<2>;

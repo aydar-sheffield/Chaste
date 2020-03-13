@@ -14,8 +14,8 @@ TestNonCachedTetrahedralMesh.hpp
 TestQuadraticMesh.hpp
 TestTetrahedralMesh.hpp
 TestTransformations.hpp
-TestDCELVertex.hpp
-TestDCELElement.hpp
+TestHEVertex.hpp
+TestHEElement.hpp
 mutable/TestCylindrical2dMesh.hpp
 mutable/TestCylindrical2dNodesOnlyMesh.hpp
 mutable/TestCylindricalHoneycombMeshGenerator.hpp
@@ -42,7 +42,7 @@ vertex/TestVertexMesh.hpp
 vertex/TestVertexMeshReader.hpp
 vertex/TestVertexMeshWriter.hpp
 vertex/TestVoronoiVertexMeshGenerator.hpp
-vertex/TestDCELMesh.hpp
+vertex/TestHEVertexMesh.hpp
 writer/TestMeshWriters.hpp
 writer/TestXmlMeshWriters.hpp
 

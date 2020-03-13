@@ -167,7 +167,7 @@ public:
     /**
      * @return the number of nodes owned by this element.
      */
-    unsigned GetNumNodes() const;
+    virtual unsigned GetNumNodes() const;
 
     /**
      * Add a node to this element.
