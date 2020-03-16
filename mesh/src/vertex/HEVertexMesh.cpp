@@ -112,8 +112,6 @@ template <unsigned SPACE_DIM>
 c_vector<double, SPACE_DIM> HEVertexMesh<SPACE_DIM>::GetCentroidOfElement(unsigned index)
 {
     HEElement<SPACE_DIM>* p_element = GetElement(index);
-    unsigned num_nodes = p_element->GetNumNodes();
-
     c_vector<double, SPACE_DIM> centroid = zero_vector<double>(SPACE_DIM);
 
     switch (SPACE_DIM)

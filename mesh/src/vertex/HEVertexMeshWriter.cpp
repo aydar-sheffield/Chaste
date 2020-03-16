@@ -76,8 +76,7 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
     vtkPoints* p_pts = vtkPoints::New(VTK_DOUBLE);
     p_pts->GetData()->SetName("Vertex positions");
 
-     * Populating points. First, outer points of elements
-
+    //Populating points. First, outer points of elements
     const unsigned n_vertices = rMesh.GetNumNodes();
     for (unsigned i=0; i<n_vertices; ++i)
     {
@@ -113,9 +112,9 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
     for (typename HEVertexMesh<SPACE_DIM>::HEElementIterator elem = rMesh.GetElementIteratorBegin();
             elem != elem_end; ++elem)
     {
-
+        const unsigned int elem_node_num = elem->GetNumNodes();
         c_vector<double, SPACE_DIM> elem_centroid;
-        elem_centroid = rMesh.GetCentroidOfElement(elem->GetIndex())
+        elem_centroid = rMesh.GetCentroidOfElement(elem->GetIndex());
         //Iterate over element nodes
         HalfEdge<SPACE_DIM>* edge = elem->GetHalfEdge();
         HalfEdge<SPACE_DIM>* next_edge = edge;
@@ -146,31 +145,34 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
      * For 3D, if "edge" should be synonymous with face
      * then, in principle, below should work
      * */
-
     unsigned total_n_edges = 0;
-    for (typename HEVertexMesh<ELEMENT_DIM,SPACE_DIM>::HEElementIterator elem = rMesh.GetElementIteratorBegin();
+    for (typename HEVertexMesh<SPACE_DIM>::HEElementIterator elem = rMesh.GetElementIteratorBegin();
             elem != elem_end; ++elem)
     {
         if (SPACE_DIM==2)
         {
+            HalfEdge<SPACE_DIM>* edge = elem->GetHalfEdge();
+            HalfEdge<SPACE_DIM>* next_edge = edge;
             //First do the trapezoids for each edge
-            for (unsigned edge_index = 0; edge_index <elem->GetNumEdges(); ++edge_index)
+            unsigned int local_index = 0;
+            unsigned int next_index = 0;
+            const unsigned int num_edges = elem->GetNumNodes();
+            do
             {
                 vtkCell* p_cell;
                 p_cell = vtkQuad::New();
-                const unsigned n_trap_nodes = p_cell->GetNumberOfEdges(); //4 in 2D, 8 in 3D
-                assert(n_trap_nodes == 4);
+                const unsigned n_trapez_nodes = p_cell->GetNumberOfEdges(); //4 in 2D, 8 in 3D
+                assert(n_trapez_nodes == 4);
+
                 vtkIdList* p_cell_id_list = p_cell->GetPointIds();
-                p_cell_id_list->SetNumberOfIds(n_trap_nodes);
-                auto p_edge = elem->GetEdge(edge_index);
-                assert(p_edge->GetNumNodes()==2);
+                p_cell_id_list->SetNumberOfIds(n_trapez_nodes);
+
                 //See the diagram above for storing pattern
-                std::array<unsigned, 2> base_ids{p_edge->GetNode(0)->GetIndex(),
-                    p_edge->GetNode(1)->GetIndex()};
-                std::array<unsigned, 2> top_ids{elem->GetNodeLocalIndex(base_ids[0])
-                    +cell_offset_dist[elem->GetIndex()],
-                    elem->GetNodeLocalIndex(base_ids[1])+
-                    cell_offset_dist[elem->GetIndex()]};
+                std::array<unsigned, 2> base_ids{next_edge->GetTwinHalfEdge()->GetTargetVertex()->GetIndex(),
+                    next_edge->GetTargetVertex()->GetIndex()};
+                next_index = (local_index+1)%num_edges;
+                std::array<unsigned, 2> top_ids{local_index+cell_offset_dist[elem->GetIndex()],
+                    next_index+cell_offset_dist[elem->GetIndex()]};
                 //Assuming counter-clockwise ordering
                 p_cell_id_list->SetId(0, base_ids[0]);
                 p_cell_id_list->SetId(1, base_ids[1]);
@@ -178,15 +180,18 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
                 p_cell_id_list->SetId(3, top_ids[0]);
                 mpVtkUnstructedMesh->InsertNextCell(p_cell->GetCellType(), p_cell_id_list);
                 p_cell->Delete(); // Reference counted
+
                 total_n_edges++;
-            }
+                next_edge = next_edge->GetNextHalfEdge();
+                local_index++;
+            }while(next_edge!=edge);
+
             //Now do the internal cell
             vtkCell* p_cell;
             p_cell = vtkPolygon::New();
-            const unsigned n_elem_nodes = elem->GetNumNodes();
             vtkIdList* p_cell_id_list = p_cell->GetPointIds();
-            p_cell_id_list->SetNumberOfIds(n_elem_nodes);
-            for (unsigned j=0; j<n_elem_nodes; ++j)
+            p_cell_id_list->SetNumberOfIds(num_edges);
+            for (unsigned j=0; j<num_edges; ++j)
             {
                 p_cell_id_list->SetId(j,cell_offset_dist[elem->GetIndex()]+j);
             }
@@ -209,14 +214,12 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
     //For 2D case. For 3D, we should sum the total number of faces + n_elements
     assert(total_n_edges+n_elements==mpVtkUnstructedMesh->GetNumberOfCells());
 #endif //CHASTE_VTK
-*/
+
 }
 
 template<unsigned int SPACE_DIM>
-void
-HEVertexMeshWriter<SPACE_DIM>::AddCellData(std::string dataName, std::vector<double> dataPayload)
+void HEVertexMeshWriter<SPACE_DIM>::AddCellData(std::string dataName, std::vector<double> dataPayload)
 {
-/*
 #ifdef CHASTE_VTK
     vtkDoubleArray* p_scalars = vtkDoubleArray::New();
     p_scalars->SetName(dataName.c_str());
@@ -229,8 +232,6 @@ HEVertexMeshWriter<SPACE_DIM>::AddCellData(std::string dataName, std::vector<dou
     p_cell_data->AddArray(p_scalars);
     p_scalars->Delete(); // Reference counted
 #endif //CHASTE_VTK
-*/
-
 }
 
 template<unsigned int SPACE_DIM>

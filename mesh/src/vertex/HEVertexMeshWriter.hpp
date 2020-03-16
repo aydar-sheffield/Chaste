@@ -19,7 +19,9 @@ class HEVertexMesh;
 #include <vtkCellData.h>
 #include <vtkPointData.h>
 #include <vtkConvexPointSet.h>
+#include <vtkQuad.h>
 #include <vtkPolygon.h>
+#include <vtkHexahedron.h>
 #include <vtkUnstructuredGrid.h>
 #include <vtkUnstructuredGridWriter.h>
 #include <vtkXMLUnstructuredGridWriter.h>

@@ -223,4 +223,88 @@ public:
     };
 };
 
+//////////////////////////////////////////////////////////////////////////////
+// VertexElementIterator class implementation - most methods are inlined    //
+//////////////////////////////////////////////////////////////////////////////
+
+template <unsigned SPACE_DIM>
+typename HEVertexMesh<SPACE_DIM>::HEElementIterator HEVertexMesh<SPACE_DIM>::GetElementIteratorBegin(
+    bool skipDeletedElements)
+{
+    return HEElementIterator(*this, mElements.begin(), skipDeletedElements);
+}
+
+template <unsigned SPACE_DIM>
+typename HEVertexMesh<SPACE_DIM>::HEElementIterator HEVertexMesh<SPACE_DIM>::GetElementIteratorEnd()
+{
+    return HEElementIterator(*this, mElements.end());
+}
+
+template <unsigned SPACE_DIM>
+HEElement<SPACE_DIM>& HEVertexMesh<SPACE_DIM>::HEElementIterator::operator*()
+{
+    assert(!IsAtEnd());
+    return **mElementIter;
+}
+
+template <unsigned SPACE_DIM>
+HEElement<SPACE_DIM>* HEVertexMesh<SPACE_DIM>::HEElementIterator::operator->()
+{
+    assert(!IsAtEnd());
+    return *mElementIter;
+}
+
+template <unsigned SPACE_DIM>
+bool HEVertexMesh<SPACE_DIM>::HEElementIterator::operator!=(const typename HEVertexMesh<SPACE_DIM>::HEElementIterator& rOther)
+{
+    return mElementIter != rOther.mElementIter;
+}
+
+template <unsigned SPACE_DIM>
+typename HEVertexMesh<SPACE_DIM>::HEElementIterator& HEVertexMesh<SPACE_DIM>::HEElementIterator::operator++()
+{
+    do
+    {
+        ++mElementIter;
+    } while (!IsAtEnd() && !IsAllowedElement());
+
+    return (*this);
+}
+
+template <unsigned SPACE_DIM>
+HEVertexMesh<SPACE_DIM>::HEElementIterator::HEElementIterator(
+    HEVertexMesh<SPACE_DIM>& rMesh,
+    typename std::vector<HEElement<SPACE_DIM>*>::iterator elementIter,
+    bool skipDeletedElements)
+        : mrMesh(rMesh),
+          mElementIter(elementIter),
+          mSkipDeletedElements(skipDeletedElements)
+{
+    if (mrMesh.mElements.empty())
+    {
+        // Cope with empty meshes
+        mElementIter = mrMesh.mElements.end();
+    }
+    else
+    {
+        // Make sure we start at an allowed element
+        if (mElementIter == mrMesh.mElements.begin() && !IsAllowedElement())
+        {
+            ++(*this);
+        }
+    }
+}
+
+template <unsigned SPACE_DIM>
+bool HEVertexMesh<SPACE_DIM>::HEElementIterator::IsAtEnd()
+{
+    return mElementIter == mrMesh.mElements.end();
+}
+
+template <unsigned SPACE_DIM>
+bool HEVertexMesh<SPACE_DIM>::HEElementIterator::IsAllowedElement()
+{
+    return !(mSkipDeletedElements && (*this)->IsDeleted());
+}
+
 #endif /* HEVERTEXMESH_HPP_ */
