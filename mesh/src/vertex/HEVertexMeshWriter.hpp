@@ -36,8 +36,6 @@ class HEVertexMesh;
 template<unsigned SPACE_DIM>
 class HEVertexMesh;
 
-template<unsigned SPACE_DIM>
-struct MeshWriterIterators;
 
 /**
  * A mesh writer class for vertex-based meshes with edge representation. Each edge is associated with
@@ -106,6 +104,14 @@ public:
      * @param dataPayload a pay-load of length (number of elements)
      */
     void AddCellData(std::string dataName, std::vector<double> dataPayload);
+
+    /**
+     * Add data to a future VTK file.
+     *
+     * @param dataName a tag to go into the VTK file
+     * @param dataPayload a pay-load of length (number of nodes)
+     */
+    void AddPointData(std::string dataName, std::vector<double> dataPayload);
 
     /**
      * Destructor.

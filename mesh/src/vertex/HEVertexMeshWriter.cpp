@@ -112,12 +112,13 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
     for (typename HEVertexMesh<SPACE_DIM>::HEElementIterator elem = rMesh.GetElementIteratorBegin();
             elem != elem_end; ++elem)
     {
-        const unsigned int elem_node_num = elem->GetNumNodes();
+        const unsigned int n_elem_nodes = elem->GetNumNodes();
         c_vector<double, SPACE_DIM> elem_centroid;
         elem_centroid = rMesh.GetCentroidOfElement(elem->GetIndex());
         //Iterate over element nodes
         HalfEdge<SPACE_DIM>* edge = elem->GetHalfEdge();
         HalfEdge<SPACE_DIM>* next_edge = edge;
+        unsigned int elem_node_num = 1;
         do
         {
             c_vector<double, SPACE_DIM> node_position;
@@ -136,6 +137,8 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
                                    new_x, new_y, new_z);
             }
             next_edge = next_edge->GetNextHalfEdge();
+            //Node traversal starts at the FIRST local node
+            elem_node_num = (elem_node_num+1)%n_elem_nodes;
         }while(next_edge != edge);
 
     }
@@ -230,6 +233,23 @@ void HEVertexMeshWriter<SPACE_DIM>::AddCellData(std::string dataName, std::vecto
 
     vtkCellData* p_cell_data = mpVtkUnstructedMesh->GetCellData();
     p_cell_data->AddArray(p_scalars);
+    p_scalars->Delete(); // Reference counted
+#endif //CHASTE_VTK
+}
+
+template<unsigned SPACE_DIM>
+void HEVertexMeshWriter<SPACE_DIM>::AddPointData(std::string dataName, std::vector<double> dataPayload)
+{
+#ifdef CHASTE_VTK
+    vtkDoubleArray* p_scalars = vtkDoubleArray::New();
+    p_scalars->SetName(dataName.c_str());
+    for (unsigned i=0; i<dataPayload.size(); i++)
+    {
+        p_scalars->InsertNextValue(dataPayload[i]);
+    }
+
+    vtkPointData* p_point_data = mpVtkUnstructedMesh->GetPointData();
+    p_point_data->AddArray(p_scalars);
     p_scalars->Delete(); // Reference counted
 #endif //CHASTE_VTK
 }

@@ -43,7 +43,7 @@ protected:
      * @param index the global index of the node
      * @return local index
      */
-    unsigned SolveNodeMapping(unsigned index) const;
+    virtual unsigned SolveNodeMapping(unsigned index) const override;
 
     /**
      * Test whether a given point lies inside a given element.
