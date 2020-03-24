@@ -122,7 +122,7 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
         do
         {
             c_vector<double, SPACE_DIM> node_position;
-            node_position = next_edge->GetTargetVertex()->rGetLocation();
+            node_position = next_edge->GetTargetNode()->rGetLocation();
             const double new_x = (node_position[0]-elem_centroid[0])*alpha + elem_centroid[0];
             const double new_y = (node_position[1]-elem_centroid[1])*alpha + elem_centroid[1];
             if (SPACE_DIM == 2)
@@ -171,8 +171,8 @@ void HEVertexMeshWriter<SPACE_DIM>::MakeVtkMesh(HEVertexMesh<SPACE_DIM> &rMesh)
                 p_cell_id_list->SetNumberOfIds(n_trapez_nodes);
 
                 //See the diagram above for storing pattern
-                std::array<unsigned, 2> base_ids{next_edge->GetTwinHalfEdge()->GetTargetVertex()->GetIndex(),
-                    next_edge->GetTargetVertex()->GetIndex()};
+                std::array<unsigned, 2> base_ids{next_edge->GetTwinHalfEdge()->GetTargetNode()->GetIndex(),
+                    next_edge->GetTargetNode()->GetIndex()};
                 next_index = (local_index+1)%num_edges;
                 std::array<unsigned, 2> top_ids{local_index+cell_offset_dist[elem->GetIndex()],
                     next_index+cell_offset_dist[elem->GetIndex()]};

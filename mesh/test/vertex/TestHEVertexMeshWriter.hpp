@@ -59,15 +59,15 @@ public:
     void TestHEVertexMeshWriterIn2d()
     {
         // Create a 2D mesh comprising seven nodes and two elements
-        std::vector<HEVertex<2>*> nodes_2d;
-        nodes_2d.push_back(new HEVertex<2>(0, false, 0.0, 0.0));
-        nodes_2d.push_back(new HEVertex<2>(1, false, 1.0, 0.0));
-        nodes_2d.push_back(new HEVertex<2>(2, false, 1.5, 1.0));
-        nodes_2d.push_back(new HEVertex<2>(3, false, 1.0, 2.0));
-        nodes_2d.push_back(new HEVertex<2>(4, false, 0.0, 1.0));
-        nodes_2d.push_back(new HEVertex<2>(5, false, 2.0, 0.0));
+        std::vector<HENode<2>*> nodes_2d;
+        nodes_2d.push_back(new HENode<2>(0, false, 0.0, 0.0));
+        nodes_2d.push_back(new HENode<2>(1, false, 1.0, 0.0));
+        nodes_2d.push_back(new HENode<2>(2, false, 1.5, 1.0));
+        nodes_2d.push_back(new HENode<2>(3, false, 1.0, 2.0));
+        nodes_2d.push_back(new HENode<2>(4, false, 0.0, 1.0));
+        nodes_2d.push_back(new HENode<2>(5, false, 2.0, 0.0));
 
-        std::vector<std::vector<HEVertex<2>*> > nodes_elements_2d(2);
+        std::vector<std::vector<HENode<2>*> > nodes_elements_2d(2);
         for (unsigned i=0; i<5; i++)
         {
             nodes_elements_2d[0].push_back(nodes_2d[i]);

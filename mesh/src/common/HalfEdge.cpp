@@ -8,13 +8,13 @@
 #include "HalfEdge.hpp"
 
 #include "HEElement.hpp"
-#include "HEVertex.hpp"
+#include "HENode.hpp"
 
 template<unsigned int SPACE_DIM>
-HalfEdge<SPACE_DIM>::HalfEdge()
+HalfEdge<SPACE_DIM>::HalfEdge(HEElement<SPACE_DIM>* pElement)
 :
-mTwin(nullptr), mNextEdge(nullptr), mPreviousEdge(nullptr),
-mTargetVertex(nullptr), mElement(nullptr),mIndex(0)
+mpTwin(nullptr), mpNextEdge(nullptr), mpPreviousEdge(nullptr),
+mpTargetNode(nullptr), mpElement(pElement),mIndex(0), mIsDeleted(false)
 {
 }
 
@@ -25,67 +25,83 @@ HalfEdge<SPACE_DIM>::~HalfEdge()
 template<unsigned int SPACE_DIM>
 HalfEdge<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetTwinHalfEdge() const
 {
-    return mTwin;
+    return mpTwin;
 }
 
 template<unsigned int SPACE_DIM>
-void HalfEdge<SPACE_DIM>::SetTwinHalfEdge(HalfEdge<SPACE_DIM>* edge)
+void HalfEdge<SPACE_DIM>::SetTwinHalfEdge(HalfEdge<SPACE_DIM>* pEdge, const bool SetOtherEdgeToo)
 {
-    mTwin = edge;
+    mpTwin = pEdge;
+    if (SetOtherEdgeToo)
+        pEdge->SetTwinHalfEdge(this);
 }
 
 template<unsigned int SPACE_DIM>
 HalfEdge<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetNextHalfEdge() const
 {
-    return mNextEdge;
+    return mpNextEdge;
 }
 
 template<unsigned int SPACE_DIM>
-void HalfEdge<SPACE_DIM>::SetNextHalfEdge(HalfEdge<SPACE_DIM>* edge)
+void HalfEdge<SPACE_DIM>::SetNextHalfEdge(HalfEdge<SPACE_DIM>* pEdge, const bool SetOtherEdgeToo)
 {
-    mNextEdge = edge;
+    mpNextEdge = pEdge;
+    if (SetOtherEdgeToo)
+        pEdge->SetPreviousHalfEdge(this);
 }
 
 template<unsigned int SPACE_DIM>
 HalfEdge<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetPreviousHalfEdge() const
 {
-    return mPreviousEdge;
+    return mpPreviousEdge;
 }
 
 template<unsigned int SPACE_DIM>
-void HalfEdge<SPACE_DIM>::SetPreviousHalfEdge(HalfEdge<SPACE_DIM>* edge)
+void HalfEdge<SPACE_DIM>::SetPreviousHalfEdge(HalfEdge<SPACE_DIM>* pEdge, const bool SetOtherEdgeToo)
 {
-    mPreviousEdge = edge;
+    mpPreviousEdge = pEdge;
+    if (SetOtherEdgeToo)
+        pEdge->SetNextHalfEdge(this);
 }
 
 template<unsigned int SPACE_DIM>
-HEVertex<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetOriginVertex() const
+HENode<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetOriginNode() const
 {
-    return mTwin->GetTargetVertex();
+    return mpTwin->GetTargetNode();
 }
 
 template<unsigned int SPACE_DIM>
-HEVertex<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetTargetVertex() const
+void HalfEdge<SPACE_DIM>::SetOriginNode(HENode<SPACE_DIM>* pNode)
 {
-    return mTargetVertex;
+    GetPreviousHalfEdge()->SetTargetNode(pNode);
+    GetTwinHalfEdge()->SetTargetNode(pNode);
+    pNode->SetOutgoingEdge(this);
 }
 
 template<unsigned int SPACE_DIM>
-void HalfEdge<SPACE_DIM>::SetTargetVertex(HEVertex<SPACE_DIM>* vertex)
+HENode<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetTargetNode() const
 {
-    mTargetVertex = vertex;
+    return mpTargetNode;
+}
+
+template<unsigned int SPACE_DIM>
+void HalfEdge<SPACE_DIM>::SetTargetNode(HENode<SPACE_DIM>* pNode, const bool ModifyAdjacentEdges)
+{
+    mpTargetNode = pNode;
+    if (ModifyAdjacentEdges)
+        GetNextHalfEdge()->GetTwinHalfEdge()->SetTargetNode(pNode);
 }
 
 template<unsigned int SPACE_DIM>
 HEElement<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetElement() const
 {
-    return mElement;
+    return mpElement;
 }
 
 template<unsigned int SPACE_DIM>
-void HalfEdge<SPACE_DIM>::SetElement(HEElement<SPACE_DIM>* element)
+void HalfEdge<SPACE_DIM>::SetElement(HEElement<SPACE_DIM>* pElement)
 {
-    mElement = element;
+    mpElement = pElement;
 }
 
 template<unsigned int SPACE_DIM>
@@ -98,6 +114,26 @@ template<unsigned int SPACE_DIM>
 void HalfEdge<SPACE_DIM>::SetIndex(const unsigned new_index)
 {
     mIndex = new_index;
+}
+
+template<unsigned int SPACE_DIM>
+bool HalfEdge<SPACE_DIM>::IsDeleted() const
+{
+    return mIsDeleted;
+}
+
+template<unsigned int SPACE_DIM>
+void HalfEdge<SPACE_DIM>::SetDeletedStatus(const bool status, const bool SetTwin)
+{
+    mIsDeleted = status;
+    if (SetTwin)
+        mpTwin->SetDeletedStatus(status);
+}
+
+template<unsigned int SPACE_DIM>
+bool HalfEdge<SPACE_DIM>::IsFullyInitialized() const
+{
+    return mpTwin&&mpNextEdge&&mpPreviousEdge&&mpTargetNode;
 }
 template class HalfEdge<1>;
 template class HalfEdge<2>;

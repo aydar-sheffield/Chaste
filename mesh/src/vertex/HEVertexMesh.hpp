@@ -10,21 +10,24 @@
 
 #include "AbstractMesh.hpp"
 #include "HEElement.hpp"
+#include "VertexMesh.hpp"
+
+/**
+ * Container class to represent a (full) edge.
+ * Useful for edge traversal over the mesh
+ */
 template <unsigned int SPACE_DIM>
-struct Edge
+struct FullEdge
 {
-    Edge();
-    Edge(HalfEdge<SPACE_DIM>* edge0, HalfEdge<SPACE_DIM>* edge1)
+    FullEdge();
+    FullEdge(HalfEdge<SPACE_DIM>* edge0, HalfEdge<SPACE_DIM>* edge1)
     :
         first(edge0),
         second(edge1),
         length(0)
     {}
-    ~Edge()
-    {
-        delete first;
-        delete second;
-    }
+    ~FullEdge()
+    {}
     HalfEdge<SPACE_DIM>* first;
     HalfEdge<SPACE_DIM>* second;
     double length;
@@ -33,8 +36,11 @@ template <unsigned int SPACE_DIM>
 class HEVertexMesh: public AbstractMesh<SPACE_DIM, SPACE_DIM>
 {
 protected:
+    /** List of elements */
     std::vector<HEElement<SPACE_DIM>* > mElements;
-    std::vector<Edge<SPACE_DIM>* > mEdges;
+
+    /** List of edge */
+    std::vector<FullEdge<SPACE_DIM>* > mFullEdges;
 
     /**
      * Solve node mapping method. This overridden method is required
@@ -100,7 +106,7 @@ public:
      * @param nodes vector of pointers to HEVertices
      * @param elements vector of pointers to HEElements
      */
-    HEVertexMesh(std::vector<HEVertex<SPACE_DIM>* > vertices,
+    HEVertexMesh(std::vector<HENode<SPACE_DIM>* > vertices,
                  std::vector<HEElement<SPACE_DIM>* > elements);
 
     /**
@@ -113,7 +119,26 @@ public:
                  std::vector<VertexElement<SPACE_DIM, SPACE_DIM>*> vertexElements);
 
     /**
-     * Delete mNodes, mFaces and mElements.
+     * Constructor that creates HEVertexMesh from VertexMesh
+     * @param vertex_mesh mesh to be copied into HEVertexMesh
+     */
+    HEVertexMesh(VertexMesh<SPACE_DIM, SPACE_DIM>* vertex_mesh);
+
+    /**
+     * Destructor
+     */
+    ~HEVertexMesh();
+
+    /**
+     * Convert Nodes and VertexElements into HEVertices and HEElements
+     * @param nodes
+     * @param vertexElements
+     */
+    void ConvertFromVertexMesh(std::vector<Node<SPACE_DIM>*> nodes,
+                                 std::vector<VertexElement<SPACE_DIM, SPACE_DIM>*> vertexElements);
+
+    /**
+     * Delete mNodes, mEdges and mElements.
      */
     virtual void Clear();
 
@@ -150,6 +175,26 @@ public:
      * @return (centroid_x, centroid_y).
      */
     virtual c_vector<double, SPACE_DIM> GetCentroidOfElement(unsigned index);
+
+    /**
+     * Get the volume (or area in 2D, or length in 1D) of an element.
+     *
+     * This needs to be overridden in daughter classes for non-Euclidean metrics.
+     *
+     * @param index  the global index of a specified vertex element
+     *
+     * @return the volume of the element
+     */
+    virtual double GetVolumeOfElement(unsigned index);
+
+    /**
+     * Constructs full edges for easier edge traversal across the mesh
+     */
+    void ConstructFullEdges();
+
+    FullEdge<SPACE_DIM>* GetFullEdge(const unsigned int index) const;
+
+    unsigned int GetNumFullEdges() const;
 
     /**
      * A smart iterator over the elements in the mesh.
@@ -224,7 +269,7 @@ public:
 };
 
 //////////////////////////////////////////////////////////////////////////////
-// VertexElementIterator class implementation - most methods are inlined    //
+// HEElementIterator class implementation - most methods are inlined    //
 //////////////////////////////////////////////////////////////////////////////
 
 template <unsigned SPACE_DIM>

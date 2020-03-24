@@ -1,18 +1,18 @@
 /*
- * DCELVertex.hpp
+ * HENode.hpp
  *
  *  Created on: 3 Mar 2020
  *      Author: aydar
  */
 
-#ifndef HEVERTEX_HPP_
-#define HEVERTEX_HPP_
+#ifndef HENODE_HPP_
+#define HENODE_HPP_
 
 #include "HalfEdge.hpp"
 #include "UblasVectorInclude.hpp"
 #include "Node.hpp"
 template<unsigned int SPACE_DIM>
-class HEVertex : public Node<SPACE_DIM>
+class HENode : public Node<SPACE_DIM>
 {
 public:
     /**
@@ -23,8 +23,8 @@ public:
      * @param isBoundaryNode  whether the node is a boundary node (defaults to false)
      * @param edge the pointer to the outgoing edge
      */
-    HEVertex(unsigned index, std::vector<double> coords,
-             bool isBoundaryNode=false, HalfEdge<SPACE_DIM>* edge = nullptr);
+    HENode(unsigned index, std::vector<double> coords,
+             bool isBoundaryNode=false, HalfEdge<SPACE_DIM>* pEdge = nullptr);
 
     /**
      * Constructor that takes in the node's location as a c_vector.
@@ -34,8 +34,8 @@ public:
      * @param isBoundaryNode  whether the node is a boundary node (defaults to false)
      * @param edge the pointer to the outgoing edge
      */
-    HEVertex(unsigned index, c_vector<double, SPACE_DIM> location,
-             bool isBoundaryNode=false, HalfEdge<SPACE_DIM>* edge = nullptr);
+    HENode(unsigned index, c_vector<double, SPACE_DIM> location,
+             bool isBoundaryNode=false, HalfEdge<SPACE_DIM>* pEdge = nullptr);
 
     /**
      * Constructor that takes the coordinates of the node's location as separate input arguments.
@@ -47,28 +47,28 @@ public:
      * @param v3 the z-coordinate of the node in the mesh (defaults to 0)
      * @param edge the pointer to the outgoing edge
      */
-    HEVertex(unsigned index, bool isBoundaryNode=false,
+    HENode(unsigned index, bool isBoundaryNode=false,
              double v1=0, double v2=0, double v3=0,
-             HalfEdge<SPACE_DIM>* edge = nullptr);
+             HalfEdge<SPACE_DIM>* pEdge = nullptr);
     /**
-     * Constructor to convert Node object ot HEVertex object
+     * Constructor to convert Node object ot HENode object
      * @param node
      */
-    HEVertex(const Node<SPACE_DIM> &node, HalfEdge<SPACE_DIM>* edge = nullptr);
+    HENode(const Node<SPACE_DIM> &rNode, HalfEdge<SPACE_DIM>* pEdge = nullptr);
 
-    ~HEVertex();
+    ~HENode();
     HalfEdge<SPACE_DIM>* GetOutgoingEdge() const override;
-    void SetOutgoingEdge(HalfEdge<SPACE_DIM>* edge) override;
+    void SetOutgoingEdge(HalfEdge<SPACE_DIM>* pEdge) override;
 
     HalfEdge<SPACE_DIM>* GetIncomingEdge() const;
-    /** Get vertex the outgoing edge points to **/
-    HEVertex<SPACE_DIM>* GetNextVertex() const;
+    /** Get Node the outgoing edge points to **/
+    HENode<SPACE_DIM>* GetNextNode() const;
 
     void UpdateElementIndices();
 private:
     /** Outgoing edge **/
-    HalfEdge<SPACE_DIM>* mEdge;
+    HalfEdge<SPACE_DIM>* mpEdge;
 };
 
 
-#endif /* DCELVERTEX_HPP_ */
+#endif /* HENODE_HPP_ */
