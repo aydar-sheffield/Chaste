@@ -37,7 +37,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iostream>
 #include <fstream>
 #include <set>
-#include <chrono>
 #include "AbstractCellBasedSimulation.hpp"
 #include "CellBasedEventHandler.hpp"
 #include "LogFile.hpp"
@@ -287,6 +286,18 @@ std::vector<boost::shared_ptr<AbstractCellBasedSimulationModifier<ELEMENT_DIM, S
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::AddTopologyUpdateSimulationModifier(boost::shared_ptr<AbstractCellBasedSimulationModifier<ELEMENT_DIM,SPACE_DIM> > pSimulationModifier)
+{
+    mTopologyUpdateSimulationModifiers.push_back(pSimulationModifier);
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+std::vector<boost::shared_ptr<AbstractCellBasedSimulationModifier<ELEMENT_DIM, SPACE_DIM> > >* AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::GetTopologyUpdateSimulationModifiers()
+{
+    return &mTopologyUpdateSimulationModifiers;
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 std::vector<double> AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::GetNodeLocation(const unsigned& rNodeIndex)
 {
     std::vector<double> location;
@@ -394,6 +405,14 @@ void AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::Solve()
         (*iter)->SetupSolve(this->mrCellPopulation,this->mSimulationOutputDirectory);
     }
 
+    // Call SetupSolve() on each topology update modifier
+    for (typename std::vector<boost::shared_ptr<AbstractCellBasedSimulationModifier<ELEMENT_DIM, SPACE_DIM> > >::iterator iter = mTopologyUpdateSimulationModifiers.begin();
+            iter != mTopologyUpdateSimulationModifiers.end();
+            ++iter)
+    {
+        (*iter)->SetupSolve(this->mrCellPopulation,this->mSimulationOutputDirectory);
+    }
+
     /*
      * Age the cells to the correct time. Note that cells are created with
      * negative birth times so that some are initially almost ready to divide.
@@ -429,19 +448,8 @@ void AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::Solve()
     {
         LOG(1, "--TIME = " << p_simulation_time->GetTime() << "\n");
 
-        std::clock_t c_start_total = std::clock();
-        auto t_start_total = std::chrono::high_resolution_clock::now();
-
-        std::clock_t c_start_remesh = std::clock();
-        auto t_start_remesh = std::chrono::high_resolution_clock::now();
-
         // This function calls DoCellRemoval(), DoCellBirth() and CellPopulation::Update()
         UpdateCellPopulation();
-
-        std::clock_t c_end_remesh = std::clock();
-        auto t_end_remesh = std::chrono::high_resolution_clock::now();
-        const double cpu_time_remesh = (c_end_remesh-c_start_remesh)/CLOCKS_PER_SEC;
-        const double wall_time_remesh = std::chrono::duration_cast<std::chrono::nanoseconds>(t_end_remesh - t_start_remesh).count();
 
         // Store whether we are sampling results at the current timestep
         SimulationTime* p_time = SimulationTime::Instance();
@@ -465,34 +473,18 @@ void AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::Solve()
             }
         }
 
-        /* Call UpdateAtEndOfTimeStep() on each modifier
-         * Note that UpdateCellPopulation() may affect cell properties that influence cell locations
-         * and topology update. Therefore, simulation modifiers must be called before UpdateCellLocationsAndTopology()*/
+        /* Call UpdateAtEndOfTimeStep() on each topology update modifier */
         CellBasedEventHandler::BeginEvent(CellBasedEventHandler::UPDATESIMULATION);
-        std::clock_t c_start_update = std::clock();
-        auto t_start_update = std::chrono::high_resolution_clock::now();
-        for (typename std::vector<boost::shared_ptr<AbstractCellBasedSimulationModifier<ELEMENT_DIM, SPACE_DIM> > >::iterator iter = mSimulationModifiers.begin();
-                iter != mSimulationModifiers.end();
+        for (typename std::vector<boost::shared_ptr<AbstractCellBasedSimulationModifier<ELEMENT_DIM, SPACE_DIM> > >::iterator iter = mTopologyUpdateSimulationModifiers.begin();
+                iter != mTopologyUpdateSimulationModifiers.end();
                 ++iter)
         {
             (*iter)->UpdateAtEndOfTimeStep(this->mrCellPopulation);
         }
-        std::clock_t c_end_update = std::clock();
-        auto t_end_update = std::chrono::high_resolution_clock::now();
-        const double cpu_time_update = (c_end_update-c_start_update)/CLOCKS_PER_SEC;
-        const double wall_time_update = std::chrono::duration_cast<std::chrono::nanoseconds>(t_end_update - t_start_update).count();
         CellBasedEventHandler::EndEvent(CellBasedEventHandler::UPDATESIMULATION);
-
-        std::clock_t c_start_nodes = std::clock();
-        auto t_start_nodes = std::chrono::high_resolution_clock::now();
 
         // Update cell locations and topology
         UpdateCellLocationsAndTopology();
-
-        std::clock_t c_end_nodes = std::clock();
-        auto t_end_nodes = std::chrono::high_resolution_clock::now();
-        const double cpu_time_nodes = (c_end_nodes-c_start_nodes)/CLOCKS_PER_SEC;
-        const double wall_time_nodes = std::chrono::duration_cast<std::chrono::nanoseconds>(t_end_nodes - t_start_nodes).count();
 
         // Now write cell velocities to file if required
         if (mOutputCellVelocities && at_sampling_timestep)
@@ -530,6 +522,16 @@ void AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::Solve()
         // Increment simulation time here, so results files look sensible
         p_simulation_time->IncrementTimeOneStep();
 
+        /* Call UpdateAtEndOfTimeStep() on each modifier */
+        CellBasedEventHandler::BeginEvent(CellBasedEventHandler::UPDATESIMULATION);
+        for (typename std::vector<boost::shared_ptr<AbstractCellBasedSimulationModifier<ELEMENT_DIM, SPACE_DIM> > >::iterator iter = mSimulationModifiers.begin();
+                iter != mSimulationModifiers.end();
+                ++iter)
+        {
+            (*iter)->UpdateAtEndOfTimeStep(this->mrCellPopulation);
+        }
+        CellBasedEventHandler::EndEvent(CellBasedEventHandler::UPDATESIMULATION);
+
         // Output current results to file
         CellBasedEventHandler::BeginEvent(CellBasedEventHandler::OUTPUT);
         if (p_simulation_time->GetTimeStepsElapsed()%mSamplingTimestepMultiple == 0)// should be at_sampling_timestep !
@@ -545,14 +547,6 @@ void AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::Solve()
             }
         }
         CellBasedEventHandler::EndEvent(CellBasedEventHandler::OUTPUT);
-        std::clock_t c_end_total = std::clock();
-        auto t_end_total = std::chrono::high_resolution_clock::now();
-        const double cpu_time_total = (c_end_total-c_start_total)/CLOCKS_PER_SEC;
-        const double wall_time_total = std::chrono::duration_cast<std::chrono::nanoseconds>(t_end_total - t_start_total).count();
-
-        std::cout<<"Population/Location/Update: "<<wall_time_remesh/wall_time_total*100
-                <<" "<<wall_time_nodes/wall_time_total*100<<" "<<wall_time_update/wall_time_total*100<<std::endl;
-
     }
 
     LOG(1, "--END TIME = " << p_simulation_time->GetTime() << "\n");

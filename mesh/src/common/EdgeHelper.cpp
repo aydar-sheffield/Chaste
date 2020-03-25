@@ -43,6 +43,10 @@ EdgeHelper<SPACE_DIM>::EdgeHelper()
 template<unsigned int SPACE_DIM>
 EdgeHelper<SPACE_DIM>::~EdgeHelper()
 {
+    for (unsigned int i=0; i<mEdges.size(); ++i)
+    {
+        delete mEdges[i];
+    }
 }
 
 template<unsigned int SPACE_DIM>
@@ -59,8 +63,6 @@ void EdgeHelper<SPACE_DIM>::Clear()
 template<unsigned int SPACE_DIM>
 Edge<SPACE_DIM> *EdgeHelper<SPACE_DIM>::GetEdgeFromNodes(Node<SPACE_DIM> *node0, Node<SPACE_DIM> *node1)
 {
-    assert(node0->GetIndex() != node1->GetIndex());
-
     // Swap node so we always have the lower index as node 0
     if (node0->GetIndex() > node1->GetIndex())
     {
