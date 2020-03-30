@@ -48,14 +48,12 @@ MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::MutableVertexMesh(std::vector<Node<SP
                                                              double protorosetteFormationProbability,
                                                              double protorosetteResolutionProbabilityPerTimestep,
                                                              double rosetteResolutionProbabilityPerTimestep)
-        : mCellRearrangementThreshold(cellRearrangementThreshold),
-          mCellRearrangementRatio(cellRearrangementRatio),
-          mT2Threshold(t2Threshold),
-          mProtorosetteFormationProbability(protorosetteFormationProbability),
-          mProtorosetteResolutionProbabilityPerTimestep(protorosetteResolutionProbabilityPerTimestep),
-          mRosetteResolutionProbabilityPerTimestep(rosetteResolutionProbabilityPerTimestep),
-          mCheckForInternalIntersections(false),
-          mDistanceForT3SwapChecking(5.0)
+        : AbstractMutableVertexMesh<ELEMENT_DIM, SPACE_DIM>(cellRearrangementThreshold,
+                                                            t2Threshold,
+                                                            cellRearrangementRatio,
+                                                            protorosetteFormationProbability,
+                                                            protorosetteResolutionProbabilityPerTimestep,
+                                                            rosetteResolutionProbabilityPerTimestep)
 {
     // Threshold parameters must be strictly positive
     assert(cellRearrangementThreshold > 0.0);
@@ -122,14 +120,6 @@ MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::MutableVertexMesh(std::vector<Node<SP
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::MutableVertexMesh()
-    : mCellRearrangementThreshold(0.01),
-      mCellRearrangementRatio(1.5),
-      mT2Threshold(0.001),
-      mProtorosetteFormationProbability(0.0),
-      mProtorosetteResolutionProbabilityPerTimestep(0.0),
-      mRosetteResolutionProbabilityPerTimestep(0.0),
-      mCheckForInternalIntersections(false),
-      mDistanceForT3SwapChecking(5.0)
 {
     // Note that the member variables initialised above will be overwritten as soon as archiving is complete
     this->mMeshChangesDuringSimulation = true;
@@ -140,135 +130,6 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::~MutableVertexMesh()
 {
     Clear();
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-double MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetCellRearrangementThreshold() const
-{
-    return mCellRearrangementThreshold;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-double MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetT2Threshold() const
-{
-    return mT2Threshold;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-double MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetCellRearrangementRatio() const
-{
-    return mCellRearrangementRatio;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-double MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetProtorosetteFormationProbability() const
-{
-    return this->mProtorosetteFormationProbability;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-double MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetProtorosetteResolutionProbabilityPerTimestep() const
-{
-    return this->mProtorosetteResolutionProbabilityPerTimestep;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-double MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetRosetteResolutionProbabilityPerTimestep() const
-{
-    return this->mRosetteResolutionProbabilityPerTimestep;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::SetDistanceForT3SwapChecking(double distanceForT3SwapChecking)
-{
-    mDistanceForT3SwapChecking = distanceForT3SwapChecking;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-double MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetDistanceForT3SwapChecking() const
-{
-    return mDistanceForT3SwapChecking;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetCheckForInternalIntersections() const
-{
-    return mCheckForInternalIntersections;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::SetCellRearrangementThreshold(double cellRearrangementThreshold)
-{
-    mCellRearrangementThreshold = cellRearrangementThreshold;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::SetT2Threshold(double t2Threshold)
-{
-    mT2Threshold = t2Threshold;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::SetCellRearrangementRatio(double cellRearrangementRatio)
-{
-    mCellRearrangementRatio = cellRearrangementRatio;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::SetProtorosetteFormationProbability(double protorosetteFormationProbability)
-{
-    // Check that the new value is in [0,1]
-    if (protorosetteFormationProbability < 0.0)
-    {
-        EXCEPTION("Attempting to assign a negative probability.");
-    }
-    if (protorosetteFormationProbability > 1.0)
-    {
-        EXCEPTION("Attempting to assign a probability greater than one.");
-    }
-
-    // Assign the new value
-    mProtorosetteFormationProbability = protorosetteFormationProbability;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::SetProtorosetteResolutionProbabilityPerTimestep(double protorosetteResolutionProbabilityPerTimestep)
-{
-    // Check that the new value is in [0,1]
-    if (protorosetteResolutionProbabilityPerTimestep < 0.0)
-    {
-        EXCEPTION("Attempting to assign a negative probability.");
-    }
-    if (protorosetteResolutionProbabilityPerTimestep > 1.0)
-    {
-        EXCEPTION("Attempting to assign a probability greater than one.");
-    }
-
-    // Assign the new value
-    mProtorosetteResolutionProbabilityPerTimestep = protorosetteResolutionProbabilityPerTimestep;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::SetRosetteResolutionProbabilityPerTimestep(double rosetteResolutionProbabilityPerTimestep)
-{
-    // Check that the new value is in [0,1]
-    if (rosetteResolutionProbabilityPerTimestep < 0.0)
-    {
-        EXCEPTION("Attempting to assign a negative probability.");
-    }
-    if (rosetteResolutionProbabilityPerTimestep > 1.0)
-    {
-        EXCEPTION("Attempting to assign a probability greater than one.");
-    }
-
-    // Assign the new value
-    mRosetteResolutionProbabilityPerTimestep = rosetteResolutionProbabilityPerTimestep;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::SetCheckForInternalIntersections(bool checkForInternalIntersections)
-{
-    mCheckForInternalIntersections = checkForInternalIntersections;
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -430,7 +291,7 @@ unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::DivideElementAlongGivenAxis(
 
         c_vector<double, SPACE_DIM> intersection;
 
-        if (norm_2(a_to_b) < 2.0*mCellRearrangementRatio*mCellRearrangementThreshold)
+        if (norm_2(a_to_b) < 2.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold)
         {
             WARNING("Edge is too small for normal division; putting node in the middle of a and b. There may be T1 swaps straight away.");
             ///\todo or should we move a and b apart, it may interfere with neighbouring edges? (see #1399 and #2401)
@@ -452,20 +313,20 @@ unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::DivideElementAlongGivenAxis(
 
             /*
              * If then new node is too close to one of the edge nodes, then reposition it
-             * a distance mCellRearrangementRatio*mCellRearrangementThreshold further along the edge.
+             * a distance this->mCellRearrangementRatio*this->mCellRearrangementThreshold further along the edge.
              */
             c_vector<double, SPACE_DIM> a_to_intersection = this->GetVectorFromAtoB(position_a, intersection);
-            if (norm_2(a_to_intersection) < mCellRearrangementThreshold)
+            if (norm_2(a_to_intersection) < this->mCellRearrangementThreshold)
             {
-                intersection = position_a + mCellRearrangementRatio*mCellRearrangementThreshold*a_to_b/norm_2(a_to_b);
+                intersection = position_a + this->mCellRearrangementRatio*this->mCellRearrangementThreshold*a_to_b/norm_2(a_to_b);
             }
 
             c_vector<double, SPACE_DIM> b_to_intersection = this->GetVectorFromAtoB(position_b, intersection);
-            if (norm_2(b_to_intersection) < mCellRearrangementThreshold)
+            if (norm_2(b_to_intersection) < this->mCellRearrangementThreshold)
             {
-                assert(norm_2(a_to_intersection) > mCellRearrangementThreshold); // to prevent moving intersection back to original position
+                assert(norm_2(a_to_intersection) > this->mCellRearrangementThreshold); // to prevent moving intersection back to original position
 
-                intersection = position_b - mCellRearrangementRatio*mCellRearrangementThreshold*a_to_b/norm_2(a_to_b);
+                intersection = position_b - this->mCellRearrangementRatio*this->mCellRearrangementThreshold*a_to_b/norm_2(a_to_b);
             }
         }
 
@@ -949,7 +810,7 @@ bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForSwapsFromShortEdges()
             double distance_between_nodes = this->GetDistanceBetweenNodes(p_current_node->GetIndex(), p_anticlockwise_node->GetIndex());
 
             // If the nodes are too close together...
-            if (distance_between_nodes < mCellRearrangementThreshold)
+            if (distance_between_nodes < this->mCellRearrangementThreshold)
             {
                 // ...then check if any triangular elements are shared by these nodes...
                 std::set<unsigned> elements_of_node_a = p_current_node->rGetContainingElementIndices();
@@ -997,7 +858,7 @@ bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForT2Swaps(VertexElementMap
         if (elem_iter->GetNumNodes() == 3)
         {
             // ...and smaller than the threshold area...
-            if (this->GetVolumeOfElement(elem_iter->GetIndex()) < GetT2Threshold())
+            if (this->GetVolumeOfElement(elem_iter->GetIndex()) < this->GetT2Threshold())
             {
                 // ...then perform a T2 swap and break out of the loop
                 PerformT2Swap(*elem_iter);
@@ -1014,7 +875,7 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForIntersections()
 {
     // If checking for internal intersections as well as on the boundary, then check that no nodes have overlapped any elements...
-    if (mCheckForInternalIntersections)
+    if (this->mCheckForInternalIntersections)
     {
         ///\todo Change to only loop over neighbouring elements (see #2401)
         for (typename AbstractMesh<ELEMENT_DIM,SPACE_DIM>::NodeIterator node_iter = this->GetNodeIteratorBegin();
@@ -1061,7 +922,7 @@ bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForIntersections()
         }
 
         // Second: Check intersections only for those nodes and elements within
-        // mDistanceForT3SwapChecking within each other (node<-->element centroid)
+        // this->mDistanceForT3SwapChecking within each other (node<-->element centroid)
         for (typename AbstractMesh<ELEMENT_DIM,SPACE_DIM>::NodeIterator node_iter = this->GetNodeIteratorBegin();
                 node_iter != this->GetNodeIteratorEnd();
                 ++node_iter)
@@ -1083,7 +944,7 @@ bool MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForIntersections()
                         c_vector<double, SPACE_DIM> element_centroid = boundary_element_centroids[boundary_element_index];
                         double node_element_distance = norm_2(this->GetVectorFromAtoB(node_location, element_centroid));
 
-                        if ( node_element_distance < mDistanceForT3SwapChecking )
+                        if ( node_element_distance < this->mDistanceForT3SwapChecking )
                         {
                             if (this->ElementIncludesPoint(node_iter->rGetLocation(), *elem_iter))
                             {
@@ -1414,7 +1275,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::IdentifySwapType(Node<SPACE_DIM>
                  * This case is handled in a separate method to allow child classes to implement different
                  * functionality for junction remodelling events (see #2664).
                  */
-                if (mProtorosetteFormationProbability > RandomNumberGenerator::Instance()->ranf())
+                if (this->mProtorosetteFormationProbability > RandomNumberGenerator::Instance()->ranf())
                 {
                     this->PerformNodeMerge(pNodeA, pNodeB);
                     this->RemoveDeletedNodes();
@@ -1476,7 +1337,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT1Swap(Node<SPACE_DIM>* p
                                                               std::set<unsigned>& rElementsContainingNodes)
 {
     // First compute and store the location of the T1 swap, which is at the midpoint of nodes A and B
-    double distance_between_nodes_CD = mCellRearrangementRatio*mCellRearrangementThreshold;
+    double distance_between_nodes_CD = this->mCellRearrangementRatio*this->mCellRearrangementThreshold;
 
     c_vector<double, SPACE_DIM> nodeA_location = pNodeA->rGetLocation();
     c_vector<double, SPACE_DIM> nodeB_location = pNodeB->rGetLocation();
@@ -1493,7 +1354,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT1Swap(Node<SPACE_DIM>* p
      * Compute the locations of two new nodes C, D, placed on either side of the
      * edge E_old formed by nodes A and B, such that the edge E_new formed by the
      * new nodes is the perpendicular bisector of E_old, with |E_new| 'just larger'
-     * (mCellRearrangementRatio) than mThresholdDistance.
+     * (this->mCellRearrangementRatio) than mThresholdDistance.
      *
      * We implement the following changes to the mesh:
      *
@@ -2108,11 +1969,11 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
             edge_ab_unit_vector = this->GetPreviousEdgeGradientOfElementAtNode(p_element, (node_A_local_index+1)%num_nodes);
 
             // Move original node
-            pNode->rGetModifiableLocation() = intersection + 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+            pNode->rGetModifiableLocation() = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
             // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
             c_vector<double, SPACE_DIM> new_node_location;
-            new_node_location = intersection - 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+            new_node_location = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
             // Add new node which will always be a boundary node
             unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
@@ -2259,12 +2120,12 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     edge_ab_unit_vector = this->GetPreviousEdgeGradientOfElementAtNode(p_element, (node_A_local_index+1)%num_nodes);
 
                     // Move original node and change to non-boundary node
-                    pNode->rGetModifiableLocation() = intersection - 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                    pNode->rGetModifiableLocation() = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
                     pNode->SetAsBoundaryNode(false);
 
                     // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
                     c_vector<double, SPACE_DIM> new_node_location;
-                    new_node_location = intersection + 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                    new_node_location = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                     // Add new node, which will always be a boundary node
                     unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
@@ -2310,12 +2171,12 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     edge_ab_unit_vector = this->GetPreviousEdgeGradientOfElementAtNode(p_element, (node_A_local_index+1)%num_nodes);
 
                     // Move original node and change to non-boundary node
-                    pNode->rGetModifiableLocation() = intersection - 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                    pNode->rGetModifiableLocation() = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
                     pNode->SetAsBoundaryNode(false);
 
                     // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
                     c_vector<double, SPACE_DIM> new_node_location;
-                    new_node_location = intersection + 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                    new_node_location = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                     // Add new node, which will always be a boundary node
                     unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
@@ -2399,12 +2260,12 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     edge_ab_unit_vector = this->GetPreviousEdgeGradientOfElementAtNode(p_element, (node_A_local_index+1)%num_nodes);
 
                     // Move original node and change to non-boundary node
-                    pNode->rGetModifiableLocation() = intersection + 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                    pNode->rGetModifiableLocation() = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
                     pNode->SetAsBoundaryNode(false);
 
                     // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
                     c_vector<double, SPACE_DIM> new_node_location;
-                    new_node_location = intersection - 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                    new_node_location = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                     // Add new node which will always be a boundary node
                     unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
@@ -2449,12 +2310,12 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     edge_ab_unit_vector = this->GetPreviousEdgeGradientOfElementAtNode(p_element, (node_A_local_index+1)%num_nodes);
 
                     // Move original node and change to non-boundary node
-                    pNode->rGetModifiableLocation() = intersection + 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                    pNode->rGetModifiableLocation() = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
                     pNode->SetAsBoundaryNode(false);
 
                     // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
                     c_vector<double, SPACE_DIM> new_node_location;
-                    new_node_location = intersection - 0.5*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                    new_node_location = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                     // Add new node which will always be a boundary node
                     unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
@@ -2514,9 +2375,9 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                 pNode->SetAsBoundaryNode(false);
 
                 c_vector<double, SPACE_DIM> new_node_1_location;
-                new_node_1_location = intersection - mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                new_node_1_location = intersection - this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
                 c_vector<double, SPACE_DIM> new_node_2_location;
-                new_node_2_location = intersection + mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+                new_node_2_location = intersection + this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                 // Add new nodes which will always be boundary nodes
                 unsigned new_node_1_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_1_location[0], new_node_1_location[1]));
@@ -3089,7 +2950,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForRosettes()
         else if (node_rank == 4)
         {
             // For protorosette nodes, we check against a random number to decide if resolution is necessary
-            if (mProtorosetteResolutionProbabilityPerTimestep >= RandomNumberGenerator::Instance()->ranf())
+            if (this->mProtorosetteResolutionProbabilityPerTimestep >= RandomNumberGenerator::Instance()->ranf())
             {
                 protorosette_nodes.push_back(current_node);
             }
@@ -3097,7 +2958,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::CheckForRosettes()
         else // if (node_rank > 4)
         {
             // For rosette nodes, we check against a random number to decide if resolution is necessary
-            if (mRosetteResolutionProbabilityPerTimestep >= RandomNumberGenerator::Instance()->ranf())
+            if (this->mRosetteResolutionProbabilityPerTimestep >= RandomNumberGenerator::Instance()->ranf())
             {
                 rosette_nodes.push_back(current_node);
             }
@@ -3143,8 +3004,8 @@ c_vector<double, 2> MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::WidenEdgeOrCorrec
         unsigned indexA, unsigned indexB, c_vector<double,2> intersection)
 {
     /**
-     * If the edge is shorter than 4.0*mCellRearrangementRatio*mCellRearrangementThreshold move vertexA and vertexB
-     * 4.0*mCellRearrangementRatio*mCellRearrangementThreshold apart.
+     * If the edge is shorter than 4.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold move vertexA and vertexB
+     * 4.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold apart.
      * \todo investigate if moving A and B causes other issues with nearby nodes (see #2401)
      *
      * Note: this distance is so that there is always enough room for new nodes (if necessary)
@@ -3155,17 +3016,17 @@ c_vector<double, 2> MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::WidenEdgeOrCorrec
     c_vector<double, SPACE_DIM> vertexB = this->GetNode(indexB)->rGetLocation();
     c_vector<double, SPACE_DIM> vector_a_to_b = this->GetVectorFromAtoB(vertexA, vertexB);
 
-    if (norm_2(vector_a_to_b) < 4.0*mCellRearrangementRatio*mCellRearrangementThreshold)
+    if (norm_2(vector_a_to_b) < 4.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold)
     {
         WARNING("Trying to merge a node onto an edge which is too small.");
 
         c_vector<double, SPACE_DIM> centre_a_and_b = vertexA + 0.5*vector_a_to_b;
 
-        vertexA = centre_a_and_b  - 2.0*mCellRearrangementRatio*mCellRearrangementThreshold*vector_a_to_b/norm_2(vector_a_to_b);
+        vertexA = centre_a_and_b  - 2.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*vector_a_to_b/norm_2(vector_a_to_b);
         ChastePoint<SPACE_DIM> vertex_A_point(vertexA);
         SetNode(indexA, vertex_A_point);
 
-        vertexB = centre_a_and_b  + 2.0*mCellRearrangementRatio*mCellRearrangementThreshold*vector_a_to_b/norm_2(vector_a_to_b);
+        vertexB = centre_a_and_b  + 2.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*vector_a_to_b/norm_2(vector_a_to_b);
         ChastePoint<SPACE_DIM> vertex_B_point(vertexB);
         SetNode(indexB, vertex_B_point);
 
@@ -3178,20 +3039,20 @@ c_vector<double, 2> MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::WidenEdgeOrCorrec
 
     // Reset the intersection away from vertices A and B to allow enough room for new nodes
     /**
-     * If the intersection is within mCellRearrangementRatio^2*mCellRearrangementThreshold of vertexA or vertexB move it
-     * mCellRearrangementRatio^2*mCellRearrangementThreshold away.
+     * If the intersection is within this->mCellRearrangementRatio^2*this->mCellRearrangementThreshold of vertexA or vertexB move it
+     * this->mCellRearrangementRatio^2*this->mCellRearrangementThreshold away.
      *
      * Note: this distance so that there is always enough room for new nodes (if necessary).
      * \todo currently this assumes a worst case scenario of 3 nodes between A and B; could be less movement for other cases
      *       (see #2401)
      */
-    if (norm_2(intersection - vertexA) < 2.0*mCellRearrangementRatio*mCellRearrangementThreshold)
+    if (norm_2(intersection - vertexA) < 2.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold)
     {
-        intersection = vertexA + 2.0*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+        intersection = vertexA + 2.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
     }
-    if (norm_2(intersection - vertexB) < 2.0*mCellRearrangementRatio*mCellRearrangementThreshold)
+    if (norm_2(intersection - vertexB) < 2.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold)
     {
-        intersection = vertexB - 2.0*mCellRearrangementRatio*mCellRearrangementThreshold*edge_ab_unit_vector;
+        intersection = vertexB - 2.0*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
     }
     return intersection;
 }

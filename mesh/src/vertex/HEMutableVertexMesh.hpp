@@ -1,98 +1,20 @@
 /*
-
-Copyright (c) 2005-2019, University of Oxford.
-All rights reserved.
-
-University of Oxford means the Chancellor, Masters and Scholars of the
-University of Oxford, having an administrative office at Wellington
-Square, Oxford OX1 2JD, UK.
-
-This file is part of Chaste.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
- * Redistributions of source code must retain the above copyright notice,
-   this list of conditions and the following disclaimer.
- * Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
- * Neither the name of the University of Oxford nor the names of its
-   contributors may be used to endorse or promote products derived from this
-   software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
-GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-#ifndef MUTABLEVERTEXMESH_HPP_
-#define MUTABLEVERTEXMESH_HPP_
-
-// Forward declaration prevents circular include chain
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-class VertexMeshWriter;
-
-#include <iostream>
-#include <map>
-#include <algorithm>
-
-#include "ChasteSerialization.hpp"
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/base_object.hpp>
-#include <boost/serialization/split_member.hpp>
-
-#include "VertexMesh.hpp"
-#include "RandomNumberGenerator.hpp"
-
-#include "AbstractMutableVertexMesh.hpp"
-/**
- * A mutable vertex-based mesh class, which inherits from VertexMesh and allows for local
- * remeshing. This is implemented through simple operations including node merging, neighbour
- * exchange ("T1 swap"), node/edge merging in the case of intersections ("T3 swap") and
- * removal of small triangular elements ("T2 swap").
+ * HEMutableVertexMesh.hpp
  *
- * MutableVertexMesh is used as a member of the VertexBasedCellPopulation class to represent
- * the junctional network of cells that forms the basis of simulations of off-lattice
- * vertex-based models.
+ *  Created on: 30 Mar 2020
+ *      Author: aydar
  */
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-class MutableVertexMesh : public VertexMesh<ELEMENT_DIM, SPACE_DIM>, public AbstractMutableVertexMesh<ELEMENT_DIM, SPACE_DIM>
+
+#ifndef HEMUTABLEVERTEXMESH_HPP_
+#define HEMUTABLEVERTEXMESH_HPP_
+
+#include "HEVertexMesh.hpp"
+#include "AbstractMutableVertexMesh.hpp"
+
+template <unsigned int SPACE_DIM>
+class HEMutableVertexMesh: public HEVertexMesh<SPACE_DIM>, public AbstractMutableVertexMesh<SPACE_DIM, SPACE_DIM>
 {
-    friend class TestMutableVertexMesh;
-    friend class TestMutableVertexMeshReMesh;
-    friend class TestMutableVertexMeshRosetteMethods;
-
 protected:
-
-    /** Indices of nodes that have been deleted. These indices can be reused when adding new elements/nodes. */
-    std::vector<unsigned> mDeletedNodeIndices;
-
-    /** Indices of elements that have been deleted. These indices can be reused when adding new elements. */
-    std::vector<unsigned> mDeletedElementIndices;
-
-    /**
-     * Locations of T1 swaps (the mid point of the moving nodes), stored so they can be accessed and output by the cell population.
-     * The locations are stored until they are cleared by ClearLocationsOfT1Swaps().
-     */
-    std::vector< c_vector<double, SPACE_DIM> > mLocationsOfT1Swaps;
-
-    /**
-     * The location of the last T2 swap (the centre of the removed triangle), stored so it can be accessed by the T2SwapCellKiller.
-     */
-    c_vector<double, SPACE_DIM> mLastT2SwapLocation;
-
-    /**
-     * Locations of T3 swaps (the location of the intersection with the edge), stored so they can be accessed and output by the cell population.
-     * The locations are stored until they are cleared by ClearLocationsOfT3Swaps().
-     */
-    std::vector< c_vector<double, SPACE_DIM> > mLocationsOfT3Swaps;
 
     /**
      * Divide an element along the axis passing through two of its nodes.
@@ -106,7 +28,7 @@ protected:
      *
      * @return the index of the new element
      */
-    unsigned DivideElement(VertexElement<ELEMENT_DIM,SPACE_DIM>* pElement,
+    unsigned DivideElement(HEElement<SPACE_DIM>* pElement,
                            unsigned nodeAIndex,
                            unsigned nodeBIndex,
                            bool placeOriginalElementBelow=false);
@@ -144,7 +66,7 @@ protected:
      * @param pNodeA one of the nodes to perform the swap with
      * @param pNodeB the other node to perform the swap
      */
-    virtual void IdentifySwapType(Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB);
+    virtual void IdentifySwapType(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -156,7 +78,7 @@ protected:
      * @param pNodeA one of the nodes to perform the merge with
      * @param pNodeB the other node to perform the merge with
      */
-    void PerformNodeMerge(Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB);
+    void PerformNodeMerge(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -171,7 +93,7 @@ protected:
      * @param pNodeB the other node to perform the swap
      * @param rElementsContainingNodes set of common elements
      */
-    void PerformT1Swap(Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB, std::set<unsigned>& rElementsContainingNodes);
+    void PerformT1Swap(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB, std::set<unsigned>& rElementsContainingNodes);
 
     /**
      * Helper method for ReMesh(), called by CheckForIntersections().
@@ -182,7 +104,7 @@ protected:
      * @param pNode pointer to the node
      * @param elementIndex global index of the element in the mesh
      */
-    void PerformIntersectionSwap(Node<SPACE_DIM>* pNode, unsigned elementIndex);
+    void PerformIntersectionSwap(HENode<SPACE_DIM>* pNode, unsigned elementIndex);
 
     /**
      * Helper method for ReMesh(), called by CheckForT2Swaps().
@@ -193,7 +115,7 @@ protected:
      *
      * @param rElement the element to remove
      */
-    void PerformT2Swap(VertexElement<ELEMENT_DIM,SPACE_DIM>& rElement);
+    void PerformT2Swap(HEElement<SPACE_DIM>& rElement);
 
     /**
      * Helper method for ReMesh(), called by CheckForIntersections().
@@ -205,7 +127,7 @@ protected:
      * @param pNode pointer to the node
      * @param elementIndex global index of the element in the mesh
      */
-    void PerformT3Swap(Node<SPACE_DIM>* pNode, unsigned elementIndex);
+    void PerformT3Swap(HENode<SPACE_DIM>* pNode, unsigned elementIndex);
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -217,7 +139,7 @@ protected:
      * @param pNodeB the other node on the short edge
      * @param pNodeC the other node in the triangular void
      */
-    void PerformVoidRemoval(Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB, Node<SPACE_DIM>* pNodeC);
+    void PerformVoidRemoval(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB, HENode<SPACE_DIM>* pNodeC);
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -229,7 +151,7 @@ protected:
      * @param pNodeA one of the nodes to perform the swap with
      * @param pNodeB the other node to perform the swap
      */
-    virtual void HandleHighOrderJunctions(Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB);
+    virtual void HandleHighOrderJunctions(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
 
     /**
      * Helper method for ReMesh(), called by HandleHighOrderJunctions().
@@ -242,7 +164,7 @@ protected:
      * @param pNodeA one of the nodes to perform the merge with
      * @param pNodeB the other node to perform the merge with
      */
-    void PerformRosetteRankIncrease(Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB);
+    void PerformRosetteRankIncrease(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
 
     /**
      * Helper method for ReMesh(), called by CheckForRosettes().
@@ -253,7 +175,7 @@ protected:
      *
      * @param pProtorosetteNode node at centre of protorosette
      */
-    void PerformProtorosetteResolution(Node<SPACE_DIM>* pProtorosetteNode);
+    void PerformProtorosetteResolution(HENode<SPACE_DIM>* pProtorosetteNode);
 
     /**
      * Helper method for ReMesh(), called by CheckForRosettes().
@@ -265,7 +187,7 @@ protected:
      *
      * @param pRosetteNode node at centre of rosette
      */
-    void PerformRosetteRankDecrease(Node<SPACE_DIM>* pRosetteNode);
+    void PerformRosetteRankDecrease(HENode<SPACE_DIM>* pRosetteNode);
 
     /**
      * Helper method for ReMesh().
@@ -288,32 +210,6 @@ protected:
      * @return intersection, the corrected location of where we are planning to put the merged node
      */
     c_vector<double, 2> WidenEdgeOrCorrectIntersectionLocationIfNecessary(unsigned indexA, unsigned indexB, c_vector<double,2> intersection);
-
-    /** Needed for serialization. */
-    friend class boost::serialization::access;
-
-    /**
-     * Serialize the mesh.
-     *
-     * Note that if you are calling this method (from subclasses) you should archive your
-     * member variables FIRST. So that this method can call a ReMesh
-     * (to convert from TrianglesMeshReader input format into your native format).
-     *
-     * @param archive the archive
-     * @param version the current version of this class
-     */
-    template<class Archive>
-    void serialize(Archive & archive, const unsigned int version)
-    {
-        // NOTE - Subclasses must archive their member variables BEFORE calling this method.
-        archive & mDeletedNodeIndices;
-        archive & mDeletedElementIndices;
-        ///\todo: maybe we should archive the mLocationsOfT1Swaps and mDeletedNodeIndices etc. as well?
-
-        archive & boost::serialization::base_object<VertexMesh<ELEMENT_DIM, SPACE_DIM> >(*this);
-        archive & boost::serialization::base_object<AbstractMutableVertexMesh<ELEMENT_DIM, SPACE_DIM> >(*this);
-    }
-
 public:
 
     /**
@@ -332,8 +228,8 @@ public:
      * @param rosetteResolutionProbabilityPerTimestep the probability that, in a given timestep, a rosette will
      *                                resolve (reduce the number of cells sharing a common vertex by 1)
      */
-    MutableVertexMesh(std::vector<Node<SPACE_DIM>*> nodes,
-                      std::vector<VertexElement<ELEMENT_DIM, SPACE_DIM>*> vertexElements,
+    HEMutableVertexMesh(std::vector<HENode<SPACE_DIM>*> nodes,
+                      std::vector<HEElement< SPACE_DIM>*> vertexElements,
                       double cellRearrangementThreshold=0.01,
                       double t2Threshold=0.001,
                       double cellRearrangementRatio=1.5,
@@ -344,55 +240,12 @@ public:
     /**
      * Default constructor for use by serializer.
      */
-    MutableVertexMesh();
+    HEMutableVertexMesh();
 
     /**
      * Destructor.
      */
-    virtual ~MutableVertexMesh();
-
-    /**
-     * @return the number of Nodes in the mesh.
-     */
-    unsigned GetNumNodes() const;
-
-    /**
-     * @return the number of VertexElements in the mesh.
-     */
-    unsigned GetNumElements() const;
-
-    /**
-     * Move the node with a particular index to a new point in space.
-     *
-     * @param nodeIndex the index of the node to be moved
-     * @param point the new target location of the node
-     */
-    virtual void SetNode(unsigned nodeIndex, ChastePoint<SPACE_DIM> point);
-
-    /**
-     * @return the locations of the T1 swaps
-     */
-    std::vector< c_vector<double, SPACE_DIM> > GetLocationsOfT1Swaps();
-
-    /**
-     * @return the location of the last T2 swap
-     */
-    c_vector<double, SPACE_DIM> GetLastT2SwapLocation();
-
-    /**
-     * @return the locations of the T3 swaps
-     */
-    std::vector< c_vector<double, SPACE_DIM> > GetLocationsOfT3Swaps();
-
-    /**
-     * Helper method to clear the stored T1 swaps
-     */
-    void ClearLocationsOfT1Swaps();
-
-    /**
-     * Helper method to clear the stored T3 swaps
-     */
-    void ClearLocationsOfT3Swaps();
+    virtual ~HEMutableVertexMesh();
 
     /**
      * Add a node to the mesh.
@@ -402,7 +255,7 @@ public:
      * @param pNewNode pointer to the new node
      * @return the global index of the new node in the mesh.
      */
-    unsigned AddNode(Node<SPACE_DIM>* pNewNode);
+    unsigned AddNode(HENode<SPACE_DIM>* pNewNode);
 
     /**
      * Mark an element as deleted. Note that it DOES NOT deal with the associated
@@ -430,7 +283,7 @@ public:
      *
      * @return the index of the new element
      */
-    unsigned DivideElementAlongShortAxis(VertexElement<ELEMENT_DIM,SPACE_DIM>* pElement,
+    unsigned DivideElementAlongShortAxis(HEElement<SPACE_DIM>* pElement,
                                          bool placeOriginalElementBelow=false);
 
     /**
@@ -446,7 +299,7 @@ public:
      *
      * @return the index of the new element
      */
-    unsigned DivideElementAlongGivenAxis(VertexElement<ELEMENT_DIM,SPACE_DIM>* pElement,
+    unsigned DivideElementAlongGivenAxis(HEElement<SPACE_DIM>* pElement,
                                          c_vector<double, SPACE_DIM> axisOfDivision,
                                          bool placeOriginalElementBelow=false);
 
@@ -457,7 +310,7 @@ public:
      *
      * @return the index of the new element in the mesh
      */
-    unsigned AddElement(VertexElement<ELEMENT_DIM, SPACE_DIM>* pNewElement);
+    unsigned AddElement(HEElement<SPACE_DIM>* pNewElement);
 
     /**
      * Helper method for ReMesh().
@@ -484,7 +337,7 @@ public:
      * @param pNodeA a pointer to one node
      * @param pNodeB a pointer to the other nodes
      */
-    void DivideEdge(Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB);
+    void DivideEdge(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
 
     /**
      * Helper method for ReMesh(). Removes the deleted nodes and elements from the mesh and updates the
@@ -524,7 +377,4 @@ public:
     void ReMesh();
 };
 
-#include "SerializationExportWrapper.hpp"
-EXPORT_TEMPLATE_CLASS_ALL_DIMS(MutableVertexMesh)
-
-#endif /*MUTABLEVERTEXMESH_HPP_*/
+#endif /* HEMUTABLEVERTEXMESH_HPP_ */

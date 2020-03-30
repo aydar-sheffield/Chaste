@@ -63,6 +63,11 @@ HEVertexMesh<SPACE_DIM>::HEVertexMesh(VertexMesh<SPACE_DIM, SPACE_DIM>* vertex_m
 }
 
 template<unsigned int SPACE_DIM>
+HEVertexMesh<SPACE_DIM>::HEVertexMesh()
+{
+}
+
+template<unsigned int SPACE_DIM>
 HEVertexMesh<SPACE_DIM>::~HEVertexMesh()
 {
 }

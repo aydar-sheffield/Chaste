@@ -125,6 +125,11 @@ public:
     HEVertexMesh(VertexMesh<SPACE_DIM, SPACE_DIM>* vertex_mesh);
 
     /**
+     * Default
+     */
+    HEVertexMesh();
+
+    /**
      * Destructor
      */
     ~HEVertexMesh();
