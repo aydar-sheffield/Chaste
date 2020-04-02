@@ -108,23 +108,18 @@ public:
         temp_list1.insert(0u);
 
         // Nodes 0 and 4 are only in element 0
-        nodes_2d[0]->UpdateElementIndices();
-        nodes_2d[4]->UpdateElementIndices();
-        TS_ASSERT_EQUALS(nodes_2d[0]->rGetContainingElementIndices(), temp_list1);
-        TS_ASSERT_EQUALS(nodes_2d[4]->rGetContainingElementIndices(), temp_list1);
+        TS_ASSERT_EQUALS(nodes_2d[0]->GetContainingElementIndices(), temp_list1);
+        TS_ASSERT_EQUALS(nodes_2d[4]->GetContainingElementIndices(), temp_list1);
 
         // Nodes 1 and 2 are in element 0 and 1
         temp_list1.insert(1u);
-        nodes_2d[1]->UpdateElementIndices();
-        nodes_2d[2]->UpdateElementIndices();
-        TS_ASSERT_EQUALS(nodes_2d[1]->rGetContainingElementIndices(), temp_list1);
-        TS_ASSERT_EQUALS(nodes_2d[2]->rGetContainingElementIndices(), temp_list1);
+        TS_ASSERT_EQUALS(nodes_2d[1]->GetContainingElementIndices(), temp_list1);
+        TS_ASSERT_EQUALS(nodes_2d[2]->GetContainingElementIndices(), temp_list1);
 
         // Node 5 is only in element 1
         std::set<unsigned> temp_list2;
         temp_list2.insert(1u);
-        nodes_2d[5]->UpdateElementIndices();
-        TS_ASSERT_EQUALS(nodes_2d[5]->rGetContainingElementIndices(), temp_list2);
+        TS_ASSERT_EQUALS(nodes_2d[5]->GetContainingElementIndices(), temp_list2);
 
         //Test full edges
         TS_ASSERT_EQUALS(mesh_2d.GetNumFullEdges(), 7u);

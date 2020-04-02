@@ -153,6 +153,13 @@ HEElement<SPACE_DIM>* HEVertexMesh<SPACE_DIM>::GetElement(unsigned index) const
     return mElements[index];
 }
 
+template<unsigned int SPACE_DIM>
+HENode<SPACE_DIM>* HEVertexMesh<SPACE_DIM>::GetNode(unsigned index) const
+{
+    assert(index<this->mNodes.size());
+    return static_cast<HENode<SPACE_DIM>* >(this->mNodes[index]);
+}
+
 template <unsigned SPACE_DIM>
 c_vector<double, SPACE_DIM> HEVertexMesh<SPACE_DIM>::GetCentroidOfElement(unsigned index)
 {
@@ -284,7 +291,7 @@ void HEVertexMesh<SPACE_DIM>::ConstructFullEdges()
             if (traversal_set.count(next_edge)==0)
             {
                 //... construct full edge of this halfedge and its twin
-                FullEdge<SPACE_DIM>* edge = new FullEdge<SPACE_DIM>(next_edge, next_edge->GetTwinHalfEdge());
+                FullEdge<SPACE_DIM>* edge = new FullEdge<SPACE_DIM>(next_edge);
                 mFullEdges.push_back(edge);
                 traversal_set.insert(next_edge);
                 traversal_set.insert(next_edge->GetTwinHalfEdge());

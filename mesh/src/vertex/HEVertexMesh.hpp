@@ -26,6 +26,12 @@ struct FullEdge
         second(edge1),
         length(0)
     {}
+    FullEdge(HalfEdge<SPACE_DIM>* edge0)
+    :
+        first(edge0),
+        second(edge0->GetTwinHalfEdge()),
+        length(0)
+    {}
     ~FullEdge()
     {}
     HalfEdge<SPACE_DIM>* first;
@@ -41,6 +47,11 @@ protected:
 
     /** List of edge */
     std::vector<FullEdge<SPACE_DIM>* > mFullEdges;
+
+    /**
+     * Constructs full edges for easier edge traversal across the mesh
+     */
+    void ConstructFullEdges();
 
     /**
      * Solve node mapping method. This overridden method is required
@@ -165,6 +176,14 @@ public:
     HEElement<SPACE_DIM>* GetElement(unsigned index) const;
 
     /**
+     * Get the node with a given index in the mesh.
+     *
+     * @param index the global index of the node
+     * @return a pointer to the node.
+     */
+    virtual HENode<SPACE_DIM>* GetNode(unsigned index) const;
+
+    /**
      * Compute the centroid of an element.
      *
      * A formula for the centroid of a plane polygon may be found e.g. in the following reference:
@@ -192,10 +211,7 @@ public:
      */
     virtual double GetVolumeOfElement(unsigned index);
 
-    /**
-     * Constructs full edges for easier edge traversal across the mesh
-     */
-    void ConstructFullEdges();
+
 
     FullEdge<SPACE_DIM>* GetFullEdge(const unsigned int index) const;
 

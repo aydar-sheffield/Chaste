@@ -51,7 +51,7 @@ public:
              double v1=0, double v2=0, double v3=0,
              HalfEdge<SPACE_DIM>* pEdge = nullptr);
     /**
-     * Constructor to convert Node object ot HENode object
+     * Constructor to convert Node object to HENode object
      * @param node
      */
     HENode(const Node<SPACE_DIM> &rNode, HalfEdge<SPACE_DIM>* pEdge = nullptr);
@@ -64,7 +64,7 @@ public:
     /** Get Node the outgoing edge points to **/
     HENode<SPACE_DIM>* GetNextNode() const;
 
-    void UpdateElementIndices();
+    std::set<unsigned> GetContainingElementIndices();
 private:
     /** Outgoing edge **/
     HalfEdge<SPACE_DIM>* mpEdge;

@@ -28,7 +28,6 @@ public:
         HEElement<2> element(0, element_vertices);
 
         //Correct number of nodes
-        element.UpdateNumNodes();
         TS_ASSERT_EQUALS(element.GetNumNodes(), 4u);
 
         //Testing (inner) edge traversal in CCW order

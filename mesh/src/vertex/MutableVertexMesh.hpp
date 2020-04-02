@@ -70,13 +70,6 @@ class MutableVertexMesh : public VertexMesh<ELEMENT_DIM, SPACE_DIM>, public Abst
     friend class TestMutableVertexMeshRosetteMethods;
 
 protected:
-
-    /** Indices of nodes that have been deleted. These indices can be reused when adding new elements/nodes. */
-    std::vector<unsigned> mDeletedNodeIndices;
-
-    /** Indices of elements that have been deleted. These indices can be reused when adding new elements. */
-    std::vector<unsigned> mDeletedElementIndices;
-
     /**
      * Locations of T1 swaps (the mid point of the moving nodes), stored so they can be accessed and output by the cell population.
      * The locations are stored until they are cleared by ClearLocationsOfT1Swaps().
@@ -306,9 +299,6 @@ protected:
     void serialize(Archive & archive, const unsigned int version)
     {
         // NOTE - Subclasses must archive their member variables BEFORE calling this method.
-        archive & mDeletedNodeIndices;
-        archive & mDeletedElementIndices;
-        ///\todo: maybe we should archive the mLocationsOfT1Swaps and mDeletedNodeIndices etc. as well?
 
         archive & boost::serialization::base_object<VertexMesh<ELEMENT_DIM, SPACE_DIM> >(*this);
         archive & boost::serialization::base_object<AbstractMutableVertexMesh<ELEMENT_DIM, SPACE_DIM> >(*this);
@@ -354,12 +344,12 @@ public:
     /**
      * @return the number of Nodes in the mesh.
      */
-    unsigned GetNumNodes() const;
+    virtual unsigned GetNumNodes() const;
 
     /**
      * @return the number of VertexElements in the mesh.
      */
-    unsigned GetNumElements() const;
+    virtual unsigned GetNumElements() const;
 
     /**
      * Move the node with a particular index to a new point in space.

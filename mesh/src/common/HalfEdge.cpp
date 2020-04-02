@@ -135,6 +135,13 @@ bool HalfEdge<SPACE_DIM>::IsFullyInitialized() const
 {
     return mpTwin&&mpNextEdge&&mpPreviousEdge&&mpTargetNode;
 }
+
+template<unsigned int SPACE_DIM>
+bool HalfEdge<SPACE_DIM>::IsOnBoundary() const
+{
+    return !mpTwin->GetElement();
+}
+
 template class HalfEdge<1>;
 template class HalfEdge<2>;
 template class HalfEdge<3>;

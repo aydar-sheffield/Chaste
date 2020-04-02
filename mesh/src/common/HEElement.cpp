@@ -99,20 +99,11 @@ HEElement<SPACE_DIM>::HEElement(unsigned int index, const std::vector<HENode<SPA
 }
 
 template<unsigned int SPACE_DIM>
-HEElement<SPACE_DIM>::HEElement(unsigned int index, const std::vector<HalfEdge<SPACE_DIM>* > edge_list)
+HEElement<SPACE_DIM>::HEElement(unsigned int index, HalfEdge<SPACE_DIM>* edge)
 :AbstractElement<SPACE_DIM, SPACE_DIM>(index),
- mNumNodes(edge_list.size())
+mpHalfEdge(edge)
 {
-    mpHalfEdge = edge_list[0];
-    const unsigned int n_edges = edge_list.size();
-    for (unsigned int i=0; i<n_edges; ++i)
-    {
-        const unsigned int next_index = (i+1)%n_edges;
-        const unsigned int prev_index = (i+n_edges-1)%n_edges;
-        edge_list[i]->SetElement(this);
-        edge_list[i]->SetPreviousHalfEdge(edge_list[prev_index]);
-        edge_list[i]->SetNextHalfEdge(edge_list[next_index]);
-    }
+    RegisterWithHalfEdges();
 }
 
 template <unsigned int SPACE_DIM>
@@ -185,6 +176,13 @@ void HEElement<SPACE_DIM>::SetHalfEdge(HalfEdge<SPACE_DIM>* pEdge)
 }
 
 template<unsigned int SPACE_DIM>
+HENode<SPACE_DIM>* HEElement<SPACE_DIM>::GetNode(unsigned int local_index) const
+{
+    HalfEdge<SPACE_DIM>* edge = GetHalfEdge(local_index);
+    return edge->GetOriginNode();
+}
+
+template<unsigned int SPACE_DIM>
 void HEElement<SPACE_DIM>::UpdateNode(const unsigned& rIndex, HENode<SPACE_DIM>* pNode)
 {
     assert(rIndex<mNumNodes);
@@ -219,58 +217,56 @@ void HEElement<SPACE_DIM>::MarkAsDeleted()
 }
 
 template<unsigned int SPACE_DIM>
-void HEElement<SPACE_DIM>::RegisterWithNodes()
+void HEElement<SPACE_DIM>::RegisterWithHalfEdges()
 {
-
+    assert(mpHalfEdge);
+    HalfEdge<SPACE_DIM>* edge = mpHalfEdge;
+    mNumNodes = 0;
+    do
+    {
+        mNumNodes++;
+        edge->SetElement(this);
+        edge = edge->GetNextHalfEdge();
+    }while(edge!=mpHalfEdge);
 }
 
 template<unsigned int SPACE_DIM>
-void HEElement<SPACE_DIM>::AddNode(const unsigned int &rIndex, HENode<SPACE_DIM>* pNode)
+HalfEdge<SPACE_DIM>* HEElement<SPACE_DIM>::AddNode(HalfEdge<SPACE_DIM>* pEdge, HENode<SPACE_DIM>* pNode)
 {
-    assert(rIndex<mNumNodes);
-    //Outgoing internal edge from node rIndex
-    HalfEdge<SPACE_DIM>* out_edge = GetHalfEdge(rIndex);
+    HalfEdge<SPACE_DIM>* prev_edge = pEdge->GetPreviousHalfEdge();
 
-    HalfEdge<SPACE_DIM>* prev_edge = out_edge->GetPreviousHalfEdge();
-
-    //A new halfedge between rIndex node and pNode is created with pNode as its target index.
+    //A new halfedge between prev_edge->OriginNode() and pNode is created with pNode as its target index.
     HalfEdge<SPACE_DIM>* new_edge = new HalfEdge<SPACE_DIM>(this);
     //Set the element to which the new twin edge belongs to
-    HalfEdge<SPACE_DIM>* new_edge_twin = new HalfEdge<SPACE_DIM>(out_edge->GetTwinHalfEdge()->GetElement());
+    HalfEdge<SPACE_DIM>* new_edge_twin = new HalfEdge<SPACE_DIM>(pEdge->GetTwinHalfEdge()->GetElement());
 
     //Set edge adjacency relations
     new_edge->SetTwinHalfEdge(new_edge_twin, true);
-    new_edge->SetNextHalfEdge(out_edge, true);
+    new_edge->SetNextHalfEdge(pEdge, true);
     new_edge->SetPreviousHalfEdge(prev_edge, true);
 
     //External halfedges
     new_edge_twin->SetNextHalfEdge(prev_edge->GetTwinHalfEdge(), true);
-    new_edge_twin->SetPreviousHalfEdge(out_edge->GetTwinHalfEdge(), true);
+    new_edge_twin->SetPreviousHalfEdge(pEdge->GetTwinHalfEdge(), true);
 
     //Set target Node relations
-    out_edge->SetOriginNode(pNode);
+    pEdge->SetOriginNode(pNode);
     new_edge_twin->SetTargetNode(prev_edge->GetTargetNode());
 
     assert(new_edge->IsFullyInitialized());
     assert(new_edge_twin->IsFullyInitialized());
 
-    if (rIndex==0)
+    if (pEdge==mpHalfEdge)
         mpHalfEdge = new_edge;
     mNumNodes++;
-}
-
-template<unsigned int SPACE_DIM>
-void HEElement<SPACE_DIM>::DeleteNode(const unsigned int &rIndex)
-{
-    assert(rIndex<mNumNodes);
-    HalfEdge<SPACE_DIM>* out_edge = GetHalfEdge(rIndex);
-    DeleteNode(out_edge->GetOriginNode());
 }
 
 template<unsigned int SPACE_DIM>
 void HEElement<SPACE_DIM>::DeleteNode(HENode<SPACE_DIM>* pNode)
 {
     //Edge outgoing from pNode is deleted
+
+    //Find incoming edge
     HalfEdge<SPACE_DIM>* in_edge = GetHalfEdge(pNode);
     HalfEdge<SPACE_DIM>* in_edge_twin = in_edge->GetTwinHalfEdge();
 
@@ -288,18 +284,6 @@ void HEElement<SPACE_DIM>::DeleteNode(HENode<SPACE_DIM>* pNode)
         out_edge->GetTargetNode()->SetOutgoingEdge(in_edge_twin);
 
     out_edge->SetDeletedStatus(true,true);
-}
-
-template<unsigned int SPACE_DIM>
-void HEElement<SPACE_DIM>::UpdateNumNodes()
-{
-    mNumNodes = 0;
-    HalfEdge<SPACE_DIM>* next_edge = mpHalfEdge;
-    do
-    {
-        mNumNodes++;
-        next_edge = next_edge->GetNextHalfEdge();
-    }while(next_edge != mpHalfEdge);
 }
 
 template<unsigned int SPACE_DIM>

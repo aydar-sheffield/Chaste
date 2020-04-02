@@ -206,7 +206,7 @@ public:
      * @param index the global index of the node
      * @return a pointer to the node.
      */
-    Node<SPACE_DIM>* GetNode(unsigned index) const;
+    virtual Node<SPACE_DIM>* GetNode(unsigned index) const;
 
     /**
      * Get the node with a given index in the mesh (synonym of GetNode() unless overridden in a distributed mesh).

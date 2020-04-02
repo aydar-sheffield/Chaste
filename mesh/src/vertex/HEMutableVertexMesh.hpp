@@ -15,22 +15,27 @@ template <unsigned int SPACE_DIM>
 class HEMutableVertexMesh: public HEVertexMesh<SPACE_DIM>, public AbstractMutableVertexMesh<SPACE_DIM, SPACE_DIM>
 {
 protected:
+    /** Indices of nodes that have been deleted. These indices can be reused when adding new elements/nodes. */
+    std::vector<unsigned> mDeletedNodeIndices;
+
+    /** Indices of elements that have been deleted. These indices can be reused when adding new elements. */
+    std::vector<unsigned> mDeletedElementIndices;
 
     /**
-     * Divide an element along the axis passing through two of its nodes.
+     * Divide an element along the axis passing through the origin nodes of two halfedges.
      *
      * \todo This method currently assumes SPACE_DIM = 2 (see #866)
      *
      * @param pElement the element to divide
-     * @param nodeAIndex the local index of one node within this element
-     * @param nodeBIndex the local index of another node within this element
+     * @param pEdgeA halfedge of one of the nodes in this element
+     * @param pEdgeB halfedge of another node in this element
      * @param placeOriginalElementBelow whether to place the original element below (in the y direction) the new element (defaults to false)
      *
      * @return the index of the new element
      */
     unsigned DivideElement(HEElement<SPACE_DIM>* pElement,
-                           unsigned nodeAIndex,
-                           unsigned nodeBIndex,
+                           HalfEdge<SPACE_DIM>* pEdgeA,
+                           HalfEdge<SPACE_DIM>* pEdgeB,
                            bool placeOriginalElementBelow=false);
 
     /**
@@ -248,6 +253,16 @@ public:
     virtual ~HEMutableVertexMesh();
 
     /**
+     * @return the number of Nodes in the mesh.
+     */
+    virtual unsigned GetNumNodes() const;
+
+    /**
+     * @return the number of VertexElements in the mesh.
+     */
+    virtual unsigned GetNumElements() const;
+
+    /**
      * Add a node to the mesh.
      *
      * Note: After calling this one or more times, you must then call ReMesh.
@@ -256,6 +271,22 @@ public:
      * @return the global index of the new node in the mesh.
      */
     unsigned AddNode(HENode<SPACE_DIM>* pNewNode);
+
+    /**
+     * Add an element to the mesh.
+     *
+     * @param pNewElement the new element
+     *
+     * @return the index of the new element in the mesh
+     */
+    unsigned AddElement(HEElement<SPACE_DIM>* pNewElement);
+
+    /**
+     * Bundle pEdge with its twin into FullEdge and add it to the mesh.
+     * @param pEdge
+     * @return new FullEdge index
+     */
+    unsigned int AddEdge(HalfEdge<SPACE_DIM>* pEdge);
 
     /**
      * Mark an element as deleted. Note that it DOES NOT deal with the associated
@@ -303,14 +334,7 @@ public:
                                          c_vector<double, SPACE_DIM> axisOfDivision,
                                          bool placeOriginalElementBelow=false);
 
-    /**
-     * Add an element to the mesh.
-     *
-     * @param pNewElement the new element
-     *
-     * @return the index of the new element in the mesh
-     */
-    unsigned AddElement(HEElement<SPACE_DIM>* pNewElement);
+
 
     /**
      * Helper method for ReMesh().

@@ -69,10 +69,9 @@ HENode<SPACE_DIM>* HENode<SPACE_DIM>::GetNextNode() const
 }
 
 template <unsigned int SPACE_DIM>
-void HENode<SPACE_DIM>::UpdateElementIndices()
+std::set<unsigned int> HENode<SPACE_DIM>::GetContainingElementIndices()
 {
-    std::set<unsigned int> &element_indices = this->rGetContainingElementIndices();
-    element_indices.clear();
+    std::set<unsigned int> element_indices;
     HalfEdge<SPACE_DIM>* edge = mpEdge;
     HEElement<SPACE_DIM>* element;
     do
@@ -83,7 +82,10 @@ void HENode<SPACE_DIM>::UpdateElementIndices()
         edge = edge->GetTwinHalfEdge()->GetNextHalfEdge();
     }
     while (edge != mpEdge);
+    return element_indices;
 }
+
+
 template class HENode<1>;
 template class HENode<2>;
 template class HENode<3>;

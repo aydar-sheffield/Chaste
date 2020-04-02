@@ -121,6 +121,8 @@ public:
     void SetDeletedStatus(const bool status, const bool SetTwin = false);
 
     bool IsFullyInitialized() const;
+
+    bool IsOnBoundary() const;
 };
 
 #endif /*HALFEDGE_HPP_ */

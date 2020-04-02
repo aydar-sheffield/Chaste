@@ -73,21 +73,42 @@ public:
     HEElement(unsigned int index, const std::vector<HENode<SPACE_DIM>* > node_list);
 
     /**
-     * Constructs the element given the vector of halfedges
-     * Edge list must be given in CCW order
-     * @param index
-     * @param edge_list
+     * Constructs the element given an edge. It is assumed that the edge is
+     * contained in a doubly-linked list with fully initalized edges.
+     * @param index of the element
+     * @param edge the element points to
      */
-    HEElement(unsigned int index, const std::vector<HalfEdge<SPACE_DIM>* > edge_list);
+    HEElement(unsigned int index, HalfEdge<SPACE_DIM>* edge);
+
 
     HEElement(unsigned int index, const std::vector<Node<SPACE_DIM>* > node_list);
     HEElement(const VertexElement<SPACE_DIM, SPACE_DIM> &rElement);
 
     ~HEElement();
 
+    /**
+     * Returns the halfedge this element associated with. By default its the edge with
+     * local index 0
+     * @param local_index
+     * @return first halfedge
+     */
     HalfEdge<SPACE_DIM>* GetHalfEdge(const unsigned int local_index = 0) const;
+
+    /**
+     * Finds halfedge by its target node
+     * @param pTarget node target
+     * @return HalfEdge whose target node is pTarget
+     */
     HalfEdge<SPACE_DIM>* GetHalfEdge(HENode<SPACE_DIM>* pTarget) const;
+
     void SetHalfEdge(HalfEdge<SPACE_DIM>* pEdge);
+
+    /**
+     * Get node with specified index. This random access is an expensive operation
+     * @param local_index
+     * @return Node with local_index
+     */
+    virtual HENode<SPACE_DIM>* GetNode(unsigned int local_index) const;
 
     virtual void UpdateNode(const unsigned& rIndex, Node<SPACE_DIM>* pNode) override
     {
@@ -108,13 +129,29 @@ public:
     void ReplaceNode(HENode<SPACE_DIM>* pOldNode, HENode<SPACE_DIM>* pNewNode);
 
     virtual void MarkAsDeleted();
-    virtual void RegisterWithNodes();
-    void AddNode(const unsigned int &rIndex, HENode<SPACE_DIM>* pNode);
 
-    void DeleteNode(const unsigned int &rIndex);
+    /**
+     * Inherited method, which is not necessary in halfedge based data structures
+     */
+    virtual void RegisterWithNodes()
+    {}
+
+    /**
+     * Informs edges of this element that they belong to this element
+     */
+    void RegisterWithHalfEdges();
+
+    /**
+     * Inserts a node into the edge, which splits the edge into two.
+     * A new edge is created between pNode and the origin of pEdge.
+     * @param pEdge edge, where pNode is inserted
+     * @param pNode node to be inserted
+     * @return newly created halfedge
+     */
+    HalfEdge<SPACE_DIM>* AddNode(HalfEdge<SPACE_DIM>* pEdge, HENode<SPACE_DIM>* pNode);
+
     void DeleteNode(HENode<SPACE_DIM>* pNode);
 
-    void UpdateNumNodes();
     virtual unsigned int GetNumNodes() const override;
 
     bool IsElementOnBoundary() const;

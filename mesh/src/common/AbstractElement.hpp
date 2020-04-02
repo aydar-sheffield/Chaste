@@ -162,7 +162,7 @@ public:
      * @param localIndex local index of the node in this element
      * @return a pointer to the node.
      */
-    Node<SPACE_DIM>* GetNode(unsigned localIndex) const;
+    virtual Node<SPACE_DIM>* GetNode(unsigned localIndex) const;
 
     /**
      * @return the number of nodes owned by this element.

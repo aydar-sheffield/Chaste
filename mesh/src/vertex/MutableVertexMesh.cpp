@@ -133,24 +133,24 @@ MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::~MutableVertexMesh()
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::Clear()
-{
-    mDeletedNodeIndices.clear();
-    mDeletedElementIndices.clear();
-
-    VertexMesh<ELEMENT_DIM, SPACE_DIM>::Clear();
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetNumNodes() const
 {
-    return this->mNodes.size() - mDeletedNodeIndices.size();
+    return this->mNodes.size() - this->mDeletedNodeIndices.size();
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::GetNumElements() const
 {
-    return this->mElements.size() - mDeletedElementIndices.size();
+    return this->mElements.size() - this->mDeletedElementIndices.size();
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::Clear()
+{
+    this->mDeletedNodeIndices.clear();
+    this->mDeletedElementIndices.clear();
+
+    VertexMesh<ELEMENT_DIM, SPACE_DIM>::Clear();
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -186,16 +186,16 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::ClearLocationsOfT3Swaps()
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::AddNode(Node<SPACE_DIM>* pNewNode)
 {
-    if (mDeletedNodeIndices.empty())
+    if (this->mDeletedNodeIndices.empty())
     {
         pNewNode->SetIndex(this->mNodes.size());
         this->mNodes.push_back(pNewNode);
     }
     else
     {
-        unsigned index = mDeletedNodeIndices.back();
+        unsigned index = this->mDeletedNodeIndices.back();
         pNewNode->SetIndex(index);
-        mDeletedNodeIndices.pop_back();
+        this->mDeletedNodeIndices.pop_back();
         delete this->mNodes[index];
         this->mNodes[index] = pNewNode;
     }
@@ -349,7 +349,7 @@ unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::DivideElementAlongGivenAxis(
         }
 
         // Add a new node to the mesh at the location of the intersection
-        unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, is_boundary, intersection[0], intersection[1]));
+        unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(0, is_boundary, intersection[0], intersection[1]));
         nodes_added++;
 
         // Now make sure the new node is added to all neighbouring elements
@@ -450,14 +450,14 @@ unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::DivideElement(VertexElement<
 
     // Get the index of the new element
     unsigned new_element_index;
-    if (mDeletedElementIndices.empty())
+    if (this->mDeletedElementIndices.empty())
     {
         new_element_index = this->mElements.size();
     }
     else
     {
-        new_element_index = mDeletedElementIndices.back();
-        mDeletedElementIndices.pop_back();
+        new_element_index = this->mDeletedElementIndices.back();
+        this->mDeletedElementIndices.pop_back();
         delete this->mElements[new_element_index];
     }
 
@@ -571,14 +571,14 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::DeleteElementPriorToReMesh(unsig
 
     // Mark this element as deleted
     this->mElements[index]->MarkAsDeleted();
-    mDeletedElementIndices.push_back(index);
+    this->mDeletedElementIndices.push_back(index);
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::DeleteNodePriorToReMesh(unsigned index)
 {
     this->mNodes[index]->MarkAsDeleted();
-    mDeletedNodeIndices.push_back(index);
+    this->mDeletedNodeIndices.push_back(index);
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -680,10 +680,10 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::RemoveDeletedNodesAndElements(Ve
     }
 
     // Sanity check
-    assert(mDeletedElementIndices.size() == this->mElements.size() - live_elements.size());
+    assert(this->mDeletedElementIndices.size() == this->mElements.size() - live_elements.size());
 
     // Repopulate the elements vector and reset the list of deleted element indices
-    mDeletedElementIndices.clear();
+    this->mDeletedElementIndices.clear();
     this->mElements = live_elements;
 
     // Finally, reset the element indices to run from zero
@@ -714,11 +714,11 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::RemoveDeletedNodes()
     }
 
     // Sanity check
-    assert(mDeletedNodeIndices.size() == this->mNodes.size() - live_nodes.size());
+    assert(this->mDeletedNodeIndices.size() == this->mNodes.size() - live_nodes.size());
 
     // Repopulate the nodes vector and reset the list of deleted node indices
     this->mNodes = live_nodes;
-    mDeletedNodeIndices.clear();
+    this->mDeletedNodeIndices.clear();
 
     // Finally, reset the node indices to run from zero
     for (unsigned i=0; i<this->mNodes.size(); i++)
@@ -1328,7 +1328,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformNodeMerge(Node<SPACE_DIM>
 
     assert(!(this->mNodes[node_B_index]->IsDeleted()));
     this->mNodes[node_B_index]->MarkAsDeleted();
-    mDeletedNodeIndices.push_back(node_B_index);
+    this->mDeletedNodeIndices.push_back(node_B_index);
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -1660,7 +1660,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT2Swap(VertexElement<ELEM
             break;
         }
     }
-    unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(GetNumNodes(), new_node_location, is_node_on_boundary));
+    unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(GetNumNodes(), new_node_location, is_node_on_boundary));
     Node<SPACE_DIM>* p_new_node = this->GetNode(new_node_global_index);
 
     // Loop over each of the three nodes contained in rElement
@@ -1695,15 +1695,15 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT2Swap(VertexElement<ELEM
     }
 
     // We also have to mark pElement, pElement->GetNode(0), pElement->GetNode(1), and pElement->GetNode(2) as deleted
-    mDeletedNodeIndices.push_back(rElement.GetNodeGlobalIndex(0));
-    mDeletedNodeIndices.push_back(rElement.GetNodeGlobalIndex(1));
-    mDeletedNodeIndices.push_back(rElement.GetNodeGlobalIndex(2));
+    this->mDeletedNodeIndices.push_back(rElement.GetNodeGlobalIndex(0));
+    this->mDeletedNodeIndices.push_back(rElement.GetNodeGlobalIndex(1));
+    this->mDeletedNodeIndices.push_back(rElement.GetNodeGlobalIndex(2));
 
     rElement.GetNode(0)->MarkAsDeleted();
     rElement.GetNode(1)->MarkAsDeleted();
     rElement.GetNode(2)->MarkAsDeleted();
 
-    mDeletedElementIndices.push_back(rElement.GetIndex());
+    this->mDeletedElementIndices.push_back(rElement.GetIndex());
     rElement.MarkAsDeleted();
 }
 
@@ -1861,7 +1861,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
 
                     // Mark all three nodes as deleted
                     pNode->MarkAsDeleted();
-                    mDeletedNodeIndices.push_back(pNode->GetIndex());
+                    this->mDeletedNodeIndices.push_back(pNode->GetIndex());
                 }
                 else
                 {
@@ -1896,7 +1896,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     assert(this->mNodes[common_vertex_index]->GetNumContainingElements() == 0);
 
                     this->mNodes[common_vertex_index]->MarkAsDeleted();
-                    mDeletedNodeIndices.push_back(common_vertex_index);
+                    this->mDeletedNodeIndices.push_back(common_vertex_index);
 
                     // Check the nodes are updated correctly
                     assert(pNode->GetNumContainingElements() == 2);
@@ -1940,11 +1940,11 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
 
                 // Mark all three nodes as deleted
                 pNode->MarkAsDeleted();
-                mDeletedNodeIndices.push_back(pNode->GetIndex());
+                this->mDeletedNodeIndices.push_back(pNode->GetIndex());
                 this->mNodes[vertexA_index]->MarkAsDeleted();
-                mDeletedNodeIndices.push_back(vertexA_index);
+                this->mDeletedNodeIndices.push_back(vertexA_index);
                 this->mNodes[vertexB_index]->MarkAsDeleted();
-                mDeletedNodeIndices.push_back(vertexB_index);
+                this->mDeletedNodeIndices.push_back(vertexB_index);
             }
             else
             {
@@ -1976,7 +1976,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
             new_node_location = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
             // Add new node which will always be a boundary node
-            unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
+            unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
 
             // Add the moved and new nodes to the element (this also updates the node)
             this->GetElement(elementIndex)->AddNode(pNode, node_A_local_index);
@@ -2057,7 +2057,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
             // Remove vertex A from the mesh
             assert(this->mNodes[vertexA_index]->GetNumContainingElements() == 0);
             this->mNodes[vertexA_index]->MarkAsDeleted();
-            mDeletedNodeIndices.push_back(vertexA_index);
+            this->mDeletedNodeIndices.push_back(vertexA_index);
 
             // Remove vertex B from elements
             std::set<unsigned> elements_containing_vertex_B = this->mNodes[vertexB_index]->rGetContainingElementIndices();
@@ -2071,7 +2071,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
             // Remove vertex B from the mesh
             assert(this->mNodes[vertexB_index]->GetNumContainingElements()==0);
             this->mNodes[vertexB_index]->MarkAsDeleted();
-            mDeletedNodeIndices.push_back(vertexB_index);
+            this->mDeletedNodeIndices.push_back(vertexB_index);
         }
         else
         {
@@ -2128,7 +2128,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     new_node_location = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                     // Add new node, which will always be a boundary node
-                    unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
+                    unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
 
                     // Add the moved nodes to the element (this also updates the node)
                     this->GetElement(elementIndex)->AddNode(this->mNodes[new_node_global_index], node_A_local_index);
@@ -2179,7 +2179,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     new_node_location = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                     // Add new node, which will always be a boundary node
-                    unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
+                    unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
 
                     // Add the moved nodes to the element (this also updates the node)
                     this->GetElement(elementIndex)->AddNode(this->mNodes[new_node_global_index], node_A_local_index);
@@ -2203,7 +2203,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     assert(this->mNodes[vertexA_index]->GetNumContainingElements()==0);
 
                     this->mNodes[vertexA_index]->MarkAsDeleted();
-                    mDeletedNodeIndices.push_back(vertexA_index);
+                    this->mDeletedNodeIndices.push_back(vertexA_index);
 
                     // Check the nodes are updated correctly
                     assert(pNode->GetNumContainingElements() == 3);
@@ -2268,7 +2268,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     new_node_location = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                     // Add new node which will always be a boundary node
-                    unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
+                    unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
 
                     // Add the moved nodes to the element (this also updates the node)
                     this->GetElement(elementIndex)->AddNode(pNode, node_A_local_index);
@@ -2318,7 +2318,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     new_node_location = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                     // Add new node which will always be a boundary node
-                    unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
+                    unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]));
 
                     // Add the moved nodes to the element (this also updates the node)
                     this->GetElement(elementIndex)->AddNode(pNode, node_A_local_index);
@@ -2342,7 +2342,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                     assert(this->mNodes[vertexB_index]->GetNumContainingElements()==0);
 
                     this->mNodes[vertexB_index]->MarkAsDeleted();
-                    mDeletedNodeIndices.push_back(vertexB_index);
+                    this->mDeletedNodeIndices.push_back(vertexB_index);
 
                     // Check the nodes are updated correctly
                     assert(pNode->GetNumContainingElements() == 3);
@@ -2380,8 +2380,8 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformT3Swap(Node<SPACE_DIM>* p
                 new_node_2_location = intersection + this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
 
                 // Add new nodes which will always be boundary nodes
-                unsigned new_node_1_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_1_location[0], new_node_1_location[1]));
-                unsigned new_node_2_global_index = this->AddNode(new Node<SPACE_DIM>(0, true, new_node_2_location[0], new_node_2_location[1]));
+                unsigned new_node_1_global_index = AddNode(new Node<SPACE_DIM>(0, true, new_node_1_location[0], new_node_1_location[1]));
+                unsigned new_node_2_global_index = AddNode(new Node<SPACE_DIM>(0, true, new_node_2_location[0], new_node_2_location[1]));
 
                 // Add the moved and new nodes to the element (this also updates the node)
                 this->GetElement(elementIndex)->AddNode(this->mNodes[new_node_2_global_index], node_A_local_index);
@@ -2719,7 +2719,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformProtorosetteResolution(No
     pProtorosetteNode->rGetModifiableLocation() = new_location_of_protorosette_node;
 
     // Create new node in correct location
-    unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(this->GetNumNodes(), location_of_new_node, false));
+    unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(GetNumNodes(), location_of_new_node, false));
     Node<SPACE_DIM>* p_new_node = this->GetNode(new_node_global_index);
 
     /**
@@ -2891,7 +2891,7 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformRosetteRankDecrease(Node<
     c_vector<double, 2> new_node_location = pRosetteNode->rGetLocation() + (swap_distance * node_to_selected_elem);
 
     // Create new node in correct location
-    unsigned new_node_global_index = this->AddNode(new Node<SPACE_DIM>(this->GetNumNodes(), new_node_location, false));
+    unsigned new_node_global_index = AddNode(new Node<SPACE_DIM>(GetNumNodes(), new_node_location, false));
     Node<SPACE_DIM>* p_new_node = this->GetNode(new_node_global_index);
 
     /**

@@ -22,6 +22,12 @@ template<unsigned int ELEMENT_DIM, unsigned int SPACE_DIM>
 class AbstractMutableVertexMesh
 {
 protected:
+    /** Indices of nodes that have been deleted. These indices can be reused when adding new elements/nodes. */
+    std::vector<unsigned> mDeletedNodeIndices;
+
+    /** Indices of elements that have been deleted. These indices can be reused when adding new elements. */
+    std::vector<unsigned> mDeletedElementIndices;
+
     /** The minimum distance apart that two nodes in the mesh can be without causing element rearrangement. */
     double mCellRearrangementThreshold;
 
@@ -71,6 +77,8 @@ protected:
     void serialize(Archive & archive, const unsigned int version)
     {
         // NOTE - Subclasses must archive their member variables BEFORE calling this method.
+        archive & mDeletedNodeIndices;
+        archive & mDeletedElementIndices;
         archive & mCellRearrangementThreshold;
         archive & mCellRearrangementRatio;
         archive & mT2Threshold;
