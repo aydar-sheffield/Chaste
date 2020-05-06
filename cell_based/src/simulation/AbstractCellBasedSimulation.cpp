@@ -95,7 +95,24 @@ unsigned AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::DoCellBirth()
     }
 
     unsigned num_births_this_step = 0;
-
+   /* std::cout<<"H-1"<<std::endl;
+    std::vector<CellPtr> cell_list;
+    for (typename AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>::Iterator cell_iter = mrCellPopulation.Begin();
+            cell_iter != mrCellPopulation.End();
+            ++cell_iter)
+    {
+        cell_list.push_back(*cell_iter);
+    }
+    std::cout<<"H0"<<std::endl;
+#pragma omp parallel for num_threads(12)
+    for (unsigned int i=0; i<cell_list.size(); ++i)
+    {
+        if (cell_list[i]->GetAge()>0.0)
+        {
+            cell_list[i]->GetSrnModel()->SimulateToCurrentTime();
+        }
+    }
+    std::cout<<"H1"<<std::endl;*/
     // Iterate over all cells, seeing if each one can be divided
     for (typename AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>::Iterator cell_iter = mrCellPopulation.Begin();
          cell_iter != mrCellPopulation.End();
@@ -103,11 +120,8 @@ unsigned AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::DoCellBirth()
     {
         // Check if this cell is ready to divide
         double cell_age = cell_iter->GetAge();
-        if (cell_age > 0.0)
-        {
+        if (cell_age>0.0)
             if (cell_iter->ReadyToDivide())
-            {
-                // Check if there is room into which the cell may divide
                 if (mrCellPopulation.IsRoomToDivide(*cell_iter))
                 {
                     // Store parent ID for output if required
@@ -152,8 +166,6 @@ unsigned AbstractCellBasedSimulation<ELEMENT_DIM,SPACE_DIM>::DoCellBirth()
                     // Update counter
                     num_births_this_step++;
                 }
-            }
-        }
     }
     return num_births_this_step;
 }

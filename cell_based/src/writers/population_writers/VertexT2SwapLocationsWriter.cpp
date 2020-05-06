@@ -72,15 +72,16 @@ void VertexT2SwapLocationsWriter<ELEMENT_DIM, SPACE_DIM>::Visit(VertexBasedCellP
 {
     std::vector<T2SwapInfo<SPACE_DIM> > t2_swap_info
         = pCellPopulation->rGetMesh().GetOperationRecorder()->GetT2SwapsInfo();
-
-    *this->mpOutStream << t2_swap_info.size() << "\t";
-
-    for (unsigned index = 0;  index < t2_swap_info.size(); index++)
+    const unsigned int n_swaps = t2_swap_info.size();
+    *this->mpOutStream << n_swaps << "\t";
+    for (unsigned index = 0;  index < n_swaps; index++)
     {
         *this->mpOutStream << t2_swap_info[index].mCellId << "\t";
+        c_vector<double, SPACE_DIM> location;
+        location = t2_swap_info[index].mLocation;
         for (unsigned i=0; i<SPACE_DIM; i++)
         {
-            *this->mpOutStream <<  t2_swap_info[index].mLocation[i] << "\t";
+            *this->mpOutStream <<  location[i] << "\t";
         }
     }
 

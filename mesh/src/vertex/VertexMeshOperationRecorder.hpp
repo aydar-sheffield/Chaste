@@ -125,6 +125,7 @@ struct T3SwapInfo
  * mDaughtaurLocation1, mDaughtaurLocation1 - centroids of the two daughter cells
  * mDaughterOrientation1, mDaughterOrientation2 - orientation of the two daughter cells
  * mDivisionAxis - orientation of the division axis
+ * mAttributes - other quantities of interest
  */
 template<unsigned int SPACE_DIM>
 struct CellDivisionInfo
@@ -162,6 +163,8 @@ struct CellDivisionInfo
     c_vector<double, SPACE_DIM> mDaughterLocation2;
     c_vector<double, SPACE_DIM> mDaughterLongAxis2;
     c_vector<double, SPACE_DIM> mDivisionAxis;
+
+    std::vector<double> mAttributes;
 };
 
 template<unsigned int ELEMENT_DIM, unsigned int SPACE_DIM>

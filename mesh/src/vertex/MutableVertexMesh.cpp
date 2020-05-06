@@ -366,6 +366,9 @@ unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::DivideElementAlongGivenAxis(
     perp_axis(0) = -axisOfDivision(1);
     perp_axis(1) = axisOfDivision(0);
 
+    //Mother cell elongation
+    const double elongation = this->GetElongationShapeFactorOfElement(pElement->GetIndex());
+
     /*
      * Find which edges the axis of division crosses by finding any node
      * that lies on the opposite side of the axis of division to its next
@@ -575,6 +578,7 @@ unsigned MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::DivideElementAlongGivenAxis(
     division_info.mDaughterLongAxis2(1) = long_axis(0);
 
     division_info.mDivisionAxis = axisOfDivision;
+    division_info.mAttributes.push_back(elongation);
     mOperationRecorder.RecordCellDivisionInfo(division_info);
 
     if (mTrackMeshOperations)
