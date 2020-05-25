@@ -25,6 +25,7 @@ private:
 
     unsigned int mIndex;
     bool mIsDeleted;
+    double mLength;
 public:
     HalfEdge(HEElement<SPACE_DIM>* pElement = nullptr);
     ~HalfEdge();
@@ -123,6 +124,12 @@ public:
     bool IsFullyInitialized() const;
 
     bool IsOnBoundary() const;
+
+    double ComputeLength() const;
+
+    inline double GetLength();
+
+    void UpdateLength(const double new_length = 0);
 };
 
 #endif /*HALFEDGE_HPP_ */

@@ -305,6 +305,88 @@ bool HEElement<SPACE_DIM>::IsElementOnBoundary() const
 
     return is_element_on_boundary;
 }
+
+template<unsigned int SPACE_DIM>
+double HEElement<SPACE_DIM>::GetVolume() const
+{
+    return mVolume;
+}
+
+template<unsigned int SPACE_DIM>
+double HEElement<SPACE_DIM>::GetSurfaceArea() const
+{
+    return mSurfaceArea;
+}
+
+template<unsigned int SPACE_DIM>
+double HEElement<SPACE_DIM>::ComputeVolume()
+{
+    assert(SPACE_DIM == 2 || SPACE_DIM == 3); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    double element_volume = 0.0;
+    if (SPACE_DIM == 2)
+    {
+        // Map the first vertex to the origin and employ GetVectorFromAtoB() to allow for periodicity
+        c_vector<double, SPACE_DIM> first_node_location;
+        first_node_location = mpHalfEdge->GetOriginNode()->rGetLocation();
+        c_vector<double, SPACE_DIM> pos_1;
+        pos_1 = zero_vector<double>(SPACE_DIM);
+
+        // Loop over vertices
+        HalfEdge<SPACE_DIM>* next_edge = mpHalfEdge;
+        do
+        {
+            c_vector<double, SPACE_DIM> next_node_location = next_edge->GetTargetNode()->rGetLocation();
+            c_vector<double, SPACE_DIM> pos_2 = this->GetVectorFromAtoB(first_node_location, next_node_location);
+
+            double this_x = pos_1[0];
+            double this_y = pos_1[1];
+            double next_x = pos_2[0];
+            double next_y = pos_2[1];
+
+            element_volume += 0.5 * (this_x * next_y - next_x * this_y);
+
+            pos_1 = pos_2;
+            next_edge = next_edge->GetNextHalfEdge();
+        }while(next_edge!=mpHalfEdge);
+    }
+    else
+    {
+        //3D case not supported
+        EXCEPTION("Half-edge mesh in 3D not supported.");
+    }
+    // We take the absolute value just in case the nodes were really oriented clockwise
+    mVolume = fabs(element_volume);
+
+    return mVolume;
+}
+
+template<unsigned int SPACE_DIM>
+double HEElement<SPACE_DIM>::ComputeSurfaceArea()
+{
+    assert(SPACE_DIM == 2 || SPACE_DIM == 3); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    double surface_area = 0.0;
+    if (SPACE_DIM == 2)
+    {
+        HalfEdge<SPACE_DIM>* next_edge = mpHalfEdge;
+        do
+        {
+            surface_area += next_edge->ComputeLength();
+            next_edge = next_edge->GetNextHalfEdge();
+        }while(next_edge!=mpHalfEdge);
+    }
+    else
+    {
+        //3D case not supported
+        EXCEPTION("Half-edge mesh in 3D not supported.");
+    }
+    mSurfaceArea = surface_area;
+    return surface_area;
+}
+
+
+
 template class HEElement<1>;
 template class HEElement<2>;
 template class HEElement<3>;

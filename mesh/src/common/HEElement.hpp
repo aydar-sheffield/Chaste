@@ -22,6 +22,8 @@ class HEElement : public AbstractElement<SPACE_DIM, SPACE_DIM>
 private:
     HalfEdge<SPACE_DIM>* mpHalfEdge;
     unsigned int mNumNodes;
+    double mVolume;
+    double mSurfaceArea;
     void CommonConstructor(const std::vector<HENode<SPACE_DIM>* > node_list);
     /** Needed for serialization. */
     friend class boost::serialization::access;
@@ -155,6 +157,11 @@ public:
     virtual unsigned int GetNumNodes() const override;
 
     bool IsElementOnBoundary() const;
+
+    double GetVolume() const;
+    double GetSurfaceArea() const;
+    double ComputeVolume();
+    double ComputeSurfaceArea();
     /**
      * A smart iterator over the vertices in the element.
      */

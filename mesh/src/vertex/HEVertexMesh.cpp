@@ -237,42 +237,32 @@ double HEVertexMesh<SPACE_DIM>::GetVolumeOfElement(unsigned index)
     // Get pointer to this element
     HEElement<SPACE_DIM>* p_element = GetElement(index);
 
-    double element_volume = 0.0;
-    if (SPACE_DIM == 2)
-    {
-        // Map the first vertex to the origin and employ GetVectorFromAtoB() to allow for periodicity
-        HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
-        c_vector<double, SPACE_DIM> first_node_location;
-        first_node_location = edge->GetOriginNode()->rGetLocation();
-        c_vector<double, SPACE_DIM> pos_1;
-        pos_1 = zero_vector<double>(SPACE_DIM);
+    return p_element->GetVolume();
+}
 
-        // Loop over vertices
-        HalfEdge<SPACE_DIM>* next_edge = edge;
-        do
-        {
-            c_vector<double, SPACE_DIM> next_node_location = next_edge->GetTargetNode()->rGetLocation();
-            c_vector<double, SPACE_DIM> pos_2 = this->GetVectorFromAtoB(first_node_location, next_node_location);
+template<unsigned int SPACE_DIM>
+double HEVertexMesh<SPACE_DIM>::GetSurfaceAreaOfElement(unsigned index)
+{
+    assert(SPACE_DIM == 2 || SPACE_DIM == 3); // LCOV_EXCL_LINE - code will be removed at compile time
 
-            double this_x = pos_1[0];
-            double this_y = pos_1[1];
-            double next_x = pos_2[0];
-            double next_y = pos_2[1];
+    // Get pointer to this element
+    HEElement<SPACE_DIM>* p_element = GetElement(index);
 
-            element_volume += 0.5 * (this_x * next_y - next_x * this_y);
+    return p_element->GetSurfaceArea();
+}
 
-            pos_1 = pos_2;
-            next_edge = next_edge->GetNextHalfEdge();
-        }while(next_edge!=edge);
-    }
-    else
-    {
-        //3D case not supported
-        EXCEPTION("Half-edge mesh in 3D not supported.");
-    }
+template<unsigned int SPACE_DIM>
+double HEVertexMesh<SPACE_DIM>::ComputeVolumeOfElement(unsigned index)
+{
+    assert(SPACE_DIM == 2 || SPACE_DIM == 3);
+    return GetElement(index)->ComputeVolume();
+}
 
-    // We take the absolute value just in case the nodes were really oriented clockwise
-    return fabs(element_volume);
+template<unsigned int SPACE_DIM>
+double HEVertexMesh<SPACE_DIM>::ComputeSurfaceAreaOfElement(unsigned index)
+{
+    assert(SPACE_DIM == 2 || SPACE_DIM == 3);
+    return GetElement(index)->ComputeSurfaceArea();
 }
 
 template<unsigned int SPACE_DIM>

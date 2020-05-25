@@ -211,7 +211,19 @@ public:
      */
     virtual double GetVolumeOfElement(unsigned index);
 
+    /**
+     * Compute the surface area (or perimeter in 2D) of an element.
+     *
+     * This needs to be overridden in daughter classes for non-Euclidean metrics.
+     *
+     * @param index  the global index of a specified vertex element
+     *
+     * @return the surfacearea of the element
+     */
+    virtual double GetSurfaceAreaOfElement(unsigned index);
 
+    double ComputeVolumeOfElement(unsigned index);
+    double ComputeSurfaceAreaOfElement(unsigned index);
 
     FullEdge<SPACE_DIM>* GetFullEdge(const unsigned int index) const;
 
