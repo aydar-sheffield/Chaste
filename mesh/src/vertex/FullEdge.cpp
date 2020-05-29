@@ -9,27 +9,30 @@
 #include "HEElement.hpp"
 #include <cassert>
 template<unsigned int SPACE_DIM>
-FullEdge<SPACE_DIM>::FullEdge()
+FullEdge<SPACE_DIM>::FullEdge(const unsigned index)
 :
 mpFirst(nullptr),
 mpSecond(nullptr),
-mLength(0)
+mLength(0),
+mIndex(index)
 {}
 
 template<unsigned int SPACE_DIM>
-FullEdge<SPACE_DIM>::FullEdge(HalfEdge<SPACE_DIM>* edge0, HalfEdge<SPACE_DIM>* edge1)
+FullEdge<SPACE_DIM>::FullEdge(HalfEdge<SPACE_DIM>* edge0, HalfEdge<SPACE_DIM>* edge1, const unsigned index)
 :
 mpFirst(edge0),
 mpSecond(edge1),
-mLength(0)
+mLength(0),
+mIndex(index)
 {}
 
 template<unsigned int SPACE_DIM>
-FullEdge<SPACE_DIM>::FullEdge(HalfEdge<SPACE_DIM>* edge0)
+FullEdge<SPACE_DIM>::FullEdge(HalfEdge<SPACE_DIM>* edge0, const unsigned index)
 :
 mpFirst(edge0),
 mpSecond(edge0->GetTwinHalfEdge()),
-mLength(0)
+mLength(0),
+mIndex(index)
 {}
 
 template<unsigned int SPACE_DIM>
@@ -48,6 +51,18 @@ double FullEdge<SPACE_DIM>::ComputeLength()
     mLength = mpFirst->ComputeLength();
     mpSecond->UpdateLength(mLength);
     return mLength;
+}
+
+template<unsigned int SPACE_DIM>
+unsigned int FullEdge<SPACE_DIM>::GetIndex() const
+{
+    return mIndex;
+}
+
+template<unsigned int SPACE_DIM>
+void FullEdge<SPACE_DIM>::SetIndex(const unsigned int new_index)
+{
+    mIndex = new_index;
 }
 
 template<unsigned int SPACE_DIM>

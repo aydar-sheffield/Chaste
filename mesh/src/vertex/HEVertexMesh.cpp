@@ -8,6 +8,7 @@
 #include "HEVertexMesh.hpp"
 #include <map>
 #include <set>
+#include "RandomNumberGenerator.hpp"
 
 template<unsigned int SPACE_DIM>
 HEVertexMesh<SPACE_DIM>::HEVertexMesh(std::vector<HENode<SPACE_DIM>* > vertices,
@@ -271,6 +272,136 @@ double HEVertexMesh<SPACE_DIM>::ComputeSurfaceAreaOfElement(unsigned index)
     return GetElement(index)->ComputeSurfaceArea();
 }
 
+template <unsigned SPACE_DIM>
+c_vector<double, 3> HEVertexMesh<SPACE_DIM>::CalculateMomentsOfElement(unsigned index)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    // Define helper variables
+    HEElement<SPACE_DIM>* p_element = GetElement(index);
+    c_vector<double, 3> moments = zero_vector<double>(3);
+
+    // Since we compute I_xx, I_yy and I_xy about the centroid, we must shift each vertex accordingly
+    c_vector<double, SPACE_DIM> centroid = GetCentroidOfElement(index);
+
+    // Map the first vertex to the origin and employ GetVectorFromAtoB() to allow for periodicity
+    HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
+    c_vector<double, SPACE_DIM> first_node_location;
+    first_node_location = edge->GetOriginNode()->rGetLocation();
+
+    c_vector<double, SPACE_DIM> pos_1;
+    pos_1 = this->GetVectorFromAtoB(centroid, first_node_location);
+
+    // Loop over vertices
+    HalfEdge<SPACE_DIM>* next_edge = edge;
+    do
+    {
+        c_vector<double, SPACE_DIM> next_node_location = next_edge->GetTargetNode()->rGetLocation();
+        c_vector<double, SPACE_DIM> pos_2 = this->GetVectorFromAtoB(centroid, next_node_location);
+
+        double signed_area_term = pos_1(0) * pos_2(1) - pos_2(0) * pos_1(1);
+        // Ixx
+        moments(0) += (pos_1(1) * pos_1(1) + pos_1(1) * pos_2(1) + pos_2(1) * pos_2(1)) * signed_area_term;
+
+        // Iyy
+        moments(1) += (pos_1(0) * pos_1(0) + pos_1(0) * pos_2(0) + pos_2(0) * pos_2(0)) * signed_area_term;
+
+        // Ixy
+        moments(2) += (pos_1(0) * pos_2(1) + 2 * pos_1(0) * pos_1(1) + 2 * pos_2(0) * pos_2(1) + pos_2(0) * pos_1(1)) * signed_area_term;
+
+        pos_1 = pos_2;
+        next_edge = next_edge->GetNextHalfEdge();
+    }while(next_edge!=edge);
+
+    moments(0) /= 12;
+    moments(1) /= 12;
+    moments(2) /= 24;
+
+    /*
+     * If the nodes owned by the element were supplied in a clockwise rather
+     * than anticlockwise manner, or if this arose as a result of enforcing
+     * periodicity, then our computed quantities will be the wrong sign, so
+     * we need to fix this.
+     */
+    if (moments(0) < 0.0)
+    {
+        moments(0) = -moments(0);
+        moments(1) = -moments(1);
+        moments(2) = -moments(2);
+    }
+    return moments;
+}
+
+template <unsigned SPACE_DIM>
+c_vector<double, SPACE_DIM> HEVertexMesh<SPACE_DIM>::GetShortAxisOfElement(unsigned index)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    c_vector<double, SPACE_DIM> short_axis = zero_vector<double>(SPACE_DIM);
+
+    // Calculate the moments of the element about its centroid (recall that I_xx and I_yy must be non-negative)
+    c_vector<double, 3> moments = CalculateMomentsOfElement(index);
+
+    // Normalise the moments vector to remove problem of a very small discriminant (see #2874)
+    moments /= norm_2(moments);
+
+    // If the principal moments are equal...
+    double discriminant = (moments(0) - moments(1)) * (moments(0) - moments(1)) + 4.0 * moments(2) * moments(2);
+    if (fabs(discriminant) < DBL_EPSILON)
+    {
+        // ...then every axis through the centroid is a principal axis, so return a random unit vector
+        short_axis(0) = RandomNumberGenerator::Instance()->ranf();
+        short_axis(1) = sqrt(1.0 - short_axis(0) * short_axis(0));
+    }
+    else
+    {
+        // If the product of inertia is zero, then the coordinate axes are the principal axes
+        if (fabs(moments(2)) < DBL_EPSILON)
+        {
+            if (moments(0) < moments(1))
+            {
+                short_axis(0) = 0.0;
+                short_axis(1) = 1.0;
+            }
+            else
+            {
+                short_axis(0) = 1.0;
+                short_axis(1) = 0.0;
+            }
+        }
+        else
+        {
+            // Otherwise we find the eigenvector of the inertia matrix corresponding to the largest eigenvalue
+            double lambda = 0.5 * (moments(0) + moments(1) + sqrt(discriminant));
+
+            short_axis(0) = 1.0;
+            short_axis(1) = (moments(0) - lambda) / moments(2);
+
+            // Normalise the short axis before returning it
+            short_axis /= norm_2(short_axis);
+        }
+    }
+
+    return short_axis;
+}
+
+template <unsigned SPACE_DIM>
+double HEVertexMesh<SPACE_DIM>::GetElongationShapeFactorOfElement(unsigned index)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    c_vector<double, 3> moments = CalculateMomentsOfElement(index);
+
+    double discriminant = sqrt((moments(0) - moments(1)) * (moments(0) - moments(1)) + 4.0 * moments(2) * moments(2));
+
+    // Note that as the matrix of second moments of area is symmetric, both its eigenvalues are real
+    double largest_eigenvalue = (moments(0) + moments(1) + discriminant) * 0.5;
+    double smallest_eigenvalue = (moments(0) + moments(1) - discriminant) * 0.5;
+
+    double elongation_shape_factor = sqrt(largest_eigenvalue / smallest_eigenvalue);
+    return elongation_shape_factor;
+}
+
 template<unsigned int SPACE_DIM>
 void HEVertexMesh<SPACE_DIM>::ConstructFullEdges()
 {
@@ -291,6 +422,8 @@ void HEVertexMesh<SPACE_DIM>::ConstructFullEdges()
                 mFullEdges.push_back(edge);
                 traversal_set.insert(next_edge);
                 traversal_set.insert(next_edge->GetTwinHalfEdge());
+                mHalfToFullEdgeMap.insert(std::pair<HalfEdge<SPACE_DIM>*, FullEdge<SPACE_DIM>* >(next_edge, edge));
+                mHalfToFullEdgeMap.insert(std::pair<HalfEdge<SPACE_DIM>*, FullEdge<SPACE_DIM>* >(next_edge->GetTwinHalfEdge(), edge));
             }
             next_edge = next_edge->GetNextHalfEdge();
         }while(next_edge!=elem_iter->GetHalfEdge());

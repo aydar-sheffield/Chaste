@@ -12,7 +12,7 @@
 #include "HEElement.hpp"
 #include "VertexMesh.hpp"
 #include "FullEdge.hpp"
-
+#include <map>
 template <unsigned int SPACE_DIM>
 class HEVertexMesh: public AbstractMesh<SPACE_DIM, SPACE_DIM>
 {
@@ -20,8 +20,11 @@ protected:
     /** List of elements */
     std::vector<HEElement<SPACE_DIM>* > mElements;
 
-    /** List of edge */
+    /** List of edges */
     std::vector<FullEdge<SPACE_DIM>* > mFullEdges;
+
+    std::map<HalfEdge<SPACE_DIM>*, FullEdge<SPACE_DIM>* > mHalfToFullEdgeMap;
+
 
     /**
      * Constructs full edges for easier edge traversal across the mesh
@@ -194,7 +197,7 @@ public:
      * Get the volume (or area in 2D, or length in 1D) of an element.
      *
      * This needs to be overridden in daughter classes for non-Euclidean metrics.
-     *
+     * The method only retrieves volume. To compute volume, use ComputeVolume()
      * @param index  the global index of a specified vertex element
      *
      * @return the volume of the element
@@ -202,18 +205,99 @@ public:
     virtual double GetVolumeOfElement(unsigned index);
 
     /**
-     * Compute the surface area (or perimeter in 2D) of an element.
+     * Get the surface area (or perimeter in 2D) of an element.
      *
      * This needs to be overridden in daughter classes for non-Euclidean metrics.
-     *
+     * The method only retrieves area. To compute area, use ComputeSurfaceArea()
      * @param index  the global index of a specified vertex element
      *
      * @return the surfacearea of the element
      */
     virtual double GetSurfaceAreaOfElement(unsigned index);
 
+    /**
+     * Computes the volume of element and stores the result
+     * @param the global index of the element
+     * @return the volume of the element
+     */
     double ComputeVolumeOfElement(unsigned index);
+
+    /**
+     * Computes the surface area of the element and stores the result
+     * @param the global index of the element
+     * @return the surface area of the element
+     */
     double ComputeSurfaceAreaOfElement(unsigned index);
+
+    /**
+     * Compute the second moments and product moment of area for a given 2D element
+     * about its centroid. These are:
+     *
+     * I_xx, the second moment of area about an axis through the centroid of the
+     * element parallel to the x-axis;
+     *
+     * I_yy, the second moment of area about an axis through the centroid of the
+     * element parallel to the y-axis;
+     *
+     * and I_xy, product moment of area through the centroid of the element.
+     *
+     * Formulae for these quantities may be found e.g. in the following reference:
+     *
+     * Mechanics of Materials
+     * James M. Gere (Author), Barry J. Goodno.
+     * Cengage Learning; 8th edition (January 1, 2012)
+     *
+     * This method is used within GetShortAxisOfElement() to compute the direction
+     * of the shortest principal axis passing through the centroid, or 'short axis',
+     * of the element.
+     *
+     * Note that by definition, the second moments of area must be non-negative,
+     * while the product moment of area may not be.
+     *
+     * @param index  the global index of a specified vertex element
+     *
+     * @return (Ixx,Iyy,Ixy).
+     */
+    virtual c_vector<double, 3> CalculateMomentsOfElement(unsigned index);
+
+    /**
+     * Compute the direction of the shortest principal axis passing through the centroid,
+     * or 'short axis', of a given element. This is the eigenvector associated with the
+     * eigenvalue of largest magnitude of the inertia matrix
+     *
+     * J = (  I_xx  -I_xy )
+     *     ( -I_xy   I_yy )
+     *
+     * whose entries are computed by calling the method CalculateMomentsOfElement().
+     *
+     * Note that if the nodes owned by the element are supplied in clockwise rather than
+     * anticlockwise manner, or if this arises when any periodicity is enforced, then the
+     * sign of each moment may be incorrect change. This means that we need to consider the eigenvalue
+     * of largest magnitude rather than largest value when computing the short axis of the
+     * element.
+     *
+     * If the element is a regular polygon then the eigenvalues of the inertia tensor are
+     * equal: in this case we return a random unit vector.
+     *
+     * This method is only implemented in 2D at present.
+     *
+     * @param index  the global index of a specified vertex element
+     *
+     * @return a unit vector giving the direction of the short axis
+     */
+    c_vector<double, SPACE_DIM> GetShortAxisOfElement(unsigned index);
+
+    /**
+     * Get the elongation shape factor of a given element.
+     * This is defined as the square root of the ratio of
+     * the two second moments of the element around its
+     * principal axes.
+     *
+     * @param elementIndex index of an element in the mesh
+     *
+     * @return the elongation shape factor of the element.
+     */
+    double GetElongationShapeFactorOfElement(unsigned elementIndex);
 
     FullEdge<SPACE_DIM>* GetFullEdge(const unsigned int index) const;
 

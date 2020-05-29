@@ -88,9 +88,21 @@ HENode<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetTargetNode() const
 template<unsigned int SPACE_DIM>
 void HalfEdge<SPACE_DIM>::SetTargetNode(HENode<SPACE_DIM>* pNode, const bool ModifyAdjacentEdges)
 {
-    mpTargetNode = pNode;
+    //Set target node of all edges pointing to mpTargetNode to pNode
     if (ModifyAdjacentEdges)
-        GetNextHalfEdge()->GetTwinHalfEdge()->SetTargetNode(pNode);
+    {
+        HalfEdge<SPACE_DIM>* mpTargetNode_in_edge = mpTargetNode->GetOutgoingEdge()->GetTwinHalfEdge();
+        HalfEdge<SPACE_DIM>* mpTargetNode_next_in_edge = mpTargetNode_in_edge;
+        do
+        {
+            mpTargetNode_next_in_edge->SetTargetNode(pNode);
+            mpTargetNode_next_in_edge = mpTargetNode_next_in_edge->GetNextHalfEdge()->GetTwinHalfEdge();
+        }while(mpTargetNode_next_in_edge != mpTargetNode_in_edge);
+    }
+    else
+    {
+        mpTargetNode = pNode;
+    }
 }
 
 template<unsigned int SPACE_DIM>

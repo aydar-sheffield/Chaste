@@ -323,6 +323,26 @@ unsigned int HEElement<SPACE_DIM>::GetNumNodes() const
 }
 
 template<unsigned int SPACE_DIM>
+unsigned int HEElement<SPACE_DIM>::GetNumNodes(const bool compute)
+{
+    if (compute)
+    {
+        HalfEdge<SPACE_DIM>* edge = mpHalfEdge;
+        mNumNodes = 0;
+        do
+        {
+            mNumNodes++;
+            edge = edge->GetNextHalfEdge();
+        }while(edge!=mpHalfEdge);
+        return mNumNodes;
+    }
+    else
+    {
+        return mNumNodes;
+    }
+}
+
+template<unsigned int SPACE_DIM>
 bool HEElement<SPACE_DIM>::IsElementOnBoundary() const
 {
     bool is_element_on_boundary = false;

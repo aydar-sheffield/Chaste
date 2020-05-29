@@ -61,7 +61,7 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::GetNumNodes() const
 template<unsigned SPACE_DIM>
 unsigned HEMutableVertexMesh<SPACE_DIM>::GetNumFullEdges() const
 {
-    return this->mFullEdges.size() - 2*mDeletedHalfEdges.size();
+    return this->mFullEdges.size() - mDeletedHalfEdges.size()/2;
 }
 
 template<unsigned SPACE_DIM>
@@ -130,6 +130,10 @@ unsigned int HEMutableVertexMesh<SPACE_DIM>::AddEdge(HalfEdge<SPACE_DIM>* pEdge)
 {
     unsigned int new_edge_index = this->mFullEdges.size();
     this->mFullEdges.push_back(new FullEdge<SPACE_DIM>(pEdge));
+    std::pair<HalfEdge<SPACE_DIM>*, FullEdge<SPACE_DIM>* > pair_0(pEdge, this->mFullEdges[new_edge_index]);
+    std::pair<HalfEdge<SPACE_DIM>*, FullEdge<SPACE_DIM>* > pair_1(pEdge->GetTwinHalfEdge(), this->mFullEdges[new_edge_index]);
+    this->mHalfToFullEdgeMap.insert(pair_0);
+    this->mHalfToFullEdgeMap.insert(pair_1);
     return new_edge_index;
 }
 
@@ -327,6 +331,7 @@ bool HEMutableVertexMesh<SPACE_DIM>::CheckForSwapsFromShortEdges()
 {
     for (FullEdge<SPACE_DIM>* full_edge : this->mFullEdges)
     {
+        //Assume edge lengths have been updated
         if (full_edge->GetLength() < this->mCellRearrangementThreshold)
         {
             bool edge_share_triangular_element= false;
@@ -352,13 +357,194 @@ bool HEMutableVertexMesh<SPACE_DIM>::CheckForSwapsFromShortEdges()
 template<unsigned SPACE_DIM>
 void HEMutableVertexMesh<SPACE_DIM>::IdentifySwapType(FullEdge<SPACE_DIM>& full_edge)
 {
+    HENode<SPACE_DIM>* pNodeA = full_edge(0)->GetTargetNode();
+    HENode<SPACE_DIM>* pNodeB = full_edge(1)->GetTargetNode();
+    // Find the sets of elements containing nodes A and B
+    std::set<unsigned> nodeA_elem_indices = pNodeA->GetContainingElementIndices();
+    std::set<unsigned> nodeB_elem_indices = pNodeB->GetContainingElementIndices();
+
+    // Form the set union
+    std::set<unsigned> all_indices, temp_union_set;
+    std::set_union(nodeA_elem_indices.begin(), nodeA_elem_indices.end(),
+                   nodeB_elem_indices.begin(), nodeB_elem_indices.end(),
+                   std::inserter(temp_union_set, temp_union_set.begin()));
+    all_indices.swap(temp_union_set); // temp_set will be deleted, all_indices now contains all the indices of elements
+    // that touch the potentially swapping nodes
+
+    if ((nodeA_elem_indices.size()>3) || (nodeB_elem_indices.size()>3))
+    {
+        /*
+         * Looks like
+         *
+         *  \
+         *   \ A   B
+         * ---o---o---
+         *   /
+         *  /
+         *
+         */
+
+        /*
+         * This case is handled in a separate method to allow child classes to implement different
+         * functionality for high-order-junction remodelling events (see #2664).
+         */
+        this->HandleHighOrderJunctions(full_edge);
+    }
+    else // each node is contained in at most three elements
+    {
+        switch (all_indices.size())
+        {
+        case 1:
+        {
+            /*
+             * Each node is contained in a single element, so the nodes must lie on the boundary
+             * of the mesh, as shown below. In this case, we merge the nodes and tidy up node
+             * indices through calls to PerformNodeMerge() and RemoveDeletedNodes().
+             *
+             *    A   B
+             * ---o---o---
+             */
+            assert(pNodeA->IsBoundaryNode());
+            assert(pNodeB->IsBoundaryNode());
+
+            CollapseEdge(full_edge(0));
+            RemoveDeletedNodes();
+            RemoveDeletedEdges();
+            break;
+        }
+
+        }
+    }
+}
+
+template<unsigned int SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::PerformNodeMerge(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB)
+{
 
 }
 
+template<unsigned int SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::CollapseEdge(HalfEdge<SPACE_DIM>* pEdge)
+{
+    //Here we delete node A
+    HENode<SPACE_DIM>* pNodeA = pEdge->GetTargetNode();
+    HENode<SPACE_DIM>* pNodeB = pEdge->GetOriginNode();
+    // Move node A to the mid-point
+    pNodeA->rGetModifiableLocation() += 0.5 * this->GetVectorFromAtoB(pNodeA->rGetLocation(), pNodeB->rGetLocation());
+
+    HalfEdge<SPACE_DIM>* previous_edge = pEdge->GetPreviousHalfEdge();
+    HalfEdge<SPACE_DIM>* next_edge = pEdge->GetNextHalfEdge();
+    HalfEdge<SPACE_DIM>* twin = pEdge->GetTwinHalfEdge();
+    HalfEdge<SPACE_DIM>* twin_previous = twin->GetPreviousHalfEdge();
+    HalfEdge<SPACE_DIM>* twin_next = twin->GetNextHalfEdge();
+
+    //If the outgoing halfedges of nodes A and/or B are pEdge or its twin, respectively,
+    //then set outgoing halfedges to the next outgoing edge
+    HalfEdge<SPACE_DIM>* node_A_out_edge = pNodeA->GetOutgoingEdge();
+    if (node_A_out_edge == twin)
+    {
+        pNodeA->SetOutgoingEdge(twin_next);
+    }
+
+    //Since node B will be deleted, all its incoming edges must be pointing to node A
+    HalfEdge<SPACE_DIM>* node_B_in_edge = pNodeB->GetOutgoingEdge()->GetTwinHalfEdge();
+    node_B_in_edge->SetTargetNode(pNodeA,true);
+    assert(previous_edge->GetTargetNode()==pNodeA);
+    assert(twin->GetTargetNode()==pNodeA);
+
+    previous_edge->SetNextHalfEdge(next_edge,true);
+    twin_previous->SetNextHalfEdge(twin_next,true);
+
+    this->mDeletedNodeIndices.push_back(pNodeB->GetIndex());
+    pNodeB->MarkAsDeleted();
+    this->mDeletedHalfEdges.push_back(pEdge);
+    this->mDeletedHalfEdges.push_back(pEdge->GetTwinHalfEdge());
+    next_edge->SetDeletedStatus(true, true);
+
+    if (pEdge->GetElement())
+    {
+        pEdge->GetElement()->SetHalfEdge(next_edge);
+    }
+    if (twin->GetElement())
+    {
+        twin->GetElement()->SetHalfEdge(twin_next);
+    }
+    //TODO:Is updating adjacent elements necessary? Volume, or node numbers, for example
+}
+
 template<unsigned SPACE_DIM>
-void HEMutableVertexMesh<SPACE_DIM>::HandleHighOrderJunctions(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB)
+void HEMutableVertexMesh<SPACE_DIM>::HandleHighOrderJunctions(FullEdge<SPACE_DIM>& full_edge)
 {
 
+}
+
+template<unsigned int SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::RemoveDeletedNodes()
+{
+    // Remove any nodes that have been marked for deletion and store all other nodes in a temporary structure
+    std::vector<Node<SPACE_DIM>*> live_nodes;
+    for (unsigned i=0; i<this->mNodes.size(); i++)
+    {
+        if (this->mNodes[i]->IsDeleted())
+        {
+            delete this->mNodes[i];
+        }
+        else
+        {
+            live_nodes.push_back(this->mNodes[i]);
+        }
+    }
+
+    // Sanity check
+    assert(this->mDeletedNodeIndices.size() == this->mNodes.size() - live_nodes.size());
+
+    // Repopulate the nodes vector and reset the list of deleted node indices
+    this->mNodes = live_nodes;
+    this->mDeletedNodeIndices.clear();
+
+    // Finally, reset the node indices to run from zero
+    for (unsigned i=0; i<this->mNodes.size(); i++)
+    {
+        this->mNodes[i]->SetIndex(i);
+    }
+}
+
+template<unsigned int SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::RemoveDeletedEdges()
+{
+    std::vector<FullEdge<SPACE_DIM>* > live_full_edges;
+    for (unsigned int i=0; i<this->mFullEdges.size(); ++i)
+    {
+        HalfEdge<SPACE_DIM>* edge = this->mFullEdges[i]->operator()(0);
+        if (edge->IsDeleted())
+        {
+            //Make sure the element does not contain pointer to the deleted edge
+            if (edge->GetElement())
+            {
+                assert(edge->GetElement()->GetHalfEdge()!=edge);
+            }
+            HalfEdge<SPACE_DIM>* twin = edge->GetTwinHalfEdge();
+            //Remove edges from the map
+            this->mHalfToFullEdgeMap.erase(edge);
+            this->mHalfToFullEdgeMap.erase(twin);
+            delete edge;
+            delete twin;
+            delete this->mFullEdges[i];
+        }
+        else
+        {
+            live_full_edges.push_back(this->mFullEdges[i]);
+        }
+    }
+
+    // Sanity check
+    assert(this->mDeletedHalfEdges.size()/2 == this->mFullEdges.size() - live_full_edges.size());
+
+    // Repopulate the nodes vector and reset the list of deleted node indices
+    this->mFullEdges = live_full_edges;
+    this->mDeletedHalfEdges.clear();
+
+    // TODO: do we need to reset full edge indices?
 }
 
 template<unsigned SPACE_DIM>
@@ -443,6 +629,10 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT2Swap(HEElement<SPACE_DIM>& rElemen
                 EXCEPTION("One of the neighbours of a small triangular element is also a triangle - dealing with this has not been implemented yet");
             }
             neighbouring_element_indices.push_back(twin->GetElement()->GetIndex());
+            if (twin->GetElement()->GetHalfEdge()==twin)
+            {
+                twin->GetElement()->SetHalfEdge(twin->GetNextHalfEdge());
+            }
         }
         HalfEdge<SPACE_DIM>* twin_previous = twin->GetPreviousHalfEdge();
         HalfEdge<SPACE_DIM>* twin_next = twin->GetNextHalfEdge();
@@ -458,10 +648,12 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT2Swap(HEElement<SPACE_DIM>& rElemen
         {
             is_node_on_boundary = true;
         }
-        //Mark element the vertex as deleted
+        //Mark element vertex and edges as deleted
         this->mDeletedNodeIndices.push_back(target_node->GetIndex());
         target_node->MarkAsDeleted();
         this->mDeletedHalfEdges.push_back(next_edge);
+        this->mDeletedHalfEdges.push_back(next_edge->GetTwinHalfEdge());
+        next_edge->SetDeletedStatus(true, true);
 
         next_edge = next_edge->GetNextHalfEdge();
     }while(next_edge != edge);

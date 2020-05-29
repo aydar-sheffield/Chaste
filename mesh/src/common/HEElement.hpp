@@ -163,7 +163,17 @@ public:
 
     void DeleteNode(HENode<SPACE_DIM>* pNode);
 
+    /**
+     * @return the number of nodes
+     */
     virtual unsigned int GetNumNodes() const override;
+
+    /**
+     * Returns number of nodes, or computes the number and stores it
+     * @param compute if true, computes the number of nodes and stores
+     * @return number of nodes
+     */
+    unsigned int GetNumNodes(const bool compute);
 
     bool IsElementOnBoundary() const;
 

@@ -42,7 +42,8 @@ HENode<SPACE_DIM>::HENode(const Node<SPACE_DIM> &rNode, HalfEdge<SPACE_DIM>* pEd
 
 template<unsigned int SPACE_DIM>
 HENode<SPACE_DIM>::~HENode()
-{}
+{
+}
 
 template <unsigned int SPACE_DIM>
 HalfEdge<SPACE_DIM>* HENode<SPACE_DIM>::GetOutgoingEdge() const

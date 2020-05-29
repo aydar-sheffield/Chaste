@@ -76,12 +76,9 @@ protected:
      * and do not share any triangular elements.
      *
      * Identify the type of local remeshing operation required (T1 swap, void removal, or node merge).
-     *
-     * @param pNodeA one of the nodes to perform the swap with
-     * @param pNodeB the other node to perform the swap
+     * @param full_edge edge to be swapped
      */
     void IdentifySwapType(FullEdge<SPACE_DIM>& full_edge);
-
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -94,6 +91,12 @@ protected:
      * @param pNodeB the other node to perform the merge with
      */
     void PerformNodeMerge(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
+
+    /**
+     * Collapses an edge by merging its two end nodes. By default, the new node is in the middle of the collapsed edge
+     * @param pEdge collapsing edge
+     */
+    void CollapseEdge(HalfEdge<SPACE_DIM>* pEdge);
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -162,11 +165,9 @@ protected:
      * Handles the case where a swap involves a junction with more than three adjacent elements.
      * This is implemented in a separate method to allow child classes to override this behaviour
      * and implement junction remodelling with high-order nodes (see #2664).
-     *
-     * @param pNodeA one of the nodes to perform the swap with
-     * @param pNodeB the other node to perform the swap
+     * @param full_edge the junction involved in the swap
      */
-    virtual void HandleHighOrderJunctions(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
+    virtual void HandleHighOrderJunctions(FullEdge<SPACE_DIM>& full_edge);
 
     /**
      * Helper method for ReMesh(), called by HandleHighOrderJunctions().
@@ -395,6 +396,8 @@ public:
      * Helper method for ReMesh(). Removes the deleted nodes from the mesh and relabels the node indices.
      */
     void RemoveDeletedNodes();
+
+    void RemoveDeletedEdges();
 
     /**
      * Update the state of the mesh by implementing any local remeshing operations (node merging,

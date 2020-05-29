@@ -21,14 +21,17 @@ private:
     HalfEdge<SPACE_DIM>* mpFirst;
     HalfEdge<SPACE_DIM>* mpSecond;
     double mLength;
+    unsigned int mIndex;
 public:
-    FullEdge();
-    FullEdge(HalfEdge<SPACE_DIM>* edge0, HalfEdge<SPACE_DIM>* edge1);
-    FullEdge(HalfEdge<SPACE_DIM>* edge0);
+    FullEdge(const unsigned index = 0);
+    FullEdge(HalfEdge<SPACE_DIM>* edge0, HalfEdge<SPACE_DIM>* edge1, const unsigned index = 0);
+    FullEdge(HalfEdge<SPACE_DIM>* edge0, const unsigned index = 0);
     ~FullEdge();
 
     double GetLength() const;
     double ComputeLength();
+    unsigned int GetIndex() const;
+    void SetIndex(const unsigned int new_index);
     std::set<unsigned int> GetContainingElementIndices() const;
     HalfEdge<SPACE_DIM>* operator()(unsigned int index);
 };
