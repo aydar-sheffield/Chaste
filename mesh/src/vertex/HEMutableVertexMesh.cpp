@@ -59,9 +59,21 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::GetNumNodes() const
 }
 
 template<unsigned SPACE_DIM>
+unsigned HEMutableVertexMesh<SPACE_DIM>::GetNumFullEdges() const
+{
+    return this->mFullEdges.size() - 2*mDeletedHalfEdges.size();
+}
+
+template<unsigned SPACE_DIM>
 unsigned HEMutableVertexMesh<SPACE_DIM>::GetNumElements() const
 {
     return this->mElements.size() - this->mDeletedElementIndices.size();
+}
+
+template<unsigned SPACE_DIM>
+c_vector<double, SPACE_DIM> HEMutableVertexMesh<SPACE_DIM>::GetLastT2SwapLocation()
+{
+    return mLastT2SwapLocation;
 }
 
 template<unsigned SPACE_DIM>
@@ -90,6 +102,7 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::AddNode(HENode<SPACE_DIM>* pNewNode)
         unsigned index = this->mDeletedNodeIndices.back();
         pNewNode->SetIndex(index);
         this->mDeletedNodeIndices.pop_back();
+        //TODO: take edge deletion into account too
         delete this->mNodes[index];
         this->mNodes[index] = pNewNode;
     }
@@ -312,11 +325,32 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::DivideElement(HEElement<SPACE_DIM>* pEl
 template<unsigned SPACE_DIM>
 bool HEMutableVertexMesh<SPACE_DIM>::CheckForSwapsFromShortEdges()
 {
+    for (FullEdge<SPACE_DIM>* full_edge : this->mFullEdges)
+    {
+        if (full_edge->GetLength() < this->mCellRearrangementThreshold)
+        {
+            bool edge_share_triangular_element= false;
+            std::set<unsigned int> shared_elements = full_edge->GetContainingElementIndices();
+            for (unsigned int element_index : shared_elements)
+            {
+                if (this->GetElement(element_index)->GetNumNodes()<=3)
+                {
+                    edge_share_triangular_element = true;
+                    break;
+                }
+            }
+
+            if (!edge_share_triangular_element)
+            {
+                IdentifySwapType(*full_edge);
+            }
+        }
+    }
     return false;
 }
 
 template<unsigned SPACE_DIM>
-void HEMutableVertexMesh<SPACE_DIM>::IdentifySwapType(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB)
+void HEMutableVertexMesh<SPACE_DIM>::IdentifySwapType(FullEdge<SPACE_DIM>& full_edge)
 {
 
 }
@@ -332,6 +366,120 @@ void HEMutableVertexMesh<SPACE_DIM>::ReMesh(VertexElementMap& rElementMap)
 {
 
 }
+
+template<unsigned SPACE_DIM>
+bool HEMutableVertexMesh<SPACE_DIM>::CheckForT2Swaps(VertexElementMap& rElementMap)
+{
+    // Loop over elements to check for T2 swaps
+    for (typename HEVertexMesh<SPACE_DIM>::HEElementIterator elem_iter = this->GetElementIteratorBegin();
+            elem_iter != this->GetElementIteratorEnd();
+            ++elem_iter)
+    {
+        // If this element is triangular...
+        if (elem_iter->GetNumNodes() == 3)
+        {
+            // ...and smaller than the threshold area...
+            if (elem_iter->GetVolume() < this->GetT2Threshold())
+            {
+                // ...then perform a T2 swap and break out of the loop
+                PerformT2Swap(*elem_iter);
+                ///\todo: cover this line in a test
+                rElementMap.SetDeleted(elem_iter->GetIndex());
+                return true;
+            }
+        }
+
+    }
+    return false;
+}
+
+template<unsigned SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::PerformT2Swap(HEElement<SPACE_DIM>& rElement)
+{
+    assert(rElement.GetNumNodes() == 3);
+    // Note that we define this vector before setting it, as otherwise the profiling build will break (see #2367)
+    c_vector<double, SPACE_DIM> new_node_location;
+    new_node_location = this->GetCentroidOfElement(rElement.GetIndex());
+    mLastT2SwapLocation = new_node_location;
+
+    // Create a new node at the element's centroid; this will be a boundary node if any existing nodes were on the boundary
+    bool is_node_on_boundary = false;
+    HENode<SPACE_DIM>* p_new_node = new HENode<SPACE_DIM>(GetNumNodes(), new_node_location, is_node_on_boundary);
+    unsigned new_node_global_index = AddNode(p_new_node);
+
+    //Set target vertices of the incoming edges to the new node
+    //without changing neighbour relations of edges (next or previous) so that the case with rosettes is resolved
+    //correctly (i.e. if the vertex is contained in more than 3 elements)
+
+    //Loop over the nodes
+    HalfEdge<SPACE_DIM>* edge = rElement.GetHalfEdge();
+    HalfEdge<SPACE_DIM>* next_edge = edge;
+    do
+    {
+        //Loop over incoming edges
+        HalfEdge<SPACE_DIM>* next_in_edge = next_edge;
+        do
+        {
+            //Only change target vertices of the edges that are not contained in this element
+            bool edge_in_this_element
+            = next_in_edge->GetElement()==&rElement||next_in_edge->GetTwinHalfEdge()->GetElement()==&rElement;
+            if (!edge_in_this_element)
+                next_in_edge->SetTargetNode(p_new_node);
+            next_in_edge = next_in_edge->GetNextHalfEdge()->GetTwinHalfEdge();
+        }while(next_in_edge != next_edge);
+        next_edge = next_edge->GetNextHalfEdge();
+    }while(next_edge != edge);
+
+    //Change adjacency relations of the neighbouring elements' edges
+    next_edge = edge;
+    std::vector<unsigned int> neighbouring_element_indices;
+    do
+    {
+        HalfEdge<SPACE_DIM>* twin = next_edge->GetTwinHalfEdge();
+        if (twin->GetElement())
+        {
+            if (twin->GetElement()->GetNumNodes()<4)
+            {
+                EXCEPTION("One of the neighbours of a small triangular element is also a triangle - dealing with this has not been implemented yet");
+            }
+            neighbouring_element_indices.push_back(twin->GetElement()->GetIndex());
+        }
+        HalfEdge<SPACE_DIM>* twin_previous = twin->GetPreviousHalfEdge();
+        HalfEdge<SPACE_DIM>* twin_next = twin->GetNextHalfEdge();
+
+        //Edge is now inaccessible (effectively deleted) from the neighbouring element
+        twin_previous->SetNextHalfEdge(twin_next,true);
+        p_new_node->SetOutgoingEdge(twin_next);
+
+
+        HENode<SPACE_DIM>* target_node = next_edge->GetTargetNode();
+        //If any of the nodes are on the boundary, the new node will also be on the boundary
+        if (target_node->IsBoundaryNode())
+        {
+            is_node_on_boundary = true;
+        }
+        //Mark element the vertex as deleted
+        this->mDeletedNodeIndices.push_back(target_node->GetIndex());
+        target_node->MarkAsDeleted();
+        this->mDeletedHalfEdges.push_back(next_edge);
+
+        next_edge = next_edge->GetNextHalfEdge();
+    }while(next_edge != edge);
+
+    p_new_node->SetAsBoundaryNode(is_node_on_boundary);
+
+    this->mDeletedElementIndices.push_back(rElement.GetIndex());
+    rElement.MarkAsDeleted();
+
+    //Update neighbouring elements
+    for (unsigned int index : neighbouring_element_indices)
+    {
+        this->GetElement(index)->RegisterWithHalfEdges();
+        this->GetElement(index)->ComputeSurfaceArea();
+        this->GetElement(index)->ComputeVolume();
+    }
+}
+
 
 // Explicit instantiation
 template class HEMutableVertexMesh<1>;

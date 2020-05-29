@@ -71,6 +71,7 @@ HENode<SPACE_DIM>* HENode<SPACE_DIM>::GetNextNode() const
 template <unsigned int SPACE_DIM>
 std::set<unsigned int> HENode<SPACE_DIM>::GetContainingElementIndices()
 {
+    assert(mpEdge!=nullptr);
     std::set<unsigned int> element_indices;
     HalfEdge<SPACE_DIM>* edge = mpEdge;
     HEElement<SPACE_DIM>* element;

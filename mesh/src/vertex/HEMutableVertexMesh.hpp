@@ -14,12 +14,21 @@
 template <unsigned int SPACE_DIM>
 class HEMutableVertexMesh: public HEVertexMesh<SPACE_DIM>, public AbstractMutableVertexMesh<SPACE_DIM, SPACE_DIM>
 {
+    friend class TestHEMutableVertexMesh;
+    friend class TestHEMutableVertexMeshReMesh;
 protected:
     /** Indices of nodes that have been deleted. These indices can be reused when adding new elements/nodes. */
     std::vector<unsigned> mDeletedNodeIndices;
 
+    std::vector<HalfEdge<SPACE_DIM>* > mDeletedHalfEdges;
+
     /** Indices of elements that have been deleted. These indices can be reused when adding new elements. */
     std::vector<unsigned> mDeletedElementIndices;
+
+    /**
+     * The location of the last T2 swap (the centre of the removed triangle), stored so it can be accessed by the T2SwapCellKiller.
+     */
+    c_vector<double, SPACE_DIM> mLastT2SwapLocation;
 
     /**
      * Divide an element along the axis passing through the origin nodes of two halfedges.
@@ -49,7 +58,7 @@ protected:
      * @return whether we need to check for, and implement, any further local remeshing operations
      *                   (true if any swaps are performed).
      */
-    virtual bool CheckForSwapsFromShortEdges();
+    bool CheckForSwapsFromShortEdges();
 
     /**
      * Helper method for ReMesh().
@@ -71,7 +80,8 @@ protected:
      * @param pNodeA one of the nodes to perform the swap with
      * @param pNodeB the other node to perform the swap
      */
-    virtual void IdentifySwapType(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
+    void IdentifySwapType(FullEdge<SPACE_DIM>& full_edge);
+
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -258,9 +268,19 @@ public:
     virtual unsigned GetNumNodes() const;
 
     /**
+     * @return the number of full edges
+     */
+    virtual unsigned GetNumFullEdges() const;
+
+    /**
      * @return the number of VertexElements in the mesh.
      */
     virtual unsigned GetNumElements() const;
+
+    /**
+     * @return the location of the last T2 swap
+     */
+    c_vector<double, SPACE_DIM> GetLastT2SwapLocation();
 
     /**
      * Add a node to the mesh.
@@ -333,8 +353,6 @@ public:
     unsigned DivideElementAlongGivenAxis(HEElement<SPACE_DIM>* pElement,
                                          c_vector<double, SPACE_DIM> axisOfDivision,
                                          bool placeOriginalElementBelow=false);
-
-
 
     /**
      * Helper method for ReMesh().

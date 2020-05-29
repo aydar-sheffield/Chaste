@@ -34,6 +34,7 @@ vertex/TestCylindricalHoneycombVertexMeshGenerator.hpp
 vertex/TestHoneycombVertexMeshGenerator.hpp
 vertex/TestMutableVertexMesh.hpp
 vertex/TestHEMutableVertexMesh.hpp
+vertex/TestHEMutableVertexMeshReMesh.hpp
 vertex/TestMutableVertexMeshReMesh.hpp
 vertex/TestMutableVertexMeshRosetteMethods.hpp
 vertex/TestToroidal2dVertexMesh.hpp

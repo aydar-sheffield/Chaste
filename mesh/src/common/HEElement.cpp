@@ -23,11 +23,24 @@ void HEElement<SPACE_DIM>::CommonConstructor(const std::vector<HENode<SPACE_DIM>
         bool construct_edge = true;
         if (out_edge)
         {
-            if (out_edge->GetPreviousHalfEdge()->GetTwinHalfEdge()->GetTargetNode()==node_list[next_index])
+            //Iterate over outgoing edges to check if the halfedge has already been constructed
+            HalfEdge<SPACE_DIM>* next_out_edge = out_edge;
+            do
+            {
+                bool is_edge_constructed = next_out_edge->GetTargetNode() == node_list[next_index];
+                if (is_edge_constructed)
+                {
+                    edge = next_out_edge;
+                    construct_edge =false;
+                    break;
+                }
+                next_out_edge = next_out_edge->GetTwinHalfEdge()->GetNextHalfEdge();
+            }while(next_out_edge != out_edge);
+            /*if (out_edge->GetPreviousHalfEdge()->GetTwinHalfEdge()->GetTargetNode()==node_list[next_index])
             {
                 edge = out_edge->GetPreviousHalfEdge()->GetTwinHalfEdge();
                 construct_edge = false;
-            }
+            }*/
         }
 
         if (construct_edge)
@@ -38,8 +51,7 @@ void HEElement<SPACE_DIM>::CommonConstructor(const std::vector<HENode<SPACE_DIM>
 
             HalfEdge<SPACE_DIM>* twin_edge = new HalfEdge<SPACE_DIM>();
             twin_edge->SetTargetNode(node_list[i]);
-            twin_edge->SetTwinHalfEdge(edge);
-            edge->SetTwinHalfEdge(twin_edge);
+            twin_edge->SetTwinHalfEdge(edge,true);
         }
         node_list[i]->SetOutgoingEdge(edge);
         edge->SetElement(this);
@@ -84,7 +96,10 @@ void HEElement<SPACE_DIM>::CommonConstructor(const std::vector<HENode<SPACE_DIM>
 template<unsigned int SPACE_DIM>
 HEElement<SPACE_DIM>::HEElement(unsigned int index)
 :AbstractElement<SPACE_DIM,SPACE_DIM>(index),
- mNumNodes(0)
+ mpHalfEdge(nullptr),
+ mNumNodes(0),
+ mVolume(0),
+ mSurfaceArea(0)
 {
     mpHalfEdge = nullptr;
 }
@@ -92,9 +107,11 @@ HEElement<SPACE_DIM>::HEElement(unsigned int index)
 template<unsigned int SPACE_DIM>
 HEElement<SPACE_DIM>::HEElement(unsigned int index, const std::vector<HENode<SPACE_DIM>* > node_list)
 :AbstractElement<SPACE_DIM, SPACE_DIM>(index),
- mNumNodes(node_list.size())
+ mpHalfEdge(nullptr),
+ mNumNodes(0),
+ mVolume(0),
+ mSurfaceArea(0)
 {
-    mpHalfEdge = nullptr;
     CommonConstructor(node_list);
 }
 
@@ -109,7 +126,10 @@ mpHalfEdge(edge)
 template <unsigned int SPACE_DIM>
 HEElement<SPACE_DIM>::HEElement(unsigned int index, const std::vector<Node<SPACE_DIM>* > node_list)
 :AbstractElement<SPACE_DIM, SPACE_DIM>(index),
- mNumNodes(node_list.size())
+ mpHalfEdge(nullptr),
+ mNumNodes(0),
+ mVolume(0),
+ mSurfaceArea(0)
  {
     std::vector<HENode<SPACE_DIM>* > henode_list;
     for(auto node:node_list)
@@ -123,7 +143,10 @@ HEElement<SPACE_DIM>::HEElement(unsigned int index, const std::vector<Node<SPACE
 template <unsigned int SPACE_DIM>
 HEElement<SPACE_DIM>::HEElement(const VertexElement<SPACE_DIM, SPACE_DIM> &rElement)
 :AbstractElement<SPACE_DIM, SPACE_DIM>(rElement.GetIndex()),
- mNumNodes(rElement.GetNumNodes())
+ mpHalfEdge(nullptr),
+ mNumNodes(0),
+ mVolume(0),
+ mSurfaceArea(0)
  {
     std::vector<HENode<SPACE_DIM>* > node_list;
     for (unsigned int i=0; i<rElement.GetNumNodes(); ++i)
@@ -163,7 +186,7 @@ HalfEdge<SPACE_DIM>* HEElement<SPACE_DIM>::GetHalfEdge(HENode<SPACE_DIM>* pTarge
         }while(next_edge!=mpHalfEdge&&pTarget!=next_edge->GetTargetNode());
         if (next_edge == mpHalfEdge)
         {
-            EXCEPTION("Halfedge search by node not found.");
+            EXCEPTION("Halfedge search by target node not found.");
         }
     }
     return next_edge;
@@ -178,8 +201,15 @@ void HEElement<SPACE_DIM>::SetHalfEdge(HalfEdge<SPACE_DIM>* pEdge)
 template<unsigned int SPACE_DIM>
 HENode<SPACE_DIM>* HEElement<SPACE_DIM>::GetNode(unsigned int local_index) const
 {
+    assert(local_index<mNumNodes);
     HalfEdge<SPACE_DIM>* edge = GetHalfEdge(local_index);
     return edge->GetOriginNode();
+}
+
+template<unsigned int SPACE_DIM>
+unsigned HEElement<SPACE_DIM>::GetNodeGlobalIndex(unsigned int local_index) const
+{
+    return GetNode(local_index)->GetIndex();
 }
 
 template<unsigned int SPACE_DIM>
@@ -337,7 +367,7 @@ double HEElement<SPACE_DIM>::ComputeVolume()
         do
         {
             c_vector<double, SPACE_DIM> next_node_location = next_edge->GetTargetNode()->rGetLocation();
-            c_vector<double, SPACE_DIM> pos_2 = this->GetVectorFromAtoB(first_node_location, next_node_location);
+            c_vector<double, SPACE_DIM> pos_2 = next_node_location-first_node_location;
 
             double this_x = pos_1[0];
             double this_y = pos_1[1];

@@ -147,6 +147,12 @@ unsigned int HEVertexMesh<SPACE_DIM>::GetNumElements() const
 }
 
 template<unsigned int SPACE_DIM>
+unsigned int HEVertexMesh<SPACE_DIM>::GetNumAllElements() const
+{
+    return mElements.size();
+}
+
+template<unsigned int SPACE_DIM>
 HEElement<SPACE_DIM>* HEVertexMesh<SPACE_DIM>::GetElement(unsigned index) const
 {
     assert(index<mElements.size());
@@ -304,9 +310,12 @@ unsigned int HEVertexMesh<SPACE_DIM>::GetNumFullEdges() const
     return mFullEdges.size();
 }
 
-template class FullEdge<1>;
-template class FullEdge<2>;
-template class FullEdge<3>;
+template<unsigned int SPACE_DIM>
+unsigned int HEVertexMesh<SPACE_DIM>::GetNumAllFullEdges() const
+{
+    return mFullEdges.size();
+}
+
 template class HEVertexMesh<1>;
 template class HEVertexMesh<2>;
 template class HEVertexMesh<3>;

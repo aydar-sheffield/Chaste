@@ -154,7 +154,7 @@ public:
      * @param localIndex the node's local index in this element
      * @return the global index
      */
-    unsigned GetNodeGlobalIndex(unsigned localIndex) const;
+    virtual unsigned GetNodeGlobalIndex(unsigned localIndex) const;
 
     /**
      * Get the node with a given local index in this element.

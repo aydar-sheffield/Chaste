@@ -112,6 +112,15 @@ public:
      */
     virtual HENode<SPACE_DIM>* GetNode(unsigned int local_index) const;
 
+    /**
+     * Given the local index of a node owned by this element, return the
+     * global index of the node in the mesh.
+     *
+     * @param localIndex the node's local index in this element
+     * @return the global index
+     */
+    virtual unsigned GetNodeGlobalIndex(unsigned localIndex) const;
+
     virtual void UpdateNode(const unsigned& rIndex, Node<SPACE_DIM>* pNode) override
     {
         UpdateNode(rIndex, static_cast<HENode<SPACE_DIM>* >(pNode));
@@ -158,9 +167,30 @@ public:
 
     bool IsElementOnBoundary() const;
 
+    /**
+     * Fetch volume of this element. This returns element volume since last update.
+     * To compute current volume use ComputeVolume()
+     * @return volume of this element
+     */
     double GetVolume() const;
+
+    /**
+     * Fetch surface area of this element. This returns element surface area since last update.
+     * To compute current surface area use ComputeSurfaceArea()
+     * @return surface area of this element
+     */
     double GetSurfaceArea() const;
+
+    /**
+     * Computes, returns, and updates volume of this element
+     * @return computed volume of the element
+     */
     double ComputeVolume();
+
+    /**
+     * Computes, returns, and updates surface area of this element
+     * @return computed surface area of the element
+     */
     double ComputeSurfaceArea();
     /**
      * A smart iterator over the vertices in the element.

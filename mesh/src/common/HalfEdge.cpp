@@ -67,6 +67,7 @@ void HalfEdge<SPACE_DIM>::SetPreviousHalfEdge(HalfEdge<SPACE_DIM>* pEdge, const 
 template<unsigned int SPACE_DIM>
 HENode<SPACE_DIM>* HalfEdge<SPACE_DIM>::GetOriginNode() const
 {
+    //return mpPreviousEdge->GetTargetNode();
     return mpTwin->GetTargetNode();
 }
 

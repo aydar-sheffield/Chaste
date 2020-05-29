@@ -128,8 +128,8 @@ public:
         {
             FullEdge<2>* full_edge = mesh_2d.GetFullEdge(i);
             //Check to see if full edges contain all the vertices
-            TS_ASSERT_EQUALS(std::count(nodes_2d.begin(),nodes_2d.end(), full_edge->first->GetTargetNode()), 1u);
-            TS_ASSERT_EQUALS(std::count(nodes_2d.begin(),nodes_2d.end(), full_edge->second->GetTargetNode()), 1u);
+            TS_ASSERT_EQUALS(std::count(nodes_2d.begin(),nodes_2d.end(), (*full_edge)(0)->GetTargetNode()), 1u);
+            TS_ASSERT_EQUALS(std::count(nodes_2d.begin(),nodes_2d.end(), (*full_edge)(1)->GetTargetNode()), 1u);
         }
     }
 
@@ -271,6 +271,7 @@ public:
         triangle_elements.push_back(new VertexElement<2,2>(0, triangle_nodes));
         HEVertexMesh<2> triangle_mesh(triangle_nodes, triangle_elements);
 
+        triangle_mesh.GetElement(0)->ComputeVolume();
         TS_ASSERT_DELTA(triangle_mesh.GetVolumeOfElement(0), 1.0, 1e-4);
 
         // Test method with a single square element
@@ -283,6 +284,7 @@ public:
         square_elements.push_back(new VertexElement<2,2>(0, square_nodes));
         HEVertexMesh<2> square_mesh(square_nodes, square_elements);
 
+        square_mesh.GetElement(0)->ComputeVolume();
         TS_ASSERT_DELTA(square_mesh.GetVolumeOfElement(0), 1.0, 1e-6);
 
         // Test method with a single element that is close to circular
@@ -297,6 +299,7 @@ public:
         circle_elements.push_back(new VertexElement<2,2>(0, circle_nodes));
         HEVertexMesh<2> circle_mesh(circle_nodes, circle_elements);
 
+        circle_mesh.GetElement(0)->ComputeVolume();
         TS_ASSERT_DELTA(circle_mesh.GetVolumeOfElement(0), M_PI, 1e-4);
 
         // Test method with a single hexagonal element centred at the origin
@@ -310,6 +313,7 @@ public:
         hexagon_elements.push_back(new VertexElement<2,2>(0, hexagon_nodes));
         HEVertexMesh<2> hexagon_mesh(hexagon_nodes, hexagon_elements);
 
+        hexagon_mesh.GetElement(0)->ComputeVolume();
         TS_ASSERT_DELTA(hexagon_mesh.GetVolumeOfElement(0), 1.5*sqrt(3.0), 1e-6);
 
         // Test method with a single irregular element (compare with pen-and-paper solution)
@@ -323,6 +327,7 @@ public:
         irregular_elements.push_back(new VertexElement<2,2>(0, irregular_nodes));
         HEVertexMesh<2> irregular_mesh(irregular_nodes, irregular_elements);
 
+        irregular_mesh.GetElement(0)->ComputeVolume();
         TS_ASSERT_DELTA(irregular_mesh.GetVolumeOfElement(0), 1.4684, 1e-3);
 
         // Test method with a regular mesh with hexagonal elements of edge length 1/sqrt(3.0)
@@ -336,6 +341,7 @@ public:
                 ++iter)
         {
             unsigned elem_index = iter->GetIndex();
+            regular_he_mesh.GetElement(elem_index)->ComputeVolume();
             TS_ASSERT_DELTA(regular_he_mesh.GetVolumeOfElement(elem_index), 0.5*sqrt(3.0), 1e-4);
         }
     }

@@ -11,33 +11,8 @@
 #include "AbstractMesh.hpp"
 #include "HEElement.hpp"
 #include "VertexMesh.hpp"
+#include "FullEdge.hpp"
 
-/**
- * Container class to represent a (full) edge.
- * Useful for edge traversal over the mesh
- */
-template <unsigned int SPACE_DIM>
-struct FullEdge
-{
-    FullEdge();
-    FullEdge(HalfEdge<SPACE_DIM>* edge0, HalfEdge<SPACE_DIM>* edge1)
-    :
-        first(edge0),
-        second(edge1),
-        length(0)
-    {}
-    FullEdge(HalfEdge<SPACE_DIM>* edge0)
-    :
-        first(edge0),
-        second(edge0->GetTwinHalfEdge()),
-        length(0)
-    {}
-    ~FullEdge()
-    {}
-    HalfEdge<SPACE_DIM>* first;
-    HalfEdge<SPACE_DIM>* second;
-    double length;
-};
 template <unsigned int SPACE_DIM>
 class HEVertexMesh: public AbstractMesh<SPACE_DIM, SPACE_DIM>
 {
@@ -164,9 +139,24 @@ public:
     virtual unsigned GetNumNodes() const;
 
     /**
+     * @return the number of full edges
+     */
+    virtual unsigned int GetNumFullEdges() const;
+
+    /**
+     * @return the number of full edges
+     */
+    unsigned int GetNumAllFullEdges() const;
+
+    /**
      * @return the number of HEElements in the mesh.
      */
     virtual unsigned GetNumElements() const;
+
+    /**
+     * @return the number of VertexElements in the mesh, including those marked as deleted.
+     */
+    unsigned int GetNumAllElements() const;
 
     /**
      * @param index  the global index of a specified halfedge element.
@@ -226,8 +216,6 @@ public:
     double ComputeSurfaceAreaOfElement(unsigned index);
 
     FullEdge<SPACE_DIM>* GetFullEdge(const unsigned int index) const;
-
-    unsigned int GetNumFullEdges() const;
 
     /**
      * A smart iterator over the elements in the mesh.
