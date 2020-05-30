@@ -26,6 +26,12 @@ protected:
     std::vector<unsigned> mDeletedElementIndices;
 
     /**
+     * Locations of T1 swaps (the mid point of the moving nodes), stored so they can be accessed and output by the cell population.
+     * The locations are stored until they are cleared by ClearLocationsOfT1Swaps().
+     */
+    std::vector< c_vector<double, SPACE_DIM> > mLocationsOfT1Swaps;
+
+    /**
      * The location of the last T2 swap (the centre of the removed triangle), stored so it can be accessed by the T2SwapCellKiller.
      */
     c_vector<double, SPACE_DIM> mLastT2SwapLocation;
@@ -111,7 +117,7 @@ protected:
      * @param pNodeB the other node to perform the swap
      * @param rElementsContainingNodes set of common elements
      */
-    void PerformT1Swap(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB, std::set<unsigned>& rElementsContainingNodes);
+    void PerformT1Swap(HalfEdge<SPACE_DIM>* pEdge);
 
     /**
      * Helper method for ReMesh(), called by CheckForIntersections().

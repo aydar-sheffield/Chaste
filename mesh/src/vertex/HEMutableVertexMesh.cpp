@@ -412,6 +412,74 @@ void HEMutableVertexMesh<SPACE_DIM>::IdentifySwapType(FullEdge<SPACE_DIM>& full_
             RemoveDeletedEdges();
             break;
         }
+        case 2:
+        {
+            if (nodeA_elem_indices.size()==2 && nodeB_elem_indices.size()==2)
+            {
+                if (pNodeA->IsBoundaryNode() && pNodeB->IsBoundaryNode())
+                {
+                    /*
+                     * The node configuration is as shown below, with voids on either side. In this case
+                     * we perform a T1 swap, which separates the elements.
+                     *
+                     *   \   /
+                     *    \ / Node A
+                     * (1) |   (2)      (element number in brackets)
+                     *    / \ Node B
+                     *   /   \
+                     */
+                    PerformT1Swap(full_edge(0));
+                }
+                else if (pNodeA->IsBoundaryNode() || pNodeB->IsBoundaryNode())
+                {
+                    /*
+                     * The node configuration is as shown below, with a void on one side. We should not
+                     * be able to reach this case at present, since we allow only for three-way junctions
+                     * or boundaries, so we throw an exception.
+                     *
+                     *   \   /
+                     *    \ / Node A
+                     * (1) |   (2)      (element number in brackets)
+                     *     x Node B
+                     *     |
+                     */
+                    EXCEPTION("There is a non-boundary node contained only in two elements; something has gone wrong.");
+                }
+                else
+                {
+                    /*
+                     * Each node is contained in two elements, so the nodes lie on an internal edge, as shown below.
+                     * We should not be able to reach this case at present, since we allow only for three-way junctions
+                     * or boundaries, so we throw an exception.
+                     *
+                     *    A   B
+                     * ---o---o---
+                     */
+                    EXCEPTION("There are non-boundary nodes contained only in two elements; something has gone wrong.");
+                }
+            }// from [if (nodeA_elem_indices.size()==2 && nodeB_elem_indices.size()==2)]
+            else
+            {
+                /*
+                 * The node configuration looks like that shown below. In this case, we merge the nodes
+                 * and tidy up node indices through calls to PerformNodeMerge() and  RemoveDeletedNodes().
+                 *
+                 * Outside
+                 *         /
+                 *   --o--o (2)
+                 *     (1) \
+                 *
+                 * ///\todo this should be a T1 swap (see #1263 and #2401)
+                 * Referring to the todo: this should probably stay a node-merge. If this is a T1 swap then
+                 * the single boundary node will travel from element 1 to element 2, but still remain a single node.
+                 * I.e. we would not reduce the total number of nodes in this situation.
+                 */
+                CollapseEdge(full_edge(0));
+                RemoveDeletedNodes();
+                RemoveDeletedEdges();
+            }
+            break;
+        }
 
         }
     }
@@ -452,6 +520,7 @@ void HEMutableVertexMesh<SPACE_DIM>::CollapseEdge(HalfEdge<SPACE_DIM>* pEdge)
     assert(previous_edge->GetTargetNode()==pNodeA);
     assert(twin->GetTargetNode()==pNodeA);
 
+    //Change adjacency relations. Traversal of element edges will not include collapsed edge
     previous_edge->SetNextHalfEdge(next_edge,true);
     twin_previous->SetNextHalfEdge(twin_next,true);
 
@@ -669,6 +738,159 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT2Swap(HEElement<SPACE_DIM>& rElemen
         this->GetElement(index)->RegisterWithHalfEdges();
         this->GetElement(index)->ComputeSurfaceArea();
         this->GetElement(index)->ComputeVolume();
+    }
+}
+
+template<unsigned int SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::PerformT1Swap(HalfEdge<SPACE_DIM>* pEdge)
+{
+    // First compute and store the location of the T1 swap, which is at the midpoint of nodes A and B
+    double distance_between_nodes_CD = this->mCellRearrangementRatio*this->mCellRearrangementThreshold;
+
+    HENode<SPACE_DIM>* pNodeA = pEdge->GetTargetNode();
+    HENode<SPACE_DIM>* pNodeB = pEdge->GetOriginNode();
+    c_vector<double, SPACE_DIM> nodeA_location = pNodeA->rGetLocation();
+    c_vector<double, SPACE_DIM> nodeB_location = pNodeB->rGetLocation();
+    c_vector<double, SPACE_DIM> vector_AB = this->GetVectorFromAtoB(nodeA_location, nodeB_location);
+    mLocationsOfT1Swaps.push_back(nodeA_location + 0.5*vector_AB);
+
+    double distance_AB = norm_2(vector_AB);
+    if (distance_AB < 1e-10) ///\todo remove magic number? (see #1884 and #2401)
+    {
+        EXCEPTION("Nodes are too close together, this shouldn't happen");
+    }
+
+    /*
+     * Compute the locations of two new nodes C, D, placed on either side of the
+     * edge E_old formed by nodes A and B, such that the edge E_new formed by the
+     * new nodes is the perpendicular bisector of E_old, with |E_new| 'just larger'
+     * (this->mCellRearrangementRatio) than mThresholdDistance.
+     *
+     * We implement the following changes to the mesh:
+     *
+     * The element whose index was in nodeA_elem_indices but not nodeB_elem_indices,
+     * and the element whose index was in nodeB_elem_indices but not nodeA_elem_indices,
+     * should now both contain nodes A and B.
+     *
+     * The element whose index was in nodeA_elem_indices and nodeB_elem_indices, and which
+     * node C lies inside, should now only contain node A.
+     *
+     * The element whose index was in nodeA_elem_indices and nodeB_elem_indices, and which
+     * node D lies inside, should now only contain node B.
+     *
+     * Iterate over all elements involved and identify which element they are
+     * in the diagram then update the nodes as necessary.
+     *
+     *   \(1)/
+     *    \ / Node A
+     * (2) |   (4)     elements in brackets
+     *    / \ Node B
+     *   /(3)\
+     */
+
+    // Move nodes A and B to C and D respectively
+    c_vector<double, SPACE_DIM> vector_CD;
+    vector_CD(0) = -vector_AB(1) * distance_between_nodes_CD / distance_AB;
+    vector_CD(1) =  vector_AB(0) * distance_between_nodes_CD / distance_AB;
+
+    c_vector<double, SPACE_DIM> nodeC_location = nodeA_location + 0.5*vector_AB - 0.5*vector_CD;
+    c_vector<double, SPACE_DIM> nodeD_location = nodeC_location + vector_CD;
+
+    pNodeA->rGetModifiableLocation() = nodeC_location;
+    pNodeB->rGetModifiableLocation() = nodeD_location;
+
+    HalfEdge<SPACE_DIM>* next_edge = pEdge->GetNextHalfEdge();
+    HalfEdge<SPACE_DIM>* previous_edge = pEdge->GetPreviousHalfEdge();
+    HalfEdge<SPACE_DIM>* twin = pEdge->GetTwinHalfEdge();
+    HalfEdge<SPACE_DIM>* twin_next_edge = twin->GetNextHalfEdge();
+    HalfEdge<SPACE_DIM>* twin_previous_edge = twin->GetPreviousHalfEdge();
+
+    //Change adjacency relations. Traversal of element edges will not include collapsed edge
+    previous_edge->SetNextHalfEdge(next_edge,true);
+    twin_previous_edge->SetNextHalfEdge(twin_next_edge,true);
+
+    HEElement<SPACE_DIM>* edge_A_element = pEdge->GetElement();
+    HEElement<SPACE_DIM>* edge_B_element = twin->GetElement();
+    if (edge_A_element)
+    {
+        if (edge_A_element->GetHalfEdge()==pEdge)
+            edge_A_element->SetHalfEdge(next_edge);
+    }
+    if (edge_B_element)
+    {
+        if (edge_B_element->GetHalfEdge()==twin)
+            edge_B_element->SetHalfEdge(twin_next_edge);
+    }
+
+    //Create halfedges pointing to node C and D, respectively
+    HalfEdge<SPACE_DIM>* pEdgeC = new HalfEdge<SPACE_DIM>();
+    HalfEdge<SPACE_DIM>* pEdgeD = new HalfEdge<SPACE_DIM>();
+    pEdgeC->SetTwinHalfEdge(pEdgeD,true);
+    pEdgeC->SetTargetNode(pNodeA);
+    pEdgeD->SetTargetNode(pNodeB);
+
+    //Insert halfedge pointing to node D into element 1 and modify adjacency relations
+    HalfEdge<SPACE_DIM>* out_A_edge = pNodeA->GetOutgoingEdge();
+    HalfEdge<SPACE_DIM>* next_out_A_edge = out_A_edge;
+    //Also count number of elements containing node A, therefore we do not break when found element 1
+    unsigned int node_A_num_elements= 0;
+    do
+    {
+        HEElement<SPACE_DIM>* out_A_element = next_out_A_edge->GetElement();
+        //Find element 1
+        if (out_A_element != edge_A_element && out_A_element != edge_B_element)
+        {
+            pEdgeD->SetElement(out_A_element);
+            pEdgeD->SetPreviousHalfEdge(next_out_A_edge->GetPreviousHalfEdge(),true);
+            pEdgeD->SetNextHalfEdge(next_out_A_edge, true);
+        }
+        node_A_num_elements++;
+        next_out_A_edge = next_out_A_edge->GetTwinHalfEdge()->GetNextHalfEdge();
+    }while(next_out_A_edge != out_A_edge);
+
+    //Insert halfedge pointing to node C into element 3 and modify adjacency relations
+    HalfEdge<SPACE_DIM>* out_B_edge = pNodeB->GetOutgoingEdge();
+    HalfEdge<SPACE_DIM>* next_out_B_edge = out_B_edge;
+    //Also count number of elements containing node B, therefore we do not break when found element 3
+    unsigned int node_B_num_elements= 0;
+    do
+    {
+        HEElement<SPACE_DIM>* out_B_element = next_out_B_edge->GetElement();
+        //Find element 3
+        if (out_B_element != edge_A_element && out_B_element != edge_B_element)
+        {
+            pEdgeC->SetElement(out_B_element);
+            pEdgeC->SetPreviousHalfEdge(next_out_B_edge->GetPreviousHalfEdge(),true);
+            pEdgeC->SetNextHalfEdge(next_out_B_edge, true);
+        }
+        node_B_num_elements++;
+        next_out_B_edge = next_out_B_edge->GetTwinHalfEdge()->GetNextHalfEdge();
+    }while(next_out_B_edge != out_B_edge);
+
+    AddEdge(pEdgeC);
+    this->mDeletedHalfEdges.push_back(pEdge);
+    this->mDeletedHalfEdges.push_back(twin);
+    pEdge->SetDeletedStatus(true, true);
+
+    // Sort out boundary nodes
+    if (pNodeA->IsBoundaryNode() || pNodeB->IsBoundaryNode())
+    {
+        if (node_A_num_elements == 3)
+        {
+            pNodeA->SetAsBoundaryNode(false);
+        }
+        else
+        {
+            pNodeA->SetAsBoundaryNode(true);
+        }
+        if (node_B_num_elements == 3)
+        {
+            pNodeB->SetAsBoundaryNode(false);
+        }
+        else
+        {
+            pNodeB->SetAsBoundaryNode(true);
+        }
     }
 }
 
