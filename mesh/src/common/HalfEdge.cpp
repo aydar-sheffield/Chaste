@@ -156,23 +156,25 @@ bool HalfEdge<SPACE_DIM>::IsOnBoundary() const
 }
 
 template<unsigned int SPACE_DIM>
-double HalfEdge<SPACE_DIM>::ComputeLength() const
+double HalfEdge<SPACE_DIM>::ComputeLength()
 {
     c_vector<double, SPACE_DIM> edge_vector;
-    edge_vector = GetOriginNode()->rGetLocation()-GetOriginNode()->rGetLocation();
-    return norm_2(edge_vector);
+    edge_vector = mpTargetNode->rGetLocation()-GetOriginNode()->rGetLocation();
+    mLength = norm_2(edge_vector);
+    mpTwin->UpdateLength(mLength);
+    return mLength;
 }
 
 template<unsigned int SPACE_DIM>
-inline double HalfEdge<SPACE_DIM>::GetLength()
+double HalfEdge<SPACE_DIM>::GetLength()
 {
     return mLength;
 }
 
 template<unsigned int SPACE_DIM>
-void HalfEdge<SPACE_DIM>::UpdateLength(const double new_length)
+void HalfEdge<SPACE_DIM>::UpdateLength(const double new_length, const bool compute)
 {
-    mLength = new_length==0 ? ComputeLength() : new_length;
+    mLength = compute ? ComputeLength() : new_length;
 }
 template class HalfEdge<1>;
 template class HalfEdge<2>;

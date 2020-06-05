@@ -13,6 +13,10 @@
 #include "VertexMesh.hpp"
 #include "FullEdge.hpp"
 #include <map>
+
+template<unsigned int SPACE_DIM>
+using NodesAndElements = std::pair< std::vector<Node<SPACE_DIM>* >, std::vector<VertexElement<SPACE_DIM, SPACE_DIM>* > >;
+
 template <unsigned int SPACE_DIM>
 class HEVertexMesh: public AbstractMesh<SPACE_DIM, SPACE_DIM>
 {
@@ -130,6 +134,15 @@ public:
      */
     void ConvertFromVertexMesh(std::vector<Node<SPACE_DIM>*> nodes,
                                  std::vector<VertexElement<SPACE_DIM, SPACE_DIM>*> vertexElements);
+    void ConvertFromVertexMesh(VertexMesh<SPACE_DIM, SPACE_DIM>* vertex_mesh);
+
+    /**
+     * Converts HE mesh into vertex mesh
+     * @return vertex mesh
+     */
+    VertexMesh<SPACE_DIM, SPACE_DIM>* ConvertToVertexMesh() const;
+
+    NodesAndElements<SPACE_DIM> ConvertToVertexNodesAndElements() const;
 
     /**
      * Delete mNodes, mEdges and mElements.
@@ -301,6 +314,9 @@ public:
 
     FullEdge<SPACE_DIM>* GetFullEdge(const unsigned int index) const;
 
+    FullEdge<SPACE_DIM>* GetFullEdgeFromHalfEdge(HalfEdge<SPACE_DIM>* pEdge) const;
+
+    void UpdateElementGeometries();
     /**
      * A smart iterator over the elements in the mesh.
      *

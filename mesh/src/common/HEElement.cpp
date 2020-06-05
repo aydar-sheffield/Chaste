@@ -213,6 +213,25 @@ unsigned HEElement<SPACE_DIM>::GetNodeGlobalIndex(unsigned int local_index) cons
 }
 
 template<unsigned int SPACE_DIM>
+unsigned HEElement<SPACE_DIM>::GetNodeLocalIndex(unsigned globalIndex) const
+{
+    unsigned local_index = UINT_MAX;
+    HalfEdge<SPACE_DIM>* next_edge = mpHalfEdge->GetPreviousHalfEdge();
+    unsigned int counter = 0;
+    do
+    {
+        if (next_edge->GetTargetNode()->GetIndex() == globalIndex)
+        {
+            local_index = counter;
+        }
+        counter++;
+        next_edge = next_edge->GetNextHalfEdge();
+    }while(next_edge != mpHalfEdge->GetPreviousHalfEdge());
+
+    return local_index;
+}
+
+template<unsigned int SPACE_DIM>
 void HEElement<SPACE_DIM>::UpdateNode(const unsigned& rIndex, HENode<SPACE_DIM>* pNode)
 {
     assert(rIndex<mNumNodes);
@@ -289,6 +308,7 @@ HalfEdge<SPACE_DIM>* HEElement<SPACE_DIM>::AddNode(HalfEdge<SPACE_DIM>* pEdge, H
     if (pEdge==mpHalfEdge)
         mpHalfEdge = new_edge;
     mNumNodes++;
+    return new_edge;
 }
 
 template<unsigned int SPACE_DIM>
@@ -435,7 +455,52 @@ double HEElement<SPACE_DIM>::ComputeSurfaceArea()
     return surface_area;
 }
 
+template<unsigned int SPACE_DIM>
+void HEElement<SPACE_DIM>::UpdateGeometry()
+{
+    assert(SPACE_DIM == 2 || SPACE_DIM == 3); // LCOV_EXCL_LINE - code will be removed at compile time
 
+    double element_volume = 0.0;
+    double surface_area = 0.0;
+    mNumNodes = 0;
+    if (SPACE_DIM == 2)
+    {
+        // Map the first vertex to the origin and employ GetVectorFromAtoB() to allow for periodicity
+        c_vector<double, SPACE_DIM> first_node_location;
+        first_node_location = mpHalfEdge->GetOriginNode()->rGetLocation();
+        c_vector<double, SPACE_DIM> pos_1;
+        pos_1 = zero_vector<double>(SPACE_DIM);
+
+        // Loop over vertices
+        HalfEdge<SPACE_DIM>* next_edge = mpHalfEdge;
+        do
+        {
+            c_vector<double, SPACE_DIM> next_node_location = next_edge->GetTargetNode()->rGetLocation();
+            c_vector<double, SPACE_DIM> pos_2 = next_node_location-first_node_location;
+
+            double this_x = pos_1[0];
+            double this_y = pos_1[1];
+            double next_x = pos_2[0];
+            double next_y = pos_2[1];
+
+            element_volume += 0.5 * (this_x * next_y - next_x * this_y);
+
+            pos_1 = pos_2;
+            surface_area += next_edge->ComputeLength(); //also updates edge lengths
+            mNumNodes++;
+
+            next_edge = next_edge->GetNextHalfEdge();
+        }while(next_edge!=mpHalfEdge);
+    }
+    else
+    {
+        //3D case not supported
+        EXCEPTION("Half-edge mesh in 3D not supported.");
+    }
+    // We take the absolute value just in case the nodes were really oriented clockwise
+    mVolume = fabs(element_volume);
+    mSurfaceArea = surface_area;
+}
 
 template class HEElement<1>;
 template class HEElement<2>;

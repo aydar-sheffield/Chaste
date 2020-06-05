@@ -121,6 +121,15 @@ public:
      */
     virtual unsigned GetNodeGlobalIndex(unsigned localIndex) const;
 
+    /**
+     * Calculate the local index of a node given a global index
+     * if node is not contained in element return UINT_MAX
+     *
+     * @param globalIndex the global index of the node in the mesh
+     * @return local_index.
+     */
+    unsigned GetNodeLocalIndex(unsigned globalIndex) const;
+
     virtual void UpdateNode(const unsigned& rIndex, Node<SPACE_DIM>* pNode) override
     {
         UpdateNode(rIndex, static_cast<HENode<SPACE_DIM>* >(pNode));
@@ -202,6 +211,12 @@ public:
      * @return computed surface area of the element
      */
     double ComputeSurfaceArea();
+
+    /**
+     * Computes and stores edge lengths, surface area, volume, and updates current number of nodes
+     */
+    void UpdateGeometry();
+
     /**
      * A smart iterator over the vertices in the element.
      */

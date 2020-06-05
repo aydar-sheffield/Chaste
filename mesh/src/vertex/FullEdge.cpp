@@ -13,7 +13,6 @@ FullEdge<SPACE_DIM>::FullEdge(const unsigned index)
 :
 mpFirst(nullptr),
 mpSecond(nullptr),
-mLength(0),
 mIndex(index)
 {}
 
@@ -22,7 +21,6 @@ FullEdge<SPACE_DIM>::FullEdge(HalfEdge<SPACE_DIM>* edge0, HalfEdge<SPACE_DIM>* e
 :
 mpFirst(edge0),
 mpSecond(edge1),
-mLength(0),
 mIndex(index)
 {}
 
@@ -31,7 +29,6 @@ FullEdge<SPACE_DIM>::FullEdge(HalfEdge<SPACE_DIM>* edge0, const unsigned index)
 :
 mpFirst(edge0),
 mpSecond(edge0->GetTwinHalfEdge()),
-mLength(0),
 mIndex(index)
 {}
 
@@ -42,15 +39,14 @@ FullEdge<SPACE_DIM>::~FullEdge()
 template<unsigned int SPACE_DIM>
 double FullEdge<SPACE_DIM>::GetLength() const
 {
-    return mLength;
+    assert(mpFirst->GetLength()==mpSecond->GetLength());
+    return mpFirst->GetLength();
 }
 
 template<unsigned int SPACE_DIM>
 double FullEdge<SPACE_DIM>::ComputeLength()
 {
-    mLength = mpFirst->ComputeLength();
-    mpSecond->UpdateLength(mLength);
-    return mLength;
+    return mpFirst->ComputeLength();
 }
 
 template<unsigned int SPACE_DIM>
@@ -80,6 +76,13 @@ std::set<unsigned int> FullEdge<SPACE_DIM>::GetContainingElementIndices() const
 
 template<unsigned int SPACE_DIM>
 HalfEdge<SPACE_DIM>* FullEdge<SPACE_DIM>::operator()(unsigned int index)
+{
+    assert(index<=1);
+    return index == 0 ? mpFirst : mpSecond;
+}
+
+template<unsigned int SPACE_DIM>
+HalfEdge<SPACE_DIM>* FullEdge<SPACE_DIM>::at(unsigned int index) const
 {
     assert(index<=1);
     return index == 0 ? mpFirst : mpSecond;

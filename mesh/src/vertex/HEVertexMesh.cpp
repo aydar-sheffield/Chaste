@@ -9,6 +9,7 @@
 #include <map>
 #include <set>
 #include "RandomNumberGenerator.hpp"
+#include "UblasCustomFunctions.hpp"
 
 template<unsigned int SPACE_DIM>
 HEVertexMesh<SPACE_DIM>::HEVertexMesh(std::vector<HENode<SPACE_DIM>* > vertices,
@@ -28,6 +29,7 @@ HEVertexMesh<SPACE_DIM>::HEVertexMesh(std::vector<HENode<SPACE_DIM>* > vertices,
         mElements.push_back(p_temp_element);
     }
     ConstructFullEdges();
+    UpdateElementGeometries();
 }
 
 template<unsigned int SPACE_DIM>
@@ -37,30 +39,13 @@ HEVertexMesh<SPACE_DIM>::HEVertexMesh(std::vector<Node<SPACE_DIM>*> nodes,
     Clear();
 
     ConvertFromVertexMesh(nodes, vertexElements);
-    ConstructFullEdges();
+
 }
 
 template<unsigned int SPACE_DIM>
 HEVertexMesh<SPACE_DIM>::HEVertexMesh(VertexMesh<SPACE_DIM, SPACE_DIM>* vertex_mesh)
 {
-    Clear();
-
-    const unsigned int n_vertex_elements = vertex_mesh->GetNumElements();
-    std::vector<VertexElement<SPACE_DIM, SPACE_DIM>* > vertex_elements(n_vertex_elements);
-    for (unsigned int i=0; i<n_vertex_elements; ++i)
-    {
-        vertex_elements[i] = vertex_mesh->GetElement(i);
-    }
-
-    const unsigned int n_nodes = vertex_mesh->GetNumNodes();
-    std::vector<Node<SPACE_DIM>* > nodes(n_nodes);
-    for (unsigned int i=0; i<n_nodes; ++i)
-    {
-        nodes[i] = vertex_mesh->GetNode(i);
-    }
-
-    ConvertFromVertexMesh(nodes, vertex_elements);
-    ConstructFullEdges();
+    ConvertFromVertexMesh(vertex_mesh);
 }
 
 template<unsigned int SPACE_DIM>
@@ -79,7 +64,7 @@ void HEVertexMesh<SPACE_DIM>::ConvertFromVertexMesh(std::vector<Node<SPACE_DIM>*
 {
     Clear();
 
-    std::set<HENode<SPACE_DIM>* > temp_node_list;
+    /*std::set<HENode<SPACE_DIM>* > temp_node_list;
     for (unsigned index = 0; index < vertexElements.size(); index++)
     {
         //Create HEElement from VertexElement...
@@ -101,7 +86,108 @@ void HEVertexMesh<SPACE_DIM>::ConvertFromVertexMesh(std::vector<Node<SPACE_DIM>*
     {
         this->mNodes.push_back(node);
     }
+    ConstructFullEdges();
+    UpdateElementGeometries();*/
+
+    std::map<Node<SPACE_DIM>*, HENode<SPACE_DIM>* > node_to_he_node_map;
+
+    for (unsigned int i=0; i<nodes.size(); ++i)
+    {
+        HENode<SPACE_DIM>* he_node = new HENode<SPACE_DIM>(*nodes[i]);
+        if (nodes[i]->IsDeleted())
+        {
+            he_node->MarkAsDeleted();
+        }
+        node_to_he_node_map.insert(std::pair<Node<SPACE_DIM>*, HENode<SPACE_DIM>*>(nodes[i],he_node));
+        this->mNodes.push_back(he_node);
+    }
+
+    for (unsigned int i=0; i<vertexElements.size(); ++i)
+    {
+        std::vector<HENode<SPACE_DIM>* > he_element_nodes;
+        for (unsigned int j=0; j<vertexElements[i]->GetNumNodes(); ++j)
+        {
+            he_element_nodes.push_back(node_to_he_node_map.at(vertexElements[i]->GetNode(j)));
+        }
+        HEElement<SPACE_DIM>* he_element = new HEElement<SPACE_DIM>(vertexElements[i]->GetIndex(), he_element_nodes);
+        if (vertexElements[i]->IsDeleted())
+        {
+            he_element->MarkAsDeleted();
+        }
+        this->mElements.push_back(he_element);
+    }
+
+    ConstructFullEdges();
+    UpdateElementGeometries();
 }
+
+template<unsigned int SPACE_DIM>
+void HEVertexMesh<SPACE_DIM>::ConvertFromVertexMesh(VertexMesh<SPACE_DIM, SPACE_DIM>* vertex_mesh)
+{
+    Clear();
+
+    const unsigned int n_vertex_elements = vertex_mesh->GetNumElements();
+    std::vector<VertexElement<SPACE_DIM, SPACE_DIM>* > vertex_elements(n_vertex_elements);
+    for (unsigned int i=0; i<n_vertex_elements; ++i)
+    {
+        vertex_elements[i] = vertex_mesh->GetElement(i);
+    }
+
+    const unsigned int n_nodes = vertex_mesh->GetNumNodes();
+    std::vector<Node<SPACE_DIM>* > nodes(n_nodes);
+    for (unsigned int i=0; i<n_nodes; ++i)
+    {
+        nodes[i] = vertex_mesh->GetNode(i);
+    }
+
+    ConvertFromVertexMesh(nodes, vertex_elements);
+}
+
+template<unsigned int SPACE_DIM>
+VertexMesh<SPACE_DIM, SPACE_DIM>* HEVertexMesh<SPACE_DIM>::ConvertToVertexMesh() const
+{
+    NodesAndElements<SPACE_DIM> nodes_elements = ConvertToVertexNodesAndElements();
+    VertexMesh<SPACE_DIM, SPACE_DIM>* vertex_mesh = new VertexMesh<SPACE_DIM, SPACE_DIM>(nodes_elements.first, nodes_elements.second);
+    return vertex_mesh;
+}
+
+template<unsigned int SPACE_DIM>
+NodesAndElements<SPACE_DIM> HEVertexMesh<SPACE_DIM>::ConvertToVertexNodesAndElements() const
+{
+    std::vector<Node<SPACE_DIM>* > nodes;
+    std::map<HENode<SPACE_DIM>*, Node<SPACE_DIM>* > he_node_to_node_map;
+
+    for (unsigned int i=0; i<this->mNodes.size(); ++i)
+    {
+        HENode<SPACE_DIM>* he_node = static_cast<HENode<SPACE_DIM>* >(this->mNodes[i]);
+        Node<SPACE_DIM>* node = new Node<SPACE_DIM>(he_node->GetIndex(), he_node->rGetLocation(), he_node->IsBoundaryNode());
+        nodes.push_back(node);
+        if (he_node->IsDeleted())
+        {
+            node->MarkAsDeleted();
+        }
+        he_node_to_node_map.insert(std::pair<HENode<SPACE_DIM>*, Node<SPACE_DIM>*>(he_node,node));
+    }
+
+    std::vector<VertexElement<SPACE_DIM, SPACE_DIM>* > elements;
+    for (HEElement<SPACE_DIM>* he_element : mElements)
+    {
+        std::vector<Node<SPACE_DIM>* > element_nodes;
+        HalfEdge<SPACE_DIM>* starting_edge = he_element->GetHalfEdge()->GetPreviousHalfEdge();
+        HalfEdge<SPACE_DIM>* next_edge = starting_edge;
+        do
+        {
+            element_nodes.push_back(he_node_to_node_map.at(next_edge->GetTargetNode()));
+            next_edge = next_edge->GetNextHalfEdge();
+        }while(next_edge != starting_edge);
+        VertexElement<SPACE_DIM, SPACE_DIM>* vertex_element
+        = new VertexElement<SPACE_DIM, SPACE_DIM>(he_element->GetIndex(), element_nodes);
+        elements.push_back(vertex_element);
+    }
+    NodesAndElements<SPACE_DIM> nodes_elements(nodes, elements);
+    return nodes_elements;
+}
+
 
 template<unsigned int SPACE_DIM>
 void HEVertexMesh<SPACE_DIM>::Clear()
@@ -133,6 +219,133 @@ unsigned int HEVertexMesh<SPACE_DIM>::SolveNodeMapping(unsigned int index) const
 {
     assert(index < this->mNodes.size());
     return index;
+}
+
+template <unsigned int SPACE_DIM>
+bool HEVertexMesh<SPACE_DIM>::ElementIncludesPoint(const c_vector<double, SPACE_DIM>& rTestPoint, unsigned elementIndex)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    // Get the element
+    HEElement<SPACE_DIM>* p_element = GetElement(elementIndex);
+
+    // Initialise boolean
+    bool element_includes_point = false;
+
+    HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
+    // Remap the origin to the first vertex to allow alternative distance metrics to be used in subclasses
+    c_vector<double, SPACE_DIM> first_vertex = edge->GetOriginNode()->rGetLocation();
+    c_vector<double, SPACE_DIM> test_point = this->GetVectorFromAtoB(first_vertex, rTestPoint);
+
+    // Loop over edges of the element
+    c_vector<double, SPACE_DIM> vertexA = zero_vector<double>(SPACE_DIM);
+    HalfEdge<SPACE_DIM>* next_edge = edge;
+    do
+    {
+        // Check if this edge crosses the ray running out horizontally (increasing x, fixed y) from the test point
+        c_vector<double, SPACE_DIM> vector_a_to_point = this->GetVectorFromAtoB(vertexA, test_point);
+
+        // Pathological case - test point coincides with vertexA
+        // (we will check vertexB next time we go through the for loop)
+        if (norm_2(vector_a_to_point) < DBL_EPSILON)
+        {
+            return false;
+        }
+
+        c_vector<double, SPACE_DIM> vertexB = this->GetVectorFromAtoB(first_vertex, next_edge->GetTargetNode()->rGetLocation());
+        c_vector<double, SPACE_DIM> vector_b_to_point = this->GetVectorFromAtoB(vertexB, test_point);
+        c_vector<double, SPACE_DIM> vector_a_to_b = this->GetVectorFromAtoB(vertexA, vertexB);
+
+        // Pathological case - ray coincides with horizontal edge
+        if ((fabs(vector_a_to_b[1]) < DBL_EPSILON) && (fabs(vector_a_to_point[1]) < DBL_EPSILON) && (fabs(vector_b_to_point[1]) < DBL_EPSILON))
+        {
+            if ((vector_a_to_point[0] > 0) != (vector_b_to_point[0] > 0))
+            {
+                return false;
+            }
+        }
+
+        // Non-pathological case
+        // A and B on different sides of the line y = test_point[1]
+        if ((vertexA[1] > test_point[1]) != (vertexB[1] > test_point[1]))
+        {
+            // Intersection of y=test_point[1] and vector_a_to_b is on the right of test_point
+            if (test_point[0] < vertexA[0] + vector_a_to_b[0] * vector_a_to_point[1] / vector_a_to_b[1])
+            {
+                element_includes_point = !element_includes_point;
+            }
+        }
+
+        vertexA = vertexB;
+        next_edge = next_edge->GetNextHalfEdge();
+    }while(next_edge != edge);
+
+
+    return element_includes_point;
+}
+
+template<unsigned int SPACE_DIM>
+unsigned HEVertexMesh<SPACE_DIM>::GetLocalIndexForElementEdgeClosestToPoint(const c_vector<double, SPACE_DIM>& rTestPoint, unsigned elementIndex)
+{
+    // Make sure that we are in the correct dimension - this code will be eliminated at compile time
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    // Get the element
+    HEElement<SPACE_DIM>* p_element = GetElement(elementIndex);
+    HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
+    HalfEdge<SPACE_DIM>* next_edge = edge;
+
+    double min_squared_normal_distance = DBL_MAX;
+    unsigned min_distance_edge_index = UINT_MAX;
+
+    // Loop over edges of the element
+    unsigned local_index = 0;
+    do
+    {
+        // Get the end points of this edge
+        c_vector<double, SPACE_DIM> vertexA = next_edge->GetOriginNode()->rGetLocation();
+        c_vector<double, SPACE_DIM> vertexB = next_edge->GetTargetNode()->rGetLocation();
+
+        c_vector<double, SPACE_DIM> vector_a_to_point = this->GetVectorFromAtoB(vertexA, rTestPoint);
+        c_vector<double, SPACE_DIM> vector_a_to_b = this->GetVectorFromAtoB(vertexA, vertexB);
+        double distance_a_to_b = norm_2(vector_a_to_b);
+
+        c_vector<double, SPACE_DIM> edge_ab_unit_vector = vector_a_to_b / norm_2(vector_a_to_b);
+        double distance_parallel_to_edge = inner_prod(vector_a_to_point, edge_ab_unit_vector);
+
+        double squared_distance_normal_to_edge = SmallPow(norm_2(vector_a_to_point), 2) - SmallPow(distance_parallel_to_edge, 2);
+
+        /*
+         * If the point lies almost bang on the supporting line of the edge, then snap to the line.
+         * This allows us to do floating point tie-breaks when line is exactly at a node.
+         * We adopt a similar approach if the point is at the same position as a point in the
+         * element.
+         */
+        if (squared_distance_normal_to_edge < DBL_EPSILON)
+        {
+            squared_distance_normal_to_edge = 0.0;
+        }
+
+        if (fabs(distance_parallel_to_edge) < DBL_EPSILON)
+        {
+            distance_parallel_to_edge = 0.0;
+        }
+        else if (fabs(distance_parallel_to_edge - distance_a_to_b) < DBL_EPSILON)
+        {
+            distance_parallel_to_edge = distance_a_to_b;
+        }
+
+        // Make sure node is within the confines of the edge and is the nearest edge to the node \this breaks for convex elements
+        if (squared_distance_normal_to_edge < min_squared_normal_distance && distance_parallel_to_edge >= 0 && distance_parallel_to_edge <= distance_a_to_b)
+        {
+            min_squared_normal_distance = squared_distance_normal_to_edge;
+            min_distance_edge_index = local_index;
+        }
+        local_index++;
+        next_edge = next_edge->GetNextHalfEdge();
+    }while(next_edge != edge);
+    assert(min_distance_edge_index < p_element->GetNumNodes());
+    return min_distance_edge_index;
 }
 
 template<unsigned int SPACE_DIM>
@@ -438,6 +651,12 @@ FullEdge<SPACE_DIM>* HEVertexMesh<SPACE_DIM>::GetFullEdge(const unsigned int ind
 }
 
 template<unsigned int SPACE_DIM>
+FullEdge<SPACE_DIM>* HEVertexMesh<SPACE_DIM>::GetFullEdgeFromHalfEdge(HalfEdge<SPACE_DIM>* pEdge) const
+{
+    return mHalfToFullEdgeMap.at(pEdge);
+}
+
+template<unsigned int SPACE_DIM>
 unsigned int HEVertexMesh<SPACE_DIM>::GetNumFullEdges() const
 {
     return mFullEdges.size();
@@ -449,6 +668,14 @@ unsigned int HEVertexMesh<SPACE_DIM>::GetNumAllFullEdges() const
     return mFullEdges.size();
 }
 
+template<unsigned int SPACE_DIM>
+void HEVertexMesh<SPACE_DIM>::UpdateElementGeometries()
+{
+    for (unsigned int i=0; i<mElements.size(); ++i)
+    {
+        mElements[i]->UpdateGeometry();
+    }
+}
 template class HEVertexMesh<1>;
 template class HEVertexMesh<2>;
 template class HEVertexMesh<3>;

@@ -1478,7 +1478,6 @@ void MutableVertexMesh<ELEMENT_DIM, SPACE_DIM>::PerformIntersectionSwap(Node<SPA
     assert(SPACE_DIM == 2);                    // LCOV_EXCL_LINE
     assert(ELEMENT_DIM == SPACE_DIM);        // LCOV_EXCL_LINE
 
-
     VertexElement<ELEMENT_DIM, SPACE_DIM>* p_element = this->GetElement(elementIndex);
     unsigned num_nodes = p_element->GetNumNodes();
 

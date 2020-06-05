@@ -20,7 +20,6 @@ class FullEdge
 private:
     HalfEdge<SPACE_DIM>* mpFirst;
     HalfEdge<SPACE_DIM>* mpSecond;
-    double mLength;
     unsigned int mIndex;
 public:
     FullEdge(const unsigned index = 0);
@@ -34,6 +33,7 @@ public:
     void SetIndex(const unsigned int new_index);
     std::set<unsigned int> GetContainingElementIndices() const;
     HalfEdge<SPACE_DIM>* operator()(unsigned int index);
+    HalfEdge<SPACE_DIM>* at(unsigned int index) const;
 };
 
 #endif /* FULLEDGE_HPP_ */

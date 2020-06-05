@@ -125,11 +125,11 @@ public:
 
     bool IsOnBoundary() const;
 
-    double ComputeLength() const;
+    double ComputeLength();
 
-    inline double GetLength();
+    double GetLength();
 
-    void UpdateLength(const double new_length = 0);
+    void UpdateLength(const double new_length, const bool compute = false);
 };
 
 #endif /*HALFEDGE_HPP_ */

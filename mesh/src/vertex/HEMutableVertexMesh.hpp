@@ -10,6 +10,7 @@
 
 #include "HEVertexMesh.hpp"
 #include "AbstractMutableVertexMesh.hpp"
+#include "MutableVertexMesh.hpp"
 
 template <unsigned int SPACE_DIM>
 class HEMutableVertexMesh: public HEVertexMesh<SPACE_DIM>, public AbstractMutableVertexMesh<SPACE_DIM, SPACE_DIM>
@@ -156,14 +157,23 @@ protected:
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
      *
-     * Remove a triangular void bounded by three given nodes, in which one of the edges is
+     * Remove a triangular void bounded by three connected halfedges, in which one of the edges is
      * less than mCellRearrangementThreshold, through calls to PerformNodeMerge().
-     *
-     * @param pNodeA one of the nodes on the short edge
-     * @param pNodeB the other node on the short edge
-     * @param pNodeC the other node in the triangular void
+     * Note that all halfedges of the void must be accessible (i.e. linked)
+     * @param pEdge arbitrary edge of the void
      */
-    void PerformVoidRemoval(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB, HENode<SPACE_DIM>* pNodeC);
+    void PerformVoidRemoval(HalfEdge<SPACE_DIM>* pEdge);
+
+    /**
+     * Helper method for PerformT2Swap and PerformVoidRemoval.
+     * Removes a triangle outlined by pEdge--pEdge->GetNextHalfEdge()--pEdge->GetPreviousHalfEdge()
+     * Note that the triangle can either correspond to an element (i.e. we are performing T2 swap)
+     * or to a void (i.e. we are performing void removal).
+     * Note that pEdge->GetNextHalfEdge()->GetNextHalfEdge() == pEdge, i.e. correct halfedge must be suppled
+     * @param pEdge arbitrary inner edge of the triangle outlined by its three (half)edges
+     * @return the node at the intersection of the three edges, replacing the triangle
+     */
+    HENode<SPACE_DIM>* RemoveTriangle(HalfEdge<SPACE_DIM>* pEdge);
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -232,6 +242,11 @@ protected:
      * @return intersection, the corrected location of where we are planning to put the merged node
      */
     c_vector<double, 2> WidenEdgeOrCorrectIntersectionLocationIfNecessary(unsigned indexA, unsigned indexB, c_vector<double,2> intersection);
+
+    /**
+     * Helper method to mark halfedge for deletion
+     */
+    void MarkHalfEdgeAsDeleted(HalfEdge<SPACE_DIM>* half_edge);
 public:
 
     /**
@@ -269,6 +284,8 @@ public:
      */
     virtual ~HEMutableVertexMesh();
 
+    MutableVertexMesh<SPACE_DIM, SPACE_DIM>* ConvertToMutableVertexMesh() const;
+
     /**
      * @return the number of Nodes in the mesh.
      */
@@ -283,6 +300,16 @@ public:
      * @return the number of VertexElements in the mesh.
      */
     virtual unsigned GetNumElements() const;
+
+    /**
+     * @return the locations of the T1 swaps
+     */
+    std::vector< c_vector<double, SPACE_DIM> > GetLocationsOfT1Swaps();
+
+    /**
+     * Helper method to clear the stored T1 swaps
+     */
+    void ClearLocationsOfT1Swaps();
 
     /**
      * @return the location of the last T2 swap
