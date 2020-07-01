@@ -51,14 +51,28 @@ public:
     /**
      * @return an iterator to the first Node in the element.
      *
-     * @param skipDeletedElements whether to include deleted element
+     * @param skipDeletedElements whether to include deleted node
      */
-    inline NodeIterator GetNodeIteratorBegin(bool skipDeletedElements = true);
+    inline NodeIterator GetNodeIteratorBegin(bool skipDeletedNodes = true);
 
     /**
      * @return an iterator to one past the last Node in the element.
      */
     inline NodeIterator GetNodeIteratorEnd();
+
+    class EdgeIterator;
+    /**
+     * @return an iterator to the first Edge in the element.
+     *
+     * @param skipDeletedElements whether to include deleted edge
+     */
+    inline EdgeIterator GetEdgeIteratorBegin(bool skipDeletedEdges = true);
+
+    /**
+     * @return an iterator to one past the last Edge in the element.
+     */
+    inline EdgeIterator GetEdgeIteratorEnd();
+
 
     /**
      * Default constructor
@@ -170,7 +184,14 @@ public:
      */
     HalfEdge<SPACE_DIM>* AddNode(HalfEdge<SPACE_DIM>* pEdge, HENode<SPACE_DIM>* pNode);
 
-    void DeleteNode(HENode<SPACE_DIM>* pNode);
+    /**
+     * Deletes pNode from this element. Halfedge outgoing from pNode can no longer be traversed
+     * If there are neighbouring elements, they are updated accordingly.
+     * If the node is contained in multiple elements, all elements delete the node as well
+     * @param pNode
+     * @return outgoing half edges deleted as a result of node deletion
+     */
+    std::set<HalfEdge<SPACE_DIM>* > DeleteNode(HENode<SPACE_DIM>* pNode);
 
     /**
      * @return the number of nodes
@@ -244,6 +265,15 @@ public:
         inline bool operator!=(const typename HEElement<SPACE_DIM>::NodeIterator& rOther);
 
         /**
+         * Comparison not-equal-to.
+         * @return true if not equal
+         * @param rOther iterator with which comparison is made
+         */
+        inline bool operator==(const typename HEElement<SPACE_DIM>::NodeIterator& rOther);
+
+        NodeIterator& operator=(const typename HEElement<SPACE_DIM>::NodeIterator& rOther);
+
+        /**
          * Prefix increment operator.
          * @return reference to incremented object
          */
@@ -260,20 +290,17 @@ public:
          * @param skipDeletedElements whether to include deleted elements
          */
         NodeIterator(HEElement<SPACE_DIM>& rElement,
-                       HENode<SPACE_DIM>* nodeIter,
-                       bool skipDeletedElements = true);
+                     HENode<SPACE_DIM>* nodeIter,
+                     bool skipDeletedVertices = true);
 
     private:
         /** The element we're iterating over. */
         HEElement& mrElement;
 
-        /** The actual node iterator. */
-        HENode<SPACE_DIM>* mpNodeIter;
-
         /**
          * We are iterating over half edges
          */
-        HalfEdge<SPACE_DIM>* mpEdge;
+        HalfEdge<SPACE_DIM>* mpEdgeIter;
 
         /**
          * Local HalfEdge index
@@ -295,6 +322,82 @@ public:
          */
         inline bool IsAllowedNode();
     };
+
+    /**
+     * A smart iterator over the edge in the element.
+     */
+    class EdgeIterator
+    {
+    public:
+        /**
+         * Dereference the iterator giving you a pointer to the current edge.
+         * @return reference
+         * Make sure to use a reference for the result to avoid copying elements unnecessarily.
+         */
+        inline HalfEdge<SPACE_DIM>* operator*();
+
+        /**
+         * Member access from a pointer.
+         * @return pointer
+         */
+        inline HalfEdge<SPACE_DIM>* operator->();
+
+        /**
+         * Comparison not-equal-to.
+         * @return true if not equal
+         * @param rOther iterator with which comparison is made
+         */
+        inline bool operator!=(const typename HEElement<SPACE_DIM>::EdgeIterator& rOther);
+
+        EdgeIterator& operator=(const typename HEElement<SPACE_DIM>::EdgeIterator& rOther);
+
+        /**
+         * Prefix increment operator.
+         * @return reference to incremented object
+         */
+        inline EdgeIterator& operator++();
+
+        /**
+         * Constructor for a new iterator.
+         *
+         * This should not be called directly by user code; use the mesh methods
+         * HEElement::GetElementIteratorBegin and HEElement::GetElementIteratorEnd instead.
+         *
+         * @param rElement the element to iterator over
+         * @param nodeIter where to start iterating
+         * @param skipDeletedElements whether to include deleted elements
+         */
+        EdgeIterator(HEElement<SPACE_DIM>& rElement,
+                     HalfEdge<SPACE_DIM>* edgeIter,
+                     bool skipDeletedEdges = true);
+
+    private:
+        /** The element we're iterating over. */
+        HEElement& mrElement;
+
+        /** The actual edge iterator. */
+        HalfEdge<SPACE_DIM>* mpEdgeIter;
+
+        /**
+         * Local HalfEdge index
+         */
+        unsigned int local_index;
+
+        /** Whether to skip deleted elements. */
+        bool mSkipDeletedEdges;
+
+        /**
+         * Helper method to say when we're at the end.
+         * @return true if at end
+         */
+        inline bool IsAtEnd();
+
+        /**
+         * Helper method to say if we're allowed to point at this element.
+         * @return true if allowed
+         */
+        inline bool IsAllowedEdge();
+    };
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -302,8 +405,7 @@ public:
 //////////////////////////////////////////////////////////////////////////////
 
 template <unsigned SPACE_DIM>
-typename HEElement<SPACE_DIM>::NodeIterator HEElement<SPACE_DIM>::GetNodeIteratorBegin(
-    bool skipDeletedElements)
+typename HEElement<SPACE_DIM>::NodeIterator HEElement<SPACE_DIM>::GetNodeIteratorBegin(bool skipDeletedElements)
 {
     return NodeIterator(*this, this->GetHalfEdge()->GetOriginNode(), skipDeletedElements);
 }
@@ -311,27 +413,41 @@ typename HEElement<SPACE_DIM>::NodeIterator HEElement<SPACE_DIM>::GetNodeIterato
 template <unsigned SPACE_DIM>
 typename HEElement<SPACE_DIM>::NodeIterator HEElement<SPACE_DIM>::GetNodeIteratorEnd()
 {
-    return NodeIterator(*this, nullptr);
+    typename HEElement<SPACE_DIM>::NodeIterator result(*this, nullptr);
+    return result;
 }
 
 template <unsigned SPACE_DIM>
 HENode<SPACE_DIM>* HEElement<SPACE_DIM>::NodeIterator::operator*()
 {
-    assert(!IsAtEnd());
-    return mpNodeIter;
+    return mpEdgeIter->GetTargetNode();
 }
 
 template <unsigned SPACE_DIM>
 HENode<SPACE_DIM>* HEElement<SPACE_DIM>::NodeIterator::operator->()
 {
-    assert(!IsAtEnd());
-    return mpNodeIter;
+    return mpEdgeIter->GetTargetNode();
 }
 
 template <unsigned SPACE_DIM>
 bool HEElement<SPACE_DIM>::NodeIterator::operator!=(const typename HEElement<SPACE_DIM>::NodeIterator& rOther)
 {
-    return mpNodeIter != rOther.mpNodeIter;
+    return (mpEdgeIter != rOther.mpEdgeIter) || (local_index != rOther.local_index);
+}
+
+template <unsigned SPACE_DIM>
+bool HEElement<SPACE_DIM>::NodeIterator::operator==(const typename HEElement<SPACE_DIM>::NodeIterator& rOther)
+{
+    return (mpEdgeIter == rOther.mpEdgeIter) && (local_index == rOther.local_index);
+}
+
+template <unsigned SPACE_DIM>
+typename HEElement<SPACE_DIM>::NodeIterator& HEElement<SPACE_DIM>::NodeIterator::operator=(const typename HEElement<SPACE_DIM>::NodeIterator& rOther)
+{
+    mpEdgeIter = rOther.mpEdgeIter;
+    local_index = rOther.local_index;
+    mrElement = rOther.mrElement;
+    return *this;
 }
 
 template <unsigned SPACE_DIM>
@@ -340,38 +456,56 @@ typename HEElement<SPACE_DIM>::NodeIterator& HEElement<SPACE_DIM>::NodeIterator:
     do
     {
         local_index++;
-        mpEdge = mpEdge->GetNextHalfEdge();
-        mpNodeIter = mpEdge->GetOriginNode();
-    } while (!IsAtEnd() && !IsAllowedNode());
+        mpEdgeIter = mpEdgeIter->GetNextHalfEdge();
+    }while (!IsAtEnd() && !IsAllowedNode());
     if (IsAtEnd())
-        mpNodeIter = nullptr;
+    {
+        mpEdgeIter =mrElement.GetHalfEdge();
+        local_index = mrElement.GetNumNodes();
+    }
     return (*this);
 }
 
 template <unsigned SPACE_DIM>
 HEElement<SPACE_DIM>::NodeIterator::NodeIterator(HEElement<SPACE_DIM>& Element,
-                                                     HENode<SPACE_DIM>* nodeIter,
-                                                     bool skipDeletedVertices)
+                                                 HENode<SPACE_DIM>* nodeIter,
+                                                 bool skipDeletedVertices)
         : mrElement(Element),
-          mpNodeIter(nodeIter),
           mSkipDeletedVertices(skipDeletedVertices)
 {
-    if (Element.mNumNodes==0||!nodeIter)
+    if (Element.GetNumNodes()==0)
     {
-        local_index = UINT_MAX;
+        local_index = 0;
     }
     else
     {
-        HalfEdge<SPACE_DIM>* edge = Element.GetHalfEdge();
-        mpEdge = edge;
-        local_index = 0;
-        while(mpEdge->GetOriginNode()!=mpNodeIter&&local_index<Element.GetNumNodes())
+        HalfEdge<SPACE_DIM>* edge = mrElement.GetHalfEdge();
+        unsigned int element_num_nodes= mrElement.GetNumNodes();
+        assert(edge);
+        if (!nodeIter)
         {
-            local_index++;
-            mpEdge = mpEdge->GetNextHalfEdge();
+            mpEdgeIter = edge;
+            local_index = element_num_nodes;
         }
-        if (!IsAllowedNode())
-            ++(*this);
+        else
+        {
+            mpEdgeIter = edge->GetPreviousHalfEdge();
+            local_index = 0;
+            unsigned local_counter =0;
+            while(mpEdgeIter->GetTargetNode() != nodeIter&&local_counter<element_num_nodes)
+            {
+                local_counter++;
+                mpEdgeIter = mpEdgeIter->GetNextHalfEdge();
+            }
+            if (local_counter == element_num_nodes)
+            {
+                EXCEPTION("Incoming half edge pointing to starting node iterator in element not found");
+            }
+            if (!IsAllowedNode())
+            {
+                ++(*this);
+            }
+        }
     }
 }
 
@@ -384,7 +518,101 @@ bool HEElement<SPACE_DIM>::NodeIterator::IsAtEnd()
 template <unsigned int SPACE_DIM>
 bool HEElement<SPACE_DIM>::NodeIterator::IsAllowedNode()
 {
-    return !(mSkipDeletedVertices&&mpEdge->GetOriginNode()->IsDeleted());
+    return !(mSkipDeletedVertices&&mpEdgeIter->GetTargetNode()->IsDeleted());
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// EdgeIterator class implementation - most methods are inlined    //
+//////////////////////////////////////////////////////////////////////////////
+
+template <unsigned SPACE_DIM>
+typename HEElement<SPACE_DIM>::EdgeIterator HEElement<SPACE_DIM>::GetEdgeIteratorBegin(bool skipDeletedEdges)
+{
+    return EdgeIterator(*this, this->GetHalfEdge(), skipDeletedEdges);
+}
+
+template <unsigned SPACE_DIM>
+typename HEElement<SPACE_DIM>::EdgeIterator HEElement<SPACE_DIM>::GetEdgeIteratorEnd()
+{
+    return EdgeIterator(*this, nullptr);
+}
+
+template <unsigned SPACE_DIM>
+HalfEdge<SPACE_DIM>* HEElement<SPACE_DIM>::EdgeIterator::operator*()
+{
+    return mpEdgeIter;
+}
+
+template <unsigned SPACE_DIM>
+HalfEdge<SPACE_DIM>* HEElement<SPACE_DIM>::EdgeIterator::operator->()
+{
+    return mpEdgeIter;
+}
+
+template <unsigned SPACE_DIM>
+bool HEElement<SPACE_DIM>::EdgeIterator::operator!=(const typename HEElement<SPACE_DIM>::EdgeIterator& rOther)
+{
+    return (mpEdgeIter != rOther.mpEdgeIter) || (local_index != rOther.local_index);
+}
+
+template <unsigned SPACE_DIM>
+typename HEElement<SPACE_DIM>::EdgeIterator& HEElement<SPACE_DIM>::EdgeIterator::operator=(const typename HEElement<SPACE_DIM>::EdgeIterator& rOther)
+{
+    mpEdgeIter = rOther.mpEdgeIter;
+    local_index = rOther.local_index;
+    mrElement = rOther.mrElement;
+    return *this;
+}
+
+template <unsigned SPACE_DIM>
+typename HEElement<SPACE_DIM>::EdgeIterator& HEElement<SPACE_DIM>::EdgeIterator::operator++()
+{
+    do
+    {
+        local_index++;
+        mpEdgeIter = mpEdgeIter->GetNextHalfEdge();
+    }while (!IsAtEnd() && !IsAllowedEdge());
+    return (*this);
+}
+
+template <unsigned SPACE_DIM>
+HEElement<SPACE_DIM>::EdgeIterator::EdgeIterator(HEElement<SPACE_DIM>& Element,
+                                                 HalfEdge<SPACE_DIM>* edgeIter,
+                                                 bool skipDeletedEdges)
+        : mrElement(Element),
+          mpEdgeIter(edgeIter),
+          local_index(0),
+          mSkipDeletedEdges(skipDeletedEdges)
+{
+    if (Element.GetNumNodes()==0)
+    {
+        local_index = 0;
+    }
+    else
+    {
+        if (!edgeIter)
+        {
+            mpEdgeIter = Element.GetHalfEdge();
+            assert(mpEdgeIter);
+            local_index = Element.GetNumNodes();
+        }
+        if (!IsAllowedEdge()&&!IsAtEnd())
+        {
+            ++(*this);
+        }
+    }
+}
+
+template <unsigned SPACE_DIM>
+bool HEElement<SPACE_DIM>::EdgeIterator::IsAtEnd()
+{
+    return local_index>=mrElement.GetNumNodes();
+}
+
+template <unsigned int SPACE_DIM>
+bool HEElement<SPACE_DIM>::EdgeIterator::IsAllowedEdge()
+{
+    return !(mSkipDeletedEdges&&mpEdgeIter->IsDeleted());
 }
 
 #endif /* _HEElement_HPP_ */

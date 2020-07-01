@@ -351,7 +351,7 @@ public:
     /**
      * @return the number of elements in the mesh that contain this node.
      */
-    unsigned GetNumContainingElements() const;
+    virtual unsigned GetNumContainingElements() const;
 
     /**
      * @return the number of boundary elements in the mesh that contain this node.

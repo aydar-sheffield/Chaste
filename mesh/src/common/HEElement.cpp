@@ -6,41 +6,77 @@
  */
 
 #include "HEElement.hpp"
-
+#include <map>
 template<unsigned int SPACE_DIM>
 void HEElement<SPACE_DIM>::CommonConstructor(const std::vector<HENode<SPACE_DIM>* > node_list)
 {
     const unsigned int n_nodes = node_list.size();
 
+    std::map<unsigned int, std::pair<HalfEdge<SPACE_DIM>*, HalfEdge<SPACE_DIM>*> > common_node_to_in_out_edges;
     for (unsigned int i=0; i<n_nodes; ++i)
     {
         HalfEdge<SPACE_DIM>* out_edge = node_list[i]->GetOutgoingEdge();
         HalfEdge<SPACE_DIM>* edge;
         const unsigned int next_index = (i+1)%n_nodes;
+        const unsigned int previous_index = (i-1+n_nodes)%n_nodes;
         /**
          * If neighbouring halfedges are constructed, get the edge outgoing from this node
          */
         bool construct_edge = true;
+        //If the node is a common to another edge
         if (out_edge)
         {
             //Iterate over outgoing edges to check if the halfedge has already been constructed
-            HalfEdge<SPACE_DIM>* next_out_edge = out_edge;
-            do
+            typename HENode<SPACE_DIM>::OutgoingEdgeIterator iter = node_list[i]->GetOutgoingEdgeIteratorBegin();
+            typename HENode<SPACE_DIM>::OutgoingEdgeIterator end_iter = node_list[i]->GetOutgoingEdgeIteratorEnd();
+
+            for (; iter!=end_iter; ++iter)
             {
-                bool is_edge_constructed = next_out_edge->GetTargetNode() == node_list[next_index];
+                bool is_edge_constructed = iter->GetTargetNode() == node_list[next_index];
                 if (is_edge_constructed)
                 {
-                    edge = next_out_edge;
+                    edge = *iter;
                     construct_edge =false;
                     break;
                 }
-                next_out_edge = next_out_edge->GetTwinHalfEdge()->GetNextHalfEdge();
-            }while(next_out_edge != out_edge);
-            /*if (out_edge->GetPreviousHalfEdge()->GetTwinHalfEdge()->GetTargetNode()==node_list[next_index])
+
+            }
+
+            //If a new outgoing edge needs to be constructed, check to see if an existing outgoing edge
+            //is shared with this element. If it is not, this element must only have one common vertex with at least one element.
+            //Therefore, an external outgoing edge of this element must be the next edge of another element's external edge pointing to this node
+            //I.e. we have:
+            // \ V /
+            //  \ /
+            //   A  this
+            //  / \
+            //_/ V \
+            //where V means void and A is the common node
+            //Note that there could only be one external incoming or outgoing edge
+            iter = node_list[i]->GetOutgoingEdgeIteratorBegin();
+            bool is_out_edge_common = false;
+            for (; iter!=end_iter; ++iter)
             {
-                edge = out_edge->GetPreviousHalfEdge()->GetTwinHalfEdge();
-                construct_edge = false;
-            }*/
+                if (iter->GetTargetNode() == node_list[previous_index])
+                {
+                    is_out_edge_common = true;
+                    break;
+                }
+            }
+            if (construct_edge&&!is_out_edge_common)
+            {
+                iter = node_list[i]->GetOutgoingEdgeIteratorBegin();
+                std::pair<HalfEdge<SPACE_DIM>*, HalfEdge<SPACE_DIM>* > in_out_pair(nullptr, nullptr);
+                for (; iter!=end_iter; ++iter)
+                {
+                    if (!iter->GetTwinHalfEdge()->GetElement())
+                        in_out_pair.first = iter->GetTwinHalfEdge();
+                    if (!iter->GetElement())
+                        in_out_pair.second = *iter;
+                }
+                common_node_to_in_out_edges[i] = in_out_pair;
+            }
+
         }
 
         if (construct_edge)
@@ -79,13 +115,25 @@ void HEElement<SPACE_DIM>::CommonConstructor(const std::vector<HENode<SPACE_DIM>
         {
             while(previous_edge_twin->GetElement())
                 previous_edge_twin = previous_edge_twin->GetPreviousHalfEdge()->GetTwinHalfEdge();
-            out_edge_twin->SetNextHalfEdge(previous_edge_twin);
-            previous_edge_twin->SetPreviousHalfEdge(out_edge_twin);
+            out_edge_twin->SetNextHalfEdge(previous_edge_twin, true);
 
             while(next_edge_twin->GetElement())
                 next_edge_twin = next_edge_twin->GetNextHalfEdge()->GetTwinHalfEdge();
-            out_edge_twin->SetPreviousHalfEdge(next_edge_twin);
-            next_edge_twin->SetNextHalfEdge(out_edge_twin);
+            out_edge_twin->SetPreviousHalfEdge(next_edge_twin, true);
+        }
+    }
+    for (unsigned int i=0; i<n_nodes; ++i)
+    {
+        //If there is a common node (but not edge) between elements
+        if (common_node_to_in_out_edges.count(i)>0)
+        {
+            HalfEdge<SPACE_DIM>* out_edge_twin = node_list[i]->GetOutgoingEdge()->GetTwinHalfEdge();
+            HalfEdge<SPACE_DIM>* previous_edge_twin = node_list[i]->GetOutgoingEdge()->GetPreviousHalfEdge() -> GetTwinHalfEdge();
+
+            if (common_node_to_in_out_edges[i].second)
+                out_edge_twin->SetNextHalfEdge(common_node_to_in_out_edges[i].second,true);
+            if (common_node_to_in_out_edges[i].first)
+                previous_edge_twin->SetPreviousHalfEdge(common_node_to_in_out_edges[i].first,true);
         }
     }
 
@@ -284,7 +332,7 @@ HalfEdge<SPACE_DIM>* HEElement<SPACE_DIM>::AddNode(HalfEdge<SPACE_DIM>* pEdge, H
 {
     HalfEdge<SPACE_DIM>* prev_edge = pEdge->GetPreviousHalfEdge();
 
-    //A new halfedge between prev_edge->OriginNode() and pNode is created with pNode as its target index.
+    //A new halfedge between pEdge->OriginNode() and pNode is created with pNode as its target index.
     HalfEdge<SPACE_DIM>* new_edge = new HalfEdge<SPACE_DIM>(this);
     //Set the element to which the new twin edge belongs to
     HalfEdge<SPACE_DIM>* new_edge_twin = new HalfEdge<SPACE_DIM>(pEdge->GetTwinHalfEdge()->GetElement());
@@ -295,12 +343,17 @@ HalfEdge<SPACE_DIM>* HEElement<SPACE_DIM>::AddNode(HalfEdge<SPACE_DIM>* pEdge, H
     new_edge->SetPreviousHalfEdge(prev_edge, true);
 
     //External halfedges
-    new_edge_twin->SetNextHalfEdge(prev_edge->GetTwinHalfEdge(), true);
+    new_edge_twin->SetNextHalfEdge(pEdge->GetTwinHalfEdge()->GetNextHalfEdge(), true);
     new_edge_twin->SetPreviousHalfEdge(pEdge->GetTwinHalfEdge(), true);
 
     //Set target Node relations
+    new_edge_twin->SetTargetNode(pEdge->GetOriginNode());
+    if (pEdge->GetOriginNode()->GetOutgoingEdge()==pEdge)
+    {
+        pEdge->GetOriginNode()->SetOutgoingEdge(new_edge);
+    }
     pEdge->SetOriginNode(pNode);
-    new_edge_twin->SetTargetNode(prev_edge->GetTargetNode());
+    pNode->SetOutgoingEdge(new_edge_twin);
 
     assert(new_edge->IsFullyInitialized());
     assert(new_edge_twin->IsFullyInitialized());
@@ -312,28 +365,85 @@ HalfEdge<SPACE_DIM>* HEElement<SPACE_DIM>::AddNode(HalfEdge<SPACE_DIM>* pEdge, H
 }
 
 template<unsigned int SPACE_DIM>
-void HEElement<SPACE_DIM>::DeleteNode(HENode<SPACE_DIM>* pNode)
+std::set<HalfEdge<SPACE_DIM>* > HEElement<SPACE_DIM>::DeleteNode(HENode<SPACE_DIM>* pNode)
 {
-    //Edge outgoing from pNode is deleted
+    //Deletion of a node in triangular element not supported
+    assert(mNumNodes>3);
+
+    std::set<HalfEdge<SPACE_DIM>* > deleted_edges;
 
     //Find incoming edge
     HalfEdge<SPACE_DIM>* in_edge = GetHalfEdge(pNode);
     HalfEdge<SPACE_DIM>* in_edge_twin = in_edge->GetTwinHalfEdge();
 
-    //Outgoing edge from pNode
-    HalfEdge<SPACE_DIM>* out_edge = in_edge->GetNextHalfEdge();
-    HalfEdge<SPACE_DIM>* next_out_edge = out_edge->GetNextHalfEdge();
+    HalfEdge<SPACE_DIM>* next_in_edge = in_edge;
+    unsigned int num_in_edges= 0;
+    do
+    {
+        num_in_edges++;
+        next_in_edge = next_in_edge->GetNextHalfEdge()->GetTwinHalfEdge();
+    }while(next_in_edge != in_edge);
+    assert(num_in_edges>=2);
 
-    in_edge->SetNextHalfEdge(next_out_edge, true);
-    in_edge_twin->SetPreviousHalfEdge(next_out_edge->GetTwinHalfEdge(), true);
+    if (num_in_edges==2)
+    {
+        in_edge->SetTargetNode(in_edge->GetNextHalfEdge()->GetTargetNode());
+        HalfEdge<SPACE_DIM>* deleted_edge = in_edge->GetNextHalfEdge();
+        deleted_edges.insert(deleted_edge);
+        if (deleted_edge == mpHalfEdge)
+        {
+            mpHalfEdge = in_edge;
+        }
+        if (deleted_edge->GetTwinHalfEdge()==deleted_edge->GetTwinHalfEdge()->GetOriginNode()->GetOutgoingEdge())
+            deleted_edge->GetTwinHalfEdge()->GetOriginNode()->SetOutgoingEdge(deleted_edge->GetTwinHalfEdge()->GetNextHalfEdge());
+        in_edge->SetNextHalfEdge(in_edge->GetNextHalfEdge()->GetNextHalfEdge(), true);
+        in_edge_twin->SetPreviousHalfEdge(in_edge_twin->GetPreviousHalfEdge()->GetPreviousHalfEdge(),true);
 
-    in_edge->SetTargetNode(out_edge->GetTargetNode());
+    }
+    else
+    {
+        next_in_edge = in_edge;
+        do
+        {
+            HalfEdge<SPACE_DIM>* temp_next_in_edge = next_in_edge->GetNextHalfEdge()->GetTwinHalfEdge();
+            if (next_in_edge->GetElement())
+            {
+                //Next affected element is null if the next_in_edge->GetNExtHalfEdge() is on boundary
+                HEElement<SPACE_DIM>* next_affected_element = temp_next_in_edge->GetElement();
 
-    //Make sure the edge outgoing from the node after pNode is not the deleted one
-    if (out_edge->GetTargetNode()->GetOutgoingEdge()==out_edge->GetTwinHalfEdge())
-        out_edge->GetTargetNode()->SetOutgoingEdge(in_edge_twin);
+                next_in_edge->SetTargetNode(next_in_edge->GetNextHalfEdge()->GetTargetNode());
 
-    out_edge->SetDeletedStatus(true,true);
+                if (next_in_edge->GetNextHalfEdge() == next_in_edge->GetElement()->GetHalfEdge())
+                {
+                    next_in_edge->GetElement()->SetHalfEdge(next_in_edge);
+                }
+
+                next_in_edge->SetNextHalfEdge(next_in_edge->GetNextHalfEdge()->GetNextHalfEdge(), true);
+
+                HalfEdge<SPACE_DIM>* twin_next_in_edge = next_in_edge->GetTwinHalfEdge();
+                twin_next_in_edge->SetElement(nullptr);
+                if (next_affected_element)
+                {
+                    twin_next_in_edge->SetPreviousHalfEdge(temp_next_in_edge->GetTwinHalfEdge(),true);
+                }
+                else
+                {
+                    twin_next_in_edge->SetPreviousHalfEdge(temp_next_in_edge->GetPreviousHalfEdge(), true);
+                    //Marking internal edges
+                    HalfEdge<SPACE_DIM>* deleted_edge = temp_next_in_edge->GetTwinHalfEdge();
+                    deleted_edges.insert(deleted_edge);
+                    if (deleted_edge->GetTwinHalfEdge()==deleted_edge->GetTwinHalfEdge()->GetOriginNode()->GetOutgoingEdge())
+                        deleted_edge->GetTwinHalfEdge()->GetOriginNode()->SetOutgoingEdge(deleted_edge->GetTwinHalfEdge()->GetNextHalfEdge());
+                }
+
+                if (next_in_edge->GetElement() != this)
+                    next_in_edge->GetElement()->GetNumNodes(true);
+            }
+            next_in_edge = temp_next_in_edge;
+        }while(next_in_edge != in_edge);
+    }
+    mNumNodes--;
+    return deleted_edges;
 }
 
 template<unsigned int SPACE_DIM>

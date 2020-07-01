@@ -70,7 +70,7 @@ HENode<SPACE_DIM>* HENode<SPACE_DIM>::GetNextNode() const
 }
 
 template <unsigned int SPACE_DIM>
-std::set<unsigned int> HENode<SPACE_DIM>::GetContainingElementIndices()
+std::set<unsigned int> HENode<SPACE_DIM>::GetContainingElementIndices() const
 {
     assert(mpEdge!=nullptr);
     std::set<unsigned int> element_indices;
@@ -89,6 +89,12 @@ std::set<unsigned int> HENode<SPACE_DIM>::GetContainingElementIndices()
     return element_indices;
 }
 
+template <unsigned int SPACE_DIM>
+unsigned int HENode<SPACE_DIM>::GetNumContainingElements() const
+{
+    std::set<unsigned int> indices = GetContainingElementIndices();
+    return indices.size();
+}
 
 template class HENode<1>;
 template class HENode<2>;

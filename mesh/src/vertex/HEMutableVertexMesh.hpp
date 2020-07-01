@@ -38,6 +38,12 @@ protected:
     c_vector<double, SPACE_DIM> mLastT2SwapLocation;
 
     /**
+     * Locations of T3 swaps (the location of the intersection with the edge), stored so they can be accessed and output by the cell population.
+     * The locations are stored until they are cleared by ClearLocationsOfT3Swaps().
+     */
+    std::vector< c_vector<double, SPACE_DIM> > mLocationsOfT3Swaps;
+
+    /**
      * Divide an element along the axis passing through the origin nodes of two halfedges.
      *
      * \todo This method currently assumes SPACE_DIM = 2 (see #866)
@@ -104,6 +110,16 @@ protected:
      * @param pEdge collapsing edge
      */
     void CollapseEdge(HalfEdge<SPACE_DIM>* pEdge);
+
+    /**
+     * Helper method for merging edges during T3 swap, such that edge_A is the internal edge of the intersected element
+     * and edge_p is the edge pointing to the node that is close to the intersected element.
+     * The new edge in the intersected element will be common->pNode->edge_A target.
+     * @param edge_A
+     * @param edge_p
+     * @param pNode
+     */
+    void MergeEdgesInT3Swap(HalfEdge<SPACE_DIM>* edge_A, HalfEdge<SPACE_DIM>* edge_p, HENode<SPACE_DIM>* pNode);
 
     /**
      * Helper method for ReMesh(), called by IdentifySwapType().
@@ -235,13 +251,12 @@ protected:
      * from happening right away. The method also checks that the location where the merged node is going to end up at
      * is not too close to one of the neighbouring vertices and moves it if necessary to prevent T1 swaps.
      *
-     * @param indexA  index of one of the nodes on the short edge
-     * @param indexB  index of the other node on the short edge
+     * @param pEdge the intersected edge
      * @param intersection  the intersection location, i.e. the location where we are planning to put the merged node
      *
      * @return intersection, the corrected location of where we are planning to put the merged node
      */
-    c_vector<double, 2> WidenEdgeOrCorrectIntersectionLocationIfNecessary(unsigned indexA, unsigned indexB, c_vector<double,2> intersection);
+    c_vector<double, 2> WidenEdgeOrCorrectIntersectionLocationIfNecessary(HalfEdge<SPACE_DIM>* pEdge, c_vector<double,2> intersection);
 
     /**
      * Helper method to mark halfedge for deletion
@@ -315,6 +330,16 @@ public:
      * @return the location of the last T2 swap
      */
     c_vector<double, SPACE_DIM> GetLastT2SwapLocation();
+
+    /**
+     * @return the locations of the T3 swaps
+     */
+    std::vector< c_vector<double, SPACE_DIM> > GetLocationsOfT3Swaps();
+
+    /**
+     * Helper method to clear the stored T3 swaps
+     */
+    void ClearLocationsOfT3Swaps();
 
     /**
      * Add a node to the mesh.
@@ -453,6 +478,8 @@ public:
      * \todo This method seems to be redundant; remove it? (#2401)
      */
     void ReMesh();
+
+    void SetNode(unsigned nodeIndex, ChastePoint<SPACE_DIM> point);
 };
 
 #endif /* HEMUTABLEVERTEXMESH_HPP_ */

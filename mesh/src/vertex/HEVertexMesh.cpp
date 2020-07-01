@@ -472,6 +472,19 @@ double HEVertexMesh<SPACE_DIM>::GetSurfaceAreaOfElement(unsigned index)
 }
 
 template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM>  HEVertexMesh<SPACE_DIM>::GetPreviousEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex)
+{
+    assert(SPACE_DIM==2);
+    c_vector<double, SPACE_DIM> gradient;
+    const unsigned int num_nodes = pElement->GetNumNodes();
+    HalfEdge<SPACE_DIM>* edge_to_node = pElement->GetHalfEdge((localIndex+num_nodes-1)%num_nodes);
+    gradient = edge_to_node->GetVector();
+    assert(edge_to_node->GetLength()>0);
+    gradient /= edge_to_node->GetLength();
+    return gradient;
+}
+
+template<unsigned int SPACE_DIM>
 double HEVertexMesh<SPACE_DIM>::ComputeVolumeOfElement(unsigned index)
 {
     assert(SPACE_DIM == 2 || SPACE_DIM == 3);

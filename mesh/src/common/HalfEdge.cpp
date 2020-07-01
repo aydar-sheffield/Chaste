@@ -176,6 +176,19 @@ void HalfEdge<SPACE_DIM>::UpdateLength(const double new_length, const bool compu
 {
     mLength = compute ? ComputeLength() : new_length;
 }
+
+template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM> HalfEdge<SPACE_DIM>::GetVector() const
+{
+    return mpTargetNode->rGetLocation()-GetOriginNode()->rGetLocation();
+}
+
+template<unsigned int SPACE_DIM>
+std::pair<unsigned int, unsigned int> HalfEdge<SPACE_DIM>::GetNodePair() const
+{
+    assert(GetOriginNode()&&mpTargetNode);
+    return std::pair<unsigned int, unsigned int>(GetOriginNode()->GetIndex(), mpTargetNode->GetIndex());
+}
 template class HalfEdge<1>;
 template class HalfEdge<2>;
 template class HalfEdge<3>;

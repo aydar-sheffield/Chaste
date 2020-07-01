@@ -13,6 +13,7 @@ class HENode;
 template<unsigned int SPACE_DIM>
 class HEElement;
 
+#include "UblasVectorInclude.hpp"
 template<unsigned int SPACE_DIM>
 class HalfEdge
 {
@@ -130,6 +131,16 @@ public:
     double GetLength();
 
     void UpdateLength(const double new_length, const bool compute = false);
+
+    /**
+     * @return origin and target node indices
+     */
+    std::pair<unsigned int, unsigned int> GetNodePair() const;
+
+    /**
+     * @return vector pointing from the origin to the target node
+     */
+    c_vector<double, SPACE_DIM> GetVector() const;
 };
 
 #endif /*HALFEDGE_HPP_ */

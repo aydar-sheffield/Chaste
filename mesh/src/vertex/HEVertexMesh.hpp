@@ -229,6 +229,21 @@ public:
     virtual double GetSurfaceAreaOfElement(unsigned index);
 
     /**
+     * Compute the gradient of the edge of a 2D element ending at its nodes.
+     *
+     * N.B. This calls GetVectorFromAtoB(), which can be overridden
+     * in daughter classes for non-Euclidean metrics.
+     *
+     * Element's geometry must be updated before calling this method
+     *
+     * @param pElement  pointer to a specified vertex element
+     * @param localIndex  local index of a node in this element
+     *
+     * @return the gradient of the edge of the element that ends at this node.
+     */
+    c_vector<double, SPACE_DIM> GetPreviousEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex);
+
+    /**
      * Computes the volume of element and stores the result
      * @param the global index of the element
      * @return the volume of the element
@@ -317,6 +332,7 @@ public:
     FullEdge<SPACE_DIM>* GetFullEdgeFromHalfEdge(HalfEdge<SPACE_DIM>* pEdge) const;
 
     void UpdateElementGeometries();
+
     /**
      * A smart iterator over the elements in the mesh.
      *
