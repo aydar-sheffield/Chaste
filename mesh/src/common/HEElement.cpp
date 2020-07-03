@@ -385,20 +385,33 @@ std::set<HalfEdge<SPACE_DIM>* > HEElement<SPACE_DIM>::DeleteNode(HENode<SPACE_DI
     }while(next_in_edge != in_edge);
     assert(num_in_edges>=2);
 
+    //If the deleted node only connects two edges...
     if (num_in_edges==2)
     {
         in_edge->SetTargetNode(in_edge->GetNextHalfEdge()->GetTargetNode());
         HalfEdge<SPACE_DIM>* deleted_edge = in_edge->GetNextHalfEdge();
         deleted_edges.insert(deleted_edge);
+
+        //If the deleted edge or its twin are associated with their respective elements
+        //shift the edges to the next ones
         if (deleted_edge == mpHalfEdge)
         {
             mpHalfEdge = in_edge;
         }
+        if (deleted_edge->GetTwinHalfEdge()->GetElement())
+        {
+            HEElement<SPACE_DIM>* neighbouring_element = deleted_edge->GetTwinHalfEdge()->GetElement();
+            if (neighbouring_element->GetHalfEdge() == deleted_edge->GetTwinHalfEdge())
+            {
+                neighbouring_element->SetHalfEdge(deleted_edge->GetTwinHalfEdge()->GetNextHalfEdge());
+            }
+        }
+        //If the twin of the deleted edge is an outgoing edge of its origin node, chage the outgoing edge of the node
         if (deleted_edge->GetTwinHalfEdge()==deleted_edge->GetTwinHalfEdge()->GetOriginNode()->GetOutgoingEdge())
             deleted_edge->GetTwinHalfEdge()->GetOriginNode()->SetOutgoingEdge(deleted_edge->GetTwinHalfEdge()->GetNextHalfEdge());
-        in_edge->SetNextHalfEdge(in_edge->GetNextHalfEdge()->GetNextHalfEdge(), true);
-        in_edge_twin->SetPreviousHalfEdge(in_edge_twin->GetPreviousHalfEdge()->GetPreviousHalfEdge(),true);
 
+        in_edge->SetNextHalfEdge(deleted_edge->GetNextHalfEdge(), true);
+        in_edge_twin->SetPreviousHalfEdge(in_edge_twin->GetPreviousHalfEdge()->GetPreviousHalfEdge(),true);
     }
     else
     {

@@ -39,6 +39,7 @@ FullEdge<SPACE_DIM>::~FullEdge()
 template<unsigned int SPACE_DIM>
 double FullEdge<SPACE_DIM>::GetLength() const
 {
+    assert(mpFirst->GetTwinHalfEdge()==mpSecond);
     assert(mpFirst->GetLength()==mpSecond->GetLength());
     return mpFirst->GetLength();
 }

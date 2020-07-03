@@ -369,7 +369,7 @@ bool HEMutableVertexMesh<SPACE_DIM>::CheckForSwapsFromShortEdges()
     {
         //Assume edge lengths have been updated
         //Check to see if the edge is short enough for a swap...
-        if (full_edge->GetLength() < this->mCellRearrangementThreshold)
+        if (full_edge->ComputeLength() < this->mCellRearrangementThreshold)
         {
             // ...then check if a triangular element is adjacent to this edge
             bool edge_share_triangular_element= false;
@@ -387,6 +387,7 @@ bool HEMutableVertexMesh<SPACE_DIM>::CheckForSwapsFromShortEdges()
             if (!edge_share_triangular_element)
             {
                 IdentifySwapType(*full_edge);
+                return true;
             }
         }
     }
@@ -796,6 +797,11 @@ void HEMutableVertexMesh<SPACE_DIM>::CollapseEdge(HalfEdge<SPACE_DIM>* pEdge)
     //Here we delete node A
     HENode<SPACE_DIM>* pNodeA = pEdge->GetTargetNode();
     HENode<SPACE_DIM>* pNodeB = pEdge->GetOriginNode();
+
+    std::set<unsigned int> affected_elements = pNodeA->GetContainingElementIndices();
+    for (unsigned int idx : pNodeB->GetContainingElementIndices())
+        affected_elements.insert(idx);
+
     // Move node A to the mid-point
     pNodeA->rGetModifiableLocation() += 0.5 * this->GetVectorFromAtoB(pNodeA->rGetLocation(), pNodeB->rGetLocation());
 
@@ -825,9 +831,7 @@ void HEMutableVertexMesh<SPACE_DIM>::CollapseEdge(HalfEdge<SPACE_DIM>* pEdge)
 
     this->mDeletedNodeIndices.push_back(pNodeB->GetIndex());
     pNodeB->MarkAsDeleted();
-    this->mDeletedHalfEdges.push_back(pEdge);
-    this->mDeletedHalfEdges.push_back(pEdge->GetTwinHalfEdge());
-    pEdge->SetDeletedStatus(true, true);
+    MarkHalfEdgeAsDeleted(pEdge);
 
     HEElement<SPACE_DIM>* pEdgeElement = pEdge->GetElement();
     if (pEdgeElement)
@@ -841,25 +845,15 @@ void HEMutableVertexMesh<SPACE_DIM>::CollapseEdge(HalfEdge<SPACE_DIM>* pEdge)
         if (pEdgeTwinElement->GetHalfEdge()==twin)
             twin->GetElement()->SetHalfEdge(twin_next);
     }
-    //TODO:Is updating adjacent elements necessary? Volume, or node numbers, for example
-    next_edge = pNodeA->GetOutgoingEdge();
-    do
-    {
-        HEElement<SPACE_DIM>* element = next_edge->GetElement();
-        if (element)
-        {
-            element->UpdateGeometry();
-        }
-        next_edge = next_edge->GetTwinHalfEdge()->GetNextHalfEdge();
-    }while(next_edge != twin_next);
+
+    for (unsigned int idx : affected_elements)
+        this->GetElement(idx)->UpdateGeometry();
 
 }
 
 template<unsigned int SPACE_DIM>
 void HEMutableVertexMesh<SPACE_DIM>::MergeEdgesInT3Swap(HalfEdge<SPACE_DIM>* edge_A, HalfEdge<SPACE_DIM>* edge_p, HENode<SPACE_DIM>* pNode)
 {
-
-
     HEElement<SPACE_DIM>* intersected_element = edge_A->GetElement();
     const bool is_edge_p_inside = edge_p->GetElement();
     HEElement<SPACE_DIM>* intersecting_element = is_edge_p_inside ? edge_p->GetElement() : edge_p->GetTwinHalfEdge()->GetElement();
@@ -884,6 +878,7 @@ void HEMutableVertexMesh<SPACE_DIM>::MergeEdgesInT3Swap(HalfEdge<SPACE_DIM>* edg
         pNode_to_B->SetPreviousHalfEdge(edge_A, true);
 
         edge_A->SetTargetNode(pNode);
+        pNode->SetOutgoingEdge(pNode_to_B);
     }
     else
     {
@@ -902,6 +897,8 @@ void HEMutableVertexMesh<SPACE_DIM>::MergeEdgesInT3Swap(HalfEdge<SPACE_DIM>* edg
         edge_p->SetNextHalfEdge(edge_A, true);
 
         edge_A->GetTwinHalfEdge()->SetTargetNode(pNode);
+        pNode->SetOutgoingEdge(edge_p->GetTwinHalfEdge());
+        assert(pNode->GetOutgoingEdge()->GetTargetNode()==edge_A->GetPreviousHalfEdge()->GetOriginNode());
     }
 }
 
@@ -983,7 +980,10 @@ void HEMutableVertexMesh<SPACE_DIM>::RemoveDeletedEdges()
     this->mFullEdges = live_full_edges;
     this->mDeletedHalfEdges.clear();
 
-    // TODO: do we need to reset full edge indices?
+    for (unsigned int i=0; i<live_full_edges.size(); ++i)
+    {
+        this->mFullEdges[i]->SetIndex(i);
+    }
 }
 
 
@@ -1021,7 +1021,7 @@ void HEMutableVertexMesh<SPACE_DIM>::ReMesh(VertexElementMap& rElementMap)
         }
 
         RemoveDeletedNodes();
-
+        RemoveDeletedEdges();
         /*
          * This is handled in a separate method to allow child classes to implement additional ReMeshing functionality
          * (see #2664).
@@ -1061,6 +1061,10 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT1Swap(HalfEdge<SPACE_DIM>* pEdge)
     {
         EXCEPTION("Nodes are too close together, this shouldn't happen");
     }
+
+    std::set<unsigned int> affected_elements = pNodeA->GetContainingElementIndices();
+    for (unsigned int idx : pNodeB->GetContainingElementIndices())
+        affected_elements.insert(idx);
 
     /*
      * Compute the locations of two new nodes C, D, placed on either side of the
@@ -1154,8 +1158,6 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT1Swap(HalfEdge<SPACE_DIM>* pEdge)
         //Edge in element 2 pointing to node B must now point to node A
         previous_edge->SetTargetNode(pNodeA);
 
-        edge_A_element->UpdateGeometry();
-        edge_B_element->UpdateGeometry();
     }
     else
     {
@@ -1231,24 +1233,10 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT1Swap(HalfEdge<SPACE_DIM>* pEdge)
                 pNodeB->SetAsBoundaryNode(true);
             }
         }
-
-        if (edge_A_element)
-        {
-            edge_A_element->UpdateGeometry();
-        }
-        if (edge_B_element)
-        {
-            edge_B_element->UpdateGeometry();
-        }
-        if (pEdgeC->GetElement())
-        {
-            pEdgeC->GetElement()->UpdateGeometry();
-        }
-        if (pEdgeD->GetElement())
-        {
-            pEdgeD->GetElement()->UpdateGeometry();
-        }
     }
+
+    for (unsigned int idx : affected_elements)
+        this->GetElement(idx)->UpdateGeometry();
 }
 
 template<unsigned SPACE_DIM>
@@ -1533,6 +1521,9 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT2Swap(HEElement<SPACE_DIM>& rElemen
     p_new_node->SetAsBoundaryNode(is_node_on_boundary);
     p_new_node->rGetModifiableLocation() = new_node_location;
 
+    for (unsigned int idx:p_new_node->GetContainingElementIndices())
+        this->GetElement(idx)->UpdateGeometry();
+
     this->mDeletedElementIndices.push_back(rElement.GetIndex());
     rElement.MarkAsDeleted();
 }
@@ -1590,7 +1581,6 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
     // is called (see #2401) - we should correct this in these cases!
 
     mLocationsOfT3Swaps.push_back(intersection);
-
     if (elements_containing_intersecting_node.size() == 1)
     {
         // Get the index of the element containing the intersecting node
@@ -1712,11 +1702,15 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
                      */
 
                     // Delete pNode in the intersecting element
+                    std::set<unsigned int> deleted_node_element_indices = pNode->GetContainingElementIndices();
+                    for (unsigned int index : deleted_node_element_indices)
+                        affected_element_indices.insert(index);
                     std::set<HalfEdge<SPACE_DIM>* > deleted_edge = p_intersecting_element->DeleteNode(pNode);
                     pNode->MarkAsDeleted();
                     this->mDeletedNodeIndices.push_back(pNode->GetIndex());
+
                     for (auto edge:deleted_edge)
-                    this->MarkHalfEdgeAsDeleted(edge);
+                        this->MarkHalfEdgeAsDeleted(edge);
                 }
                 else
                 {
@@ -1738,54 +1732,47 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
 
                     //Reduce the situation to the case with one common vertex by deleting the common edge
 
-                    HENode<SPACE_DIM>* deleted_node = edge_from_A->GetPreviousHalfEdge()->GetOriginNode();
+                    HENode<SPACE_DIM>* deleted_node = edge_from_A->GetOriginNode();
                     if (edge_from_A->GetNextHalfEdge()->GetTwinHalfEdge()->GetElement() == p_intersecting_element)
                     {
-                        deleted_node = edge_from_A->GetNextHalfEdge()->GetTargetNode();
+                        deleted_node = edge_from_A->GetTargetNode();
                     }
+
+                    intersection = this->WidenEdgeOrCorrectIntersectionLocationIfNecessary(edge_from_A, intersection);
+
+                    // Move original node
+                    pNode->rGetModifiableLocation() = intersection;
+
+                    HalfEdge<SPACE_DIM>* out_edge = common_vertex->GetOutgoingEdge();
+                    HalfEdge<SPACE_DIM>* next_out_edge = out_edge;
+                    HalfEdge<SPACE_DIM>* edge_to_pNode = nullptr;
+                    do
+                    {
+                        if (next_out_edge->GetTargetNode()==pNode)
+                        {
+                            edge_to_pNode = next_out_edge;
+                            break;
+                        }
+                        next_out_edge = next_out_edge->GetTwinHalfEdge()->GetNextHalfEdge();
+                    }while(next_out_edge != out_edge);
+                    assert(edge_to_pNode);
+
+                    MergeEdgesInT3Swap(edge_from_A, edge_to_pNode, pNode);
 
                     std::set<unsigned int> deleted_node_element_indices = deleted_node->GetContainingElementIndices();
                     for (unsigned int index : deleted_node_element_indices)
                         affected_element_indices.insert(index);
+                    assert(deleted_node_element_indices.size()==2);
 
-                    common_vertex->rGetModifiableLocation() = deleted_node->rGetLocation();
                     std::set<HalfEdge<SPACE_DIM>* > deleted_edges = p_element->DeleteNode(deleted_node);
-                    for (unsigned int index: affected_element_indices)
-                    {
-                        this->GetElement(index)->UpdateGeometry();
-                    }
 
                     this->mDeletedNodeIndices.push_back(deleted_node->GetIndex());
                     deleted_node->MarkAsDeleted();
                     for (auto edges : deleted_edges)
                         this->MarkHalfEdgeAsDeleted(edges);
 
-                    //Make sure we are in a situation with one common vertex
-                    assert(pNode->GetNumContainingElements()==1);
-                    num_common_vertices = 0;
-                    for (unsigned i=0; i<p_element_common_1->GetNumNodes(); i++)
-                    {
-                        for (unsigned j=0; j<p_element_common_2->GetNumNodes(); j++)
-                        {
-                            if (p_element_common_1->GetNodeGlobalIndex(i)==p_element_common_2->GetNodeGlobalIndex(j))
-                            {
-                                num_common_vertices++;
-                                common_vertex_indices.push_back(p_element_common_1->GetNodeGlobalIndex(i));
-                            }
-                        }
-                    }
-                    elements_containing_common_vertex=common_vertex->GetContainingElementIndices();
-                    assert(num_common_vertices == 1 || elements_containing_common_vertex.size() > 2);
-                    assert(num_common_vertices != 2);
-                    local_index = p_intersecting_element->GetNodeLocalIndex(pNode->GetIndex());
-                     edge_from_pNode = p_intersecting_element->GetHalfEdge(local_index);
-                    next_node = edge_from_pNode->GetTargetNode()->GetIndex();
-                    previous_node = edge_from_pNode->GetPreviousHalfEdge()->GetOriginNode()->GetIndex();
-                    const bool prev_case
-                    = next_node == vertexA_index || previous_node == vertexA_index || next_node == vertexB_index || previous_node == vertexB_index;
-                    assert(prev_case);
-
-                    this->PerformT3Swap(pNode, elementIndex);
+                    // Check the nodes are updated correctly
+                    assert(pNode->GetContainingElementIndices().size() == 2);
                 }
             }
             else if (num_common_vertices == 4)
@@ -1940,14 +1927,22 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
 
             // Check whether the intersection location fits into the edge and update distances and vertex positions afterwards.
             intersection = this->WidenEdgeOrCorrectIntersectionLocationIfNecessary(edge_from_A, intersection);
-            edge_ab_unit_vector = this->GetPreviousEdgeGradientOfElementAtNode(p_element, (node_A_local_index+1)%num_nodes);
 
             // Check they are all boundary nodes
             assert(pNode->IsBoundaryNode());
             assert(this->mNodes[vertexA_index]->IsBoundaryNode());
             assert(this->mNodes[vertexB_index]->IsBoundaryNode());
 
-            //Register affected elements
+            HalfEdge<SPACE_DIM>* void_edge = edge_from_A->GetTwinHalfEdge();
+            assert(!void_edge->GetElement());
+
+            HENode<SPACE_DIM>* p_new_node = RemoveTriangle(void_edge);
+            p_new_node->rGetModifiableLocation() = intersection;
+
+            for (unsigned int idx:p_new_node->GetContainingElementIndices())
+                this->GetElement(idx)->UpdateGeometry();
+
+            /*//Register affected elements
             std::set<unsigned int> node_A_elements = node_A->GetContainingElementIndices();
             std::set<unsigned int> node_B_elements = node_B->GetContainingElementIndices();
             for (unsigned int index:node_A_elements)
@@ -1992,7 +1987,7 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
 
             // Remove vertex B from the mesh
             this->mNodes[vertexB_index]->MarkAsDeleted();
-            this->mDeletedNodeIndices.push_back(vertexB_index);
+            this->mDeletedNodeIndices.push_back(vertexB_index);*/
         }
         else
         {
@@ -2111,57 +2106,79 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
                      * then vertexA is removed
                      */
 
-                    //Reduce the situation to the case with one common vertex by deleting the common edge
-                    HENode<SPACE_DIM>* deleted_node = edge_from_A->GetPreviousHalfEdge()->GetOriginNode();
+                    HENode<SPACE_DIM>* deleted_node = node_A;
+
+                    // Check whether the intersection location fits into the edge and update distances and vertex positions afterwards.
+                    intersection = this->WidenEdgeOrCorrectIntersectionLocationIfNecessary(edge_from_A, intersection);
+
+                    edge_ab_unit_vector = this->GetPreviousEdgeGradientOfElementAtNode(p_element, (node_A_local_index+1)%num_nodes);
+
+                    // Move original node and change to non-boundary node
+                    pNode->rGetModifiableLocation() = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
+                    pNode->SetAsBoundaryNode(false);
+
+                    //Merge A--pNode edge first
+                    HalfEdge<SPACE_DIM>* out_edge = node_A->GetOutgoingEdge();
+                    HalfEdge<SPACE_DIM>* next_out_edge = out_edge;
+                    HalfEdge<SPACE_DIM>* edge_to_pNode = nullptr;
+                    do
+                    {
+                        if (next_out_edge->GetTargetNode()==pNode)
+                        {
+                            edge_to_pNode = next_out_edge;
+                            break;
+                        }
+                        next_out_edge = next_out_edge->GetTwinHalfEdge()->GetNextHalfEdge();
+                    }while(next_out_edge != out_edge);
+                    assert(edge_to_pNode);
+                    assert(!edge_to_pNode->GetNextHalfEdge()->GetElement());
+                    MergeEdgesInT3Swap(edge_from_A, edge_to_pNode, pNode);
+
+                    // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
+                    c_vector<double, SPACE_DIM> new_node_location;
+                    new_node_location = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
+
+                    // Add new node, which will always be a boundary node
+                    HENode<SPACE_DIM>* new_node = new HENode<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]);
+                    AddNode(new_node);
+
+                    //We need to store the edges below, because inserting the node modifies adjacency relations
+                    //The name of the new variable should be read from right to left
+                    HalfEdge<SPACE_DIM>* temp_next_twin_edge_from_A = edge_from_A->GetTwinHalfEdge()->GetNextHalfEdge();
+                    HalfEdge<SPACE_DIM>* temp_twin_next_twin_edge_from_A = temp_next_twin_edge_from_A->GetTwinHalfEdge();
+
+                    //Add a node to the intersected element first
+                    HalfEdge<SPACE_DIM>* pNode_to_new_node_edge = p_element->AddNode(edge_from_A,new_node);
+                    HalfEdge<SPACE_DIM>* twin_pNode_to_new_node_edge = pNode_to_new_node_edge->GetTwinHalfEdge();
+
+                    assert(temp_twin_next_twin_edge_from_A->GetTargetNode()==pNode);
+                    temp_twin_next_twin_edge_from_A->SetTargetNode(new_node);
+
+                    //Adding the node does not yield correct adjacency relations in this case, so we fix it
+                    assert(edge_from_A->GetTwinHalfEdge()->GetTargetNode()==new_node);
+                    edge_from_A->GetTwinHalfEdge()->SetNextHalfEdge(temp_next_twin_edge_from_A, true);
+
+                    //Insert twin_pNode_to_new_node_edge into the element neighbouring the intersecting element
+                    twin_pNode_to_new_node_edge->SetNextHalfEdge(temp_twin_next_twin_edge_from_A->GetNextHalfEdge(),true);
+                    twin_pNode_to_new_node_edge->SetPreviousHalfEdge(temp_twin_next_twin_edge_from_A, true);
+                    twin_pNode_to_new_node_edge->SetElement(temp_twin_next_twin_edge_from_A->GetElement());
+
+                    this->AddEdge(pNode_to_new_node_edge);
 
                     std::set<unsigned int> deleted_node_element_indices = deleted_node->GetContainingElementIndices();
                     for (unsigned int index:deleted_node_element_indices)
                         affected_element_indices.insert(index);
                     assert(deleted_node_element_indices.size() >= 2);
 
-                    node_A->rGetModifiableLocation() = deleted_node->rGetLocation();
                     std::set<HalfEdge<SPACE_DIM>* > deleted_edges = p_element->DeleteNode(deleted_node);
-                    for (unsigned int index: affected_element_indices)
-                    {
-                        this->GetElement(index)->UpdateGeometry();
-                    }
-
                     this->mDeletedNodeIndices.push_back(deleted_node->GetIndex());
                     deleted_node->MarkAsDeleted();
                     for (auto edges : deleted_edges)
                         this->MarkHalfEdgeAsDeleted(edges);
 
-                    //Make sure we are in a situation with one common vertex
-                    assert(pNode->GetNumContainingElements()==2);
-                    num_common_vertices = 0;
-                    for (unsigned i=0; i<p_element_common_1->GetNumNodes(); i++)
-                    {
-                        for (unsigned j=0; j<p_element_common_2->GetNumNodes(); j++)
-                        {
-                            if (p_element_common_1->GetNodeGlobalIndex(i) == p_element_common_2->GetNodeGlobalIndex(j))
-                            {
-                                num_common_vertices++;
-                            }
-                        }
-                    }
-                    assert(node_A->GetNumContainingElements()>2 || num_common_vertices==1);
-                    assert(num_common_vertices != 2);
-
-                    node_global_index = pNode->GetIndex();
-                    num_nodes_elem_1 = p_element_1->GetNumNodes();
-                    num_nodes_elem_2 = p_element_2->GetNumNodes();
-                    local_index_1 = p_element_1->GetNodeLocalIndex(node_global_index);
-                    next_node_1 = p_element_1->GetNodeGlobalIndex((local_index_1 + 1)%num_nodes_elem_1);
-                    previous_node_1 = p_element_1->GetNodeGlobalIndex((local_index_1 + num_nodes_elem_1 - 1)%num_nodes_elem_1);
-
-                    local_index_2 = p_element_2->GetNodeLocalIndex(node_global_index);
-                    next_node_2 = p_element_2->GetNodeGlobalIndex((local_index_2 + 1)%num_nodes_elem_2);
-                    previous_node_2 = p_element_2->GetNodeGlobalIndex((local_index_2 + num_nodes_elem_2 - 1)%num_nodes_elem_2);
-                    const bool prev_case
-                    = next_node_1 == vertexA_index || previous_node_1 == vertexA_index || next_node_2 == vertexA_index || previous_node_2 == vertexA_index;
-                    assert(prev_case);
-
-                    this->PerformT3Swap(pNode, elementIndex);
+                    // Check the nodes are updated correctly
+                    assert(pNode->GetContainingElementIndices().size() == 3);
+                    assert(new_node->GetContainingElementIndices().size() == 2);
                 }
                 else
                 {
@@ -2253,11 +2270,6 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
                     //Add a node to the intersected element first
                     HalfEdge<SPACE_DIM>* A_to_new_node_edge = p_element->AddNode(edge_from_A,new_node);
                     assert(new_node->GetOutgoingEdge()->GetTargetNode()==node_A);
-                    //HalfEdge<SPACE_DIM>* twin_A_to_new_node_edge = A_to_new_node_edge->GetTwinHalfEdge();
-
-                    std::cout<<"NEW"<<std::endl;
-                    std::cout<<"AB: "<<edge_from_A->GetNodePair().first<<" "<<edge_from_A->GetNodePair().second<<std::endl;
-                    std::cout<<"to P: "<<A_to_new_node_edge->GetNodePair().first<<" "<<A_to_new_node_edge->GetNodePair().second<<std::endl;
 
                     //Check if the edge has been created correctly
                     assert(A_to_new_node_edge->GetNextHalfEdge()==edge_from_A);
@@ -2275,11 +2287,6 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
                     edge_from_A->GetTwinHalfEdge()->SetNextHalfEdge(temp_twin_prev_twin_edge_from_A,true);
                     edge_from_A->GetTwinHalfEdge()->SetElement(temp_twin_prev_twin_edge_from_A->GetElement());
 
-                    std::cout<<"from P: "<<pNode->GetOutgoingEdge()->GetNodePair().first<<" "<<pNode->GetOutgoingEdge()->GetNodePair().second<<std::endl;
-                    HalfEdge<SPACE_DIM>* e1 =  pNode->GetOutgoingEdge()->GetTwinHalfEdge()->GetNextHalfEdge();
-                    HalfEdge<SPACE_DIM>* e2 =  e1->GetTwinHalfEdge()->GetNextHalfEdge();
-                    std::cout<<"from P 1 : "<<e1->GetNodePair().first<<" "<<e1->GetNodePair().second<<std::endl;
-                    std::cout<<"from P 2 : "<<e2->GetNodePair().first<<" "<<e2->GetNodePair().second<<std::endl;
                     this->AddEdge(A_to_new_node_edge);
                     // Check the nodes are updated correctly
                     assert(pNode->GetContainingElementIndices().size() == 3);
@@ -2301,57 +2308,86 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
                      * then vertexB is removed
                      */
 
-                    //Reduce the situation to the case with one common vertex by deleting the common edge
-                    HENode<SPACE_DIM>* deleted_node = edge_from_A->GetNextHalfEdge()->GetTargetNode();
+                    HENode<SPACE_DIM>* deleted_node = node_B;
+
+                    intersection = this->WidenEdgeOrCorrectIntersectionLocationIfNecessary(edge_from_A, intersection);
+                    edge_ab_unit_vector = this->GetPreviousEdgeGradientOfElementAtNode(p_element, (node_A_local_index+1)%num_nodes);
+
+                    // Move original node and change to non-boundary node
+                    pNode->rGetModifiableLocation() = intersection + 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
+                    pNode->SetAsBoundaryNode(false);
+
+                    //Merge A--pNode edge first
+                    HalfEdge<SPACE_DIM>* out_edge = node_B->GetOutgoingEdge();
+                    HalfEdge<SPACE_DIM>* next_out_edge = out_edge;
+                    HalfEdge<SPACE_DIM>* edge_to_pNode = nullptr;
+                    do
+                    {
+                        if (next_out_edge->GetTargetNode()==pNode)
+                        {
+                            edge_to_pNode = next_out_edge;
+                            break;
+                        }
+                        next_out_edge = next_out_edge->GetTwinHalfEdge()->GetNextHalfEdge();
+                    }while(next_out_edge != out_edge);
+                    assert(edge_to_pNode);
+                    assert(edge_to_pNode->GetNextHalfEdge()->GetElement());
+                    assert(!edge_to_pNode->GetTwinHalfEdge()->GetElement());
+                    assert(edge_to_pNode->GetElement());
+
+                    MergeEdgesInT3Swap(edge_from_A, edge_to_pNode, pNode);
+
+                    // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
+                    c_vector<double, SPACE_DIM> new_node_location;
+                    new_node_location = intersection - 0.5*this->mCellRearrangementRatio*this->mCellRearrangementThreshold*edge_ab_unit_vector;
+
+                    // Add new node, which will always be a boundary node
+                    HENode<SPACE_DIM>* new_node = new HENode<SPACE_DIM>(0, true, new_node_location[0], new_node_location[1]);
+                    AddNode(new_node);
+
+                    //We need to store the edges below, because inserting the node modifies adjacency relations
+                    //The name of the new variable should be read from right to left
+                    HalfEdge<SPACE_DIM>* temp_prev_twin_edge_from_A = edge_from_A->GetTwinHalfEdge()->GetPreviousHalfEdge();
+                    HalfEdge<SPACE_DIM>* temp_twin_prev_twin_edge_from_A = temp_prev_twin_edge_from_A->GetTwinHalfEdge();
+
+                    //Add a node to the intersected element first
+                    assert(edge_from_A->GetTargetNode()==pNode);
+                    HalfEdge<SPACE_DIM>* A_to_new_node_edge = p_element->AddNode(edge_from_A,new_node);
+
+                    //Check if the edge has been created correctly
+                    assert(new_node->GetOutgoingEdge()->GetTargetNode()==node_A);
+                    assert(A_to_new_node_edge->GetNextHalfEdge()==edge_from_A);
+
+                    //Check if the half edge points to the wrong node and change accordingly
+                    assert(temp_prev_twin_edge_from_A->GetTargetNode()==pNode);
+                    assert(temp_twin_prev_twin_edge_from_A->GetPreviousHalfEdge()->GetTargetNode()==pNode);
+                    temp_prev_twin_edge_from_A->SetTargetNode(new_node);
+
+                    //Adding the node does not yield correct adjacency relations in this case, so we fix it
+                    A_to_new_node_edge->GetTwinHalfEdge()->SetPreviousHalfEdge(temp_prev_twin_edge_from_A, true);
+
+                    //Insert edge_from_A into the element neighbouring the intersecting element
+                    edge_from_A->GetTwinHalfEdge()->SetPreviousHalfEdge(temp_twin_prev_twin_edge_from_A->GetPreviousHalfEdge(), true);
+                    edge_from_A->GetTwinHalfEdge()->SetNextHalfEdge(temp_twin_prev_twin_edge_from_A,true);
+                    edge_from_A->GetTwinHalfEdge()->SetElement(temp_twin_prev_twin_edge_from_A->GetElement());
+
+                    this->AddEdge(A_to_new_node_edge);
 
                     std::set<unsigned int> deleted_node_element_indices = deleted_node->GetContainingElementIndices();
                     for (unsigned int index:deleted_node_element_indices)
                         affected_element_indices.insert(index);
                     assert(deleted_node_element_indices.size() >= 2);
 
-                    node_B->rGetModifiableLocation() = deleted_node->rGetLocation();
                     std::set<HalfEdge<SPACE_DIM>* > deleted_edges = p_element->DeleteNode(deleted_node);
-                    for (unsigned int index: affected_element_indices)
-                    {
-                        this->GetElement(index)->UpdateGeometry();
-                    }
 
                     this->mDeletedNodeIndices.push_back(deleted_node->GetIndex());
                     deleted_node->MarkAsDeleted();
                     for (auto edges : deleted_edges)
                         this->MarkHalfEdgeAsDeleted(edges);
 
-                    //Make sure we are in a situation with one common vertex
-                    assert(pNode->GetNumContainingElements()==2);
-                    num_common_vertices = 0;
-                    for (unsigned i=0; i<p_element_common_1->GetNumNodes(); i++)
-                    {
-                        for (unsigned j=0; j<p_element_common_2->GetNumNodes(); j++)
-                        {
-                            if (p_element_common_1->GetNodeGlobalIndex(i) == p_element_common_2->GetNodeGlobalIndex(j))
-                            {
-                                num_common_vertices++;
-                            }
-                        }
-                    }
-                    assert(node_B->GetNumContainingElements()>2 || num_common_vertices==1);
-                    assert(num_common_vertices != 2);
-
-                    node_global_index = pNode->GetIndex();
-                    num_nodes_elem_1 = p_element_1->GetNumNodes();
-                    num_nodes_elem_2 = p_element_2->GetNumNodes();
-                    local_index_1 = p_element_1->GetNodeLocalIndex(node_global_index);
-                    next_node_1 = p_element_1->GetNodeGlobalIndex((local_index_1 + 1)%num_nodes_elem_1);
-                    previous_node_1 = p_element_1->GetNodeGlobalIndex((local_index_1 + num_nodes_elem_1 - 1)%num_nodes_elem_1);
-
-                    local_index_2 = p_element_2->GetNodeLocalIndex(node_global_index);
-                    next_node_2 = p_element_2->GetNodeGlobalIndex((local_index_2 + 1)%num_nodes_elem_2);
-                    previous_node_2 = p_element_2->GetNodeGlobalIndex((local_index_2 + num_nodes_elem_2 - 1)%num_nodes_elem_2);
-                    const bool prev_case
-                    = next_node_1 == vertexB_index || previous_node_1 == vertexB_index || next_node_2 == vertexB_index || previous_node_2 == vertexB_index;
-                    assert(prev_case);
-
-                    this->PerformT3Swap(pNode, elementIndex);
+                    // Check the nodes are updated correctly
+                    assert(pNode->GetContainingElementIndices().size() == 3);
+                    assert(new_node->GetContainingElementIndices().size() == 2);
                 }
                 else
                 {
@@ -2461,13 +2497,11 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformT3Swap(HENode<SPACE_DIM>* pNode, uns
     {
         EXCEPTION("Trying to merge a node, contained in more than 2 elements, into another element, this is not possible with the vertex mesh.");
     }
-
     for (unsigned int index: affected_element_indices)
     {
         HEElement<SPACE_DIM>* update_element = this->GetElement(index);
         update_element->UpdateGeometry();
     }
-
 }
 
 template <unsigned int SPACE_DIM>
@@ -2485,6 +2519,9 @@ void HEMutableVertexMesh<SPACE_DIM>::PerformVoidRemoval(HalfEdge<SPACE_DIM>* pEd
 
     HENode<SPACE_DIM>* p_new_node = RemoveTriangle(pEdge);
     p_new_node->rGetModifiableLocation() = nodes_midpoint;
+
+    for (unsigned int idx:p_new_node->GetContainingElementIndices())
+        this->GetElement(idx)->UpdateGeometry();
 
     // Remove the deleted nodes/edges and re-index
     RemoveDeletedNodes();
@@ -2537,7 +2574,7 @@ HENode<SPACE_DIM>* HEMutableVertexMesh<SPACE_DIM>::RemoveTriangle(HalfEdge<SPACE
             {
                 EXCEPTION("One of the neighbours of a small triangular element is also a triangle - dealing with this has not been implemented yet");
             }
-            neighbouring_element_indices.push_back(twin->GetElement()->GetIndex());
+
             if (twin->GetElement()->GetHalfEdge()==twin)
             {
                 twin->GetElement()->SetHalfEdge(twin->GetNextHalfEdge());
@@ -2560,11 +2597,6 @@ HENode<SPACE_DIM>* HEMutableVertexMesh<SPACE_DIM>::RemoveTriangle(HalfEdge<SPACE
         next_edge = next_edge->GetNextHalfEdge();
     }while(next_edge != pEdge);
 
-    //Update neighbouring elements
-    for (unsigned int index : neighbouring_element_indices)
-    {
-        this->GetElement(index)->UpdateGeometry();
-    }
     return p_new_node;
 }
 

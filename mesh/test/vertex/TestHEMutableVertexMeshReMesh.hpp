@@ -2221,17 +2221,13 @@ public:
         TS_ASSERT_EQUALS(vertex_mesh.GetNumNodes(), 10u);
 
         // Test locations of moved and new nodes
-        // Due to node deletions, nodes are reindexed:
-        //E0: 9 8 5 0(merged node) 1 2 7 (merged node)
-        //E1: 8 3 5
-        //E2: 3 4 0 5
-        //E3: 6 9 7
-        TS_ASSERT_DELTA(vertex_mesh.GetNode(5)->rGetLocation()[0], 1.00, 1e-4);
-        TS_ASSERT_DELTA(vertex_mesh.GetNode(5)->rGetLocation()[1], 0.45, 1e-4);
-        TS_ASSERT_DELTA(vertex_mesh.GetNode(0)->rGetLocation()[0], 1.00, 1e-4);
-        TS_ASSERT_DELTA(vertex_mesh.GetNode(0)->rGetLocation()[1], 0.55, 1e-4);
-        TS_ASSERT_DELTA(vertex_mesh.GetNode(7)->rGetLocation()[0], 0.00, 1e-4);
-        TS_ASSERT_DELTA(vertex_mesh.GetNode(7)->rGetLocation()[1], 0.50, 1e-4);
+
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(6)->rGetLocation()[0], 1.00, 1e-4);
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(6)->rGetLocation()[1], 0.45, 1e-4);
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(9)->rGetLocation()[0], 1.00, 1e-4);
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(9)->rGetLocation()[1], 0.55, 1e-4);
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(8)->rGetLocation()[0], 0.00, 1e-4);
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(8)->rGetLocation()[1], 0.50, 1e-4);
 
         // Test that each element contains the correct number of nodes following the rearrangement
         TS_ASSERT_EQUALS(vertex_mesh.GetElement(0)->GetNumNodes(), 7u);
@@ -2239,11 +2235,10 @@ public:
         TS_ASSERT_EQUALS(vertex_mesh.GetElement(2)->GetNumNodes(), 4u);
         TS_ASSERT_EQUALS(vertex_mesh.GetElement(3)->GetNumNodes(), 3u);
 
-        // Test that each element contains the correct nodes following the rearrangement
-        unsigned new_node_indices_element_0[7] = {9, 8, 5, 0, 1, 2, 7};
-        unsigned new_node_indices_element_1[3] = {8, 3, 5};
-        unsigned new_node_indices_element_2[4] = {3, 4, 0, 5};
-        unsigned new_node_indices_element_3[3] = {6, 9, 7};
+        unsigned new_node_indices_element_0[7] = {0, 1, 6, 9, 2, 3, 8};
+        unsigned new_node_indices_element_1[3] = {1, 4, 6};
+        unsigned new_node_indices_element_2[4] = {4, 5, 9, 6};
+        unsigned new_node_indices_element_3[3] = {7, 0, 8};
         for (unsigned i=0; i<7; i++)
         {
             TS_ASSERT_EQUALS(vertex_mesh.GetElement(0)->GetNodeGlobalIndex(i), new_node_indices_element_0[i]);
@@ -2261,9 +2256,10 @@ public:
         // Test boundary property of nodes (all are boundary nodes except node 6)
         for (unsigned i=0; i<vertex_mesh.GetNumNodes(); i++)
         {
-            bool expected_boundary_node = (i!=5);
+            bool expected_boundary_node = (i!=6);
             TS_ASSERT_EQUALS(vertex_mesh.GetNode(i)->IsBoundaryNode(), expected_boundary_node);
         }
+
     }
 
     void TestReMeshForT3Swaps()
@@ -2355,21 +2351,66 @@ public:
         TS_ASSERT_EQUALS(he_mesh.GetNumElements(), 29u);
         TS_ASSERT_EQUALS(he_mesh.GetNumNodes(), 72u);
 
+        //If the ordering has been shifted by one or two indices, adjust the order accordingly
         for (unsigned i=0; i<vertex_mesh.GetNumElements(); ++i)
         {
             VertexElement<2,2>* v_element = vertex_mesh.GetElement(i);
             HEElement<2>* he_element = he_mesh.GetElement(i);
+
             const unsigned int n_v_nodes = v_element->GetNumNodes();
             const unsigned int n_he_nodes = he_element->GetNumNodes();
-            assert(n_v_nodes == n_he_nodes);
+            TS_ASSERT_EQUALS(n_v_nodes, n_he_nodes);
+
+            for (unsigned int j=0; j<n_v_nodes; ++j)
+            {
+                const bool is_x_next = std::abs(v_element->GetNode((j+1)%n_v_nodes)->rGetLocation()[0]-he_element->GetNode(j)->rGetLocation()[0])<1e-4;
+                const bool is_y_next = std::abs(v_element->GetNode((j+1)%n_v_nodes)->rGetLocation()[1]-he_element->GetNode(j)->rGetLocation()[1])<1e-4;
+                if (is_x_next&&is_y_next)
+                {
+                    he_element->SetHalfEdge(he_element->GetHalfEdge()->GetPreviousHalfEdge());
+                    break;
+                }
+
+                const bool is_x_next_next = std::abs(v_element->GetNode((j+2)%n_v_nodes)->rGetLocation()[0]-he_element->GetNode(j)->rGetLocation()[0])<1e-4;
+                const bool is_y_next_next = std::abs(v_element->GetNode((j+2)%n_v_nodes)->rGetLocation()[1]-he_element->GetNode(j)->rGetLocation()[1])<1e-4;
+                if (is_x_next_next&&is_y_next_next)
+                {
+                    he_element->SetHalfEdge(he_element->GetHalfEdge()->GetPreviousHalfEdge()->GetPreviousHalfEdge());
+                    break;
+                }
+
+                const bool is_x_previous = std::abs(v_element->GetNode((j-1+n_v_nodes)%n_v_nodes)->rGetLocation()[0]-he_element->GetNode(j)->rGetLocation()[0])<1e-4;
+                const bool is_y_previous = std::abs(v_element->GetNode((j-1+n_v_nodes)%n_v_nodes)->rGetLocation()[1]-he_element->GetNode(j)->rGetLocation()[1])<1e-4;
+                if (is_x_previous&&is_y_previous)
+                {
+                    he_element->SetHalfEdge(he_element->GetHalfEdge()->GetNextHalfEdge());
+                    break;
+                }
+
+                const bool is_x_previous_previous = std::abs(v_element->GetNode((j-2+n_v_nodes)%n_v_nodes)->rGetLocation()[0]-he_element->GetNode(j)->rGetLocation()[0])<1e-4;
+                const bool is_y_previous_previous = std::abs(v_element->GetNode((j-2+n_v_nodes)%n_v_nodes)->rGetLocation()[1]-he_element->GetNode(j)->rGetLocation()[1])<1e-4;
+                if (is_x_previous_previous&&is_y_previous_previous)
+                {
+                    he_element->SetHalfEdge(he_element->GetHalfEdge()->GetNextHalfEdge()->GetNextHalfEdge());
+                    break;
+                }
+            }
+        }
+
+        //Check that the nodes are in correct positions
+        for (unsigned i=0; i<vertex_mesh.GetNumElements(); ++i)
+        {
+            VertexElement<2,2>* v_element = vertex_mesh.GetElement(i);
+            HEElement<2>* he_element = he_mesh.GetElement(i);
+
+            const unsigned int n_v_nodes = v_element->GetNumNodes();
+
             for (unsigned int j=0; j<n_v_nodes; ++j)
             {
                 TS_ASSERT_DELTA(v_element->GetNode(j)->rGetLocation()[0], he_element->GetNode(j)->rGetLocation()[0],1e-6);
                 TS_ASSERT_DELTA(v_element->GetNode(j)->rGetLocation()[1], he_element->GetNode(j)->rGetLocation()[1],1e-6);
             }
         }
-
-        // Calls ReMesh() to identify and perform any T3 swaps (element overlaps)
 
         // Save the mesh data using mesh writers
         std::string dirname = "TestVertexMeshReMesh";
@@ -2386,6 +2427,394 @@ public:
         TS_ASSERT(comparer1.CompareFiles());
         FileComparison comparer2(results_file2, "cell_based/test/data/TestMutableVertexMesh/vertex_remesh_T3_after_remesh.cell");
         TS_ASSERT(comparer2.CompareFiles());
+    }
+
+    void TestReMeshForRemovingVoids()
+    {
+        /*
+         * Create a mesh comprising eight nodes contained in three elements with a small central void,
+         * as shown below. We will test that the void is correctly removed from the mesh by a T2 swap.
+         *  ______       _______
+         * |     /|     |      /|
+         * |___/| |     |_____/ |
+         * |   \| | --> |     \ |
+         * |_____\|     |______\|
+         */
+        std::vector<HENode<2>*> nodes;
+        nodes.push_back(new HENode<2>(0, true, 0.00, 0.0));
+        nodes.push_back(new HENode<2>(1, true, 1.00, 0.0));
+        nodes.push_back(new HENode<2>(2, true, 1.00, 1.0));
+        nodes.push_back(new HENode<2>(3, true, 0.00, 1.0));
+        nodes.push_back(new HENode<2>(4, true, 0.40, 0.5));
+        nodes.push_back(new HENode<2>(5, true, 0.55, 0.4));
+        nodes.push_back(new HENode<2>(6, true, 0.55, 0.6));
+        nodes.push_back(new HENode<2>(7, true, 0.00, 0.5));
+
+        std::vector<HENode<2>*> nodes_elem_0, nodes_elem_1, nodes_elem_2;
+        unsigned node_indices_elem_0[5] = {0, 1, 5, 4, 7};
+        unsigned node_indices_elem_1[4] = {1, 2, 6, 5};
+        unsigned node_indices_elem_2[5] = {7, 4, 6 ,2, 3};
+        for (unsigned i=0; i<5; i++)
+        {
+            nodes_elem_0.push_back(nodes[node_indices_elem_0[i]]);
+            if (i < 4)
+            {
+                nodes_elem_1.push_back(nodes[node_indices_elem_1[i]]);
+            }
+            nodes_elem_2.push_back(nodes[node_indices_elem_2[i]]);
+        }
+
+        std::vector<HEElement<2>*> vertex_elements;
+        vertex_elements.push_back(new HEElement<2>(0, nodes_elem_0));
+        vertex_elements.push_back(new HEElement<2>(1, nodes_elem_1));
+        vertex_elements.push_back(new HEElement<2>(2, nodes_elem_2));
+
+        HEMutableVertexMesh<2> vertex_mesh(nodes, vertex_elements);
+
+        vertex_mesh.SetCellRearrangementThreshold(0.1);
+
+        vertex_mesh.ReMesh(); // Edges too long so nothing happens
+
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumElements(), 3u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumNodes(), 8u);
+
+        c_vector<double, 2>& new_location_0 = vertex_mesh.GetNode(5)->rGetModifiableLocation();
+        new_location_0(1) = 0.51;
+
+        c_vector<double, 2>& new_location_1 = vertex_mesh.GetNode(6)->rGetModifiableLocation();
+        new_location_1(1) = 0.49;
+
+        vertex_mesh.UpdateElementGeometries();
+
+        // T1 swap should now happen, removing the void
+        vertex_mesh.ReMesh();
+
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumElements(), 3u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumNodes(), 6u);
+
+
+        // Test merged node is in the correct place
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(5)->rGetLocation()[0], 0.5, 1e-4);
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(5)->rGetLocation()[1], 0.5, 1e-4);
+
+        // Test ownership of the new nodes
+        std::set<unsigned> expected_elements_containing_node_5;
+        expected_elements_containing_node_5.insert(0);
+        expected_elements_containing_node_5.insert(1);
+        expected_elements_containing_node_5.insert(2);
+
+        TS_ASSERT_EQUALS(vertex_mesh.GetNode(5)->GetContainingElementIndices(), expected_elements_containing_node_5);
+
+        // Test that each element contains the correct number nodes following the rearrangement
+        TS_ASSERT_EQUALS(vertex_mesh.GetElement(0)->GetNumNodes(), 4u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetElement(1)->GetNumNodes(), 3u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetElement(2)->GetNumNodes(), 4u);
+
+        // Test that each element contains the correct nodes following the rearrangement
+        // (note that the node indices were reset since the void was removed)
+        unsigned node_indices_element_0[4] = {0, 1, 5, 4};
+        unsigned node_indices_element_1[3] = {1, 2, 5};
+        unsigned node_indices_element_2[4] = {4, 5, 2, 3};
+
+        for (unsigned i=0; i<4; i++)
+        {
+            TS_ASSERT_EQUALS(vertex_mesh.GetElement(0)->GetNodeGlobalIndex(i), node_indices_element_0[i]);
+            if (i < 3)
+            {
+                TS_ASSERT_EQUALS(vertex_mesh.GetElement(1)->GetNodeGlobalIndex(i), node_indices_element_1[i]);
+            }
+            TS_ASSERT_EQUALS(vertex_mesh.GetElement(2)->GetNodeGlobalIndex(i), node_indices_element_2[i]);
+        }
+    }
+
+    void TestReMeshForRemovingVoidsException()
+    {
+        /*
+         * Create a mesh comprising eleven nodes contain in four elements with two small
+         * triangle voids, as shown below. We will test that trying to remove the voids
+         * results in the correct exception being thrown.
+         *    _________
+         *   |        /|
+         *   |/|\___/| |
+         *   |\|/   \| |
+         *   |________\|
+         */
+        std::vector<HENode<2>*> nodes;
+        nodes.push_back(new HENode<2>(0, true,  0.00, 0.00));
+        nodes.push_back(new HENode<2>(1, true,  1.00, 0.0));
+        nodes.push_back(new HENode<2>(2, true,  1.00, 1.00));
+        nodes.push_back(new HENode<2>(3, true,  0.00, 1.00));
+        nodes.push_back(new HENode<2>(4, true,  0.45, 0.49));
+        nodes.push_back(new HENode<2>(5, true,  0.60, 0.50));
+        nodes.push_back(new HENode<2>(6, true,  0.45, 0.51));
+        nodes.push_back(new HENode<2>(7, true,  0.80, 0.50));
+        nodes.push_back(new HENode<2>(8, true,  0.90, 0.51));
+        nodes.push_back(new HENode<2>(9, true,  0.90, 0.49));
+        nodes.push_back(new HENode<2>(10, true, 1.00, 0.50));
+
+        std::vector<HENode<2>*> nodes_elem_0, nodes_elem_1, nodes_elem_2, nodes_elem_3;
+
+        unsigned node_indices_elem_0[7] = {0, 1, 10, 9, 7, 5, 4};
+        unsigned node_indices_elem_1[4] = {0, 4, 6, 3};
+        unsigned node_indices_elem_2[7] = {7, 8, 10, 2, 3, 6, 5};
+        unsigned node_indices_elem_3[3] = {10, 8, 9};
+
+        for (unsigned i=0; i<7; i++)
+        {
+            nodes_elem_0.push_back(nodes[node_indices_elem_0[i]]);
+            nodes_elem_2.push_back(nodes[node_indices_elem_2[i]]);
+            if (i < 4)
+            {
+                nodes_elem_1.push_back(nodes[node_indices_elem_1[i]]);
+            }
+            if (i < 3)
+            {
+                nodes_elem_3.push_back(nodes[node_indices_elem_3[i]]);
+            }
+        }
+
+        std::vector<HEElement<2>*> vertex_elements;
+        vertex_elements.push_back(new HEElement<2>(0, nodes_elem_0));
+        vertex_elements.push_back(new HEElement<2>(1, nodes_elem_1));
+        vertex_elements.push_back(new HEElement<2>(2, nodes_elem_2));
+        vertex_elements.push_back(new HEElement<2>(3, nodes_elem_3));
+
+        HEMutableVertexMesh<2> vertex_mesh(nodes, vertex_elements);
+
+        vertex_mesh.SetCellRearrangementThreshold(0.1);
+
+        // Call IdentifySwapType on nodes 6 and 4 (ordering for coverage)
+        assert(vertex_elements[1]->GetHalfEdge(nodes[6])->GetOriginNode()==nodes[4]);
+        FullEdge<2>* full_edge = vertex_mesh.GetFullEdgeFromHalfEdge(vertex_elements[1]->GetHalfEdge(nodes[6]));
+
+        //Store edges to check if exception is thrown. We call IdentifySwapType on nodes 8 and 9
+        //after performing swap on edge 6-4
+        assert(vertex_elements[3]->GetHalfEdge(nodes[9])->GetOriginNode()==nodes[8]);
+        FullEdge<2>* full_edge_2 = vertex_mesh.GetFullEdgeFromHalfEdge(vertex_elements[3]->GetHalfEdge(nodes[9]));
+
+        vertex_mesh.IdentifySwapType(*full_edge);
+
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumElements(), 4u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumNodes(), 9u);
+
+        // Test merged node is in the correct place
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(8)->rGetLocation()[0], 0.5, 1e-4);
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(8)->rGetLocation()[1], 0.5, 1e-4);
+
+        // Test ownership of the new nodes
+        std::set<unsigned> expected_elements_containing_node_8;
+        expected_elements_containing_node_8.insert(0);
+        expected_elements_containing_node_8.insert(1);
+        expected_elements_containing_node_8.insert(2);
+
+        TS_ASSERT_EQUALS(vertex_mesh.GetNode(8)->GetContainingElementIndices(), expected_elements_containing_node_8);
+
+        // Call IdentifySwapType() on edge with original nodes 8 and 9
+        TS_ASSERT_THROWS_THIS(vertex_mesh.IdentifySwapType(*full_edge_2),
+                              "Triangular element next to triangular void, not implemented yet.");
+    }
+
+    void TestT3SwapForRemovingVoids()
+    {
+        /*
+         * Create a mesh comprising seven nodes containing in three elements with a central
+         * void, as shown below. We will test that a T3 swap is correctly performed to
+         * remove the void from the mesh.
+         *  ______       _______
+         * |     /|     |      /|
+         * |___/| |     |_____/ |
+         * |   \| | --> |     \ |
+         * |_____\|     |______\|
+         */
+        std::vector<HENode<2>*> nodes;
+        nodes.push_back(new HENode<2>(0, true, 0.0, 0.0));
+        nodes.push_back(new HENode<2>(1, true, 1.0, 0.0));
+        nodes.push_back(new HENode<2>(2, true, 1.0, 1.0));
+        nodes.push_back(new HENode<2>(3, true, 0.0, 1.0));
+        nodes.push_back(new HENode<2>(4, true, 0.4, 0.5));
+        nodes.push_back(new HENode<2>(5, true, 0.5, 0.4));
+        nodes.push_back(new HENode<2>(6, true, 0.5, 0.6));
+        nodes.push_back(new HENode<2>(7, true, 0.0, 0.5));
+
+        std::vector<HENode<2>*> nodes_elem_0, nodes_elem_1, nodes_elem_2;
+        unsigned node_indices_elem_0[5] = {0, 1, 5, 4, 7};
+        unsigned node_indices_elem_1[4] = {1, 2, 6, 5};
+        unsigned node_indices_elem_2[5] = {7, 4, 6 ,2, 3};
+        for (unsigned i=0; i<5; i++)
+        {
+            nodes_elem_0.push_back(nodes[node_indices_elem_0[i]]);
+            if (i < 4)
+            {
+                nodes_elem_1.push_back(nodes[node_indices_elem_1[i]]);
+            }
+            nodes_elem_2.push_back(nodes[node_indices_elem_2[i]]);
+        }
+
+        std::vector<HEElement<2>*> vertex_elements;
+        vertex_elements.push_back(new HEElement<2>(0, nodes_elem_0));
+        vertex_elements.push_back(new HEElement<2>(1, nodes_elem_1));
+        vertex_elements.push_back(new HEElement<2>(2, nodes_elem_2));
+
+        HEMutableVertexMesh<2> vertex_mesh(nodes, vertex_elements);
+
+        vertex_mesh.ReMesh(); // Edges too long so nothing happens
+
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumElements(), 3u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumNodes(), 8u);
+
+        // Move node 4 to inside of element 1
+        c_vector<double, 2>& new_location = vertex_mesh.GetNode(4)->rGetModifiableLocation();
+        new_location(0) = 0.6;
+        vertex_mesh.UpdateElementGeometries();
+
+        TS_ASSERT_EQUALS(vertex_mesh.ElementIncludesPoint(vertex_mesh.GetNode(4)->rGetLocation(), 1), true);
+        TS_ASSERT_EQUALS(vertex_mesh.GetLocalIndexForElementEdgeClosestToPoint(vertex_mesh.GetNode(4)->rGetLocation(), 1), 2u);
+
+        // T3 swap should now happen, removing the void
+        vertex_mesh.ReMesh();
+
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumElements(), 3u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetNumNodes(), 6u);
+
+        // Test merged node is in the correct place
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(5)->rGetLocation()[0], 0.5, 1e-4);
+        TS_ASSERT_DELTA(vertex_mesh.GetNode(5)->rGetLocation()[1], 0.5, 1e-4);
+
+        // Test ownership of the new nodes
+        std::set<unsigned> expected_elements_containing_node_5;
+        expected_elements_containing_node_5.insert(0);
+        expected_elements_containing_node_5.insert(1);
+        expected_elements_containing_node_5.insert(2);
+
+        TS_ASSERT_EQUALS(vertex_mesh.GetNode(5)->GetContainingElementIndices(), expected_elements_containing_node_5);
+
+        // Test that each element contains the correct number of nodes following the rearrangement
+        TS_ASSERT_EQUALS(vertex_mesh.GetElement(0)->GetNumNodes(), 4u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetElement(1)->GetNumNodes(), 3u);
+        TS_ASSERT_EQUALS(vertex_mesh.GetElement(2)->GetNumNodes(), 4u);
+
+        // Test that each element contains the correct nodes following the rearrangement
+        // (note that the node indices have been reset since the void was removed)
+        unsigned node_indices_element_0[4] = {0, 1, 5, 4};
+        unsigned node_indices_element_1[3] = {1, 2, 5};
+        unsigned node_indices_element_2[4] = {4, 5, 2, 3};
+        for (unsigned i=0; i<4; i++)
+        {
+            TS_ASSERT_EQUALS(vertex_mesh.GetElement(0)->GetNodeGlobalIndex(i), node_indices_element_0[i]);
+            if (i < 3)
+            {
+                TS_ASSERT_EQUALS(vertex_mesh.GetElement(1)->GetNodeGlobalIndex(i), node_indices_element_1[i]);
+            }
+            TS_ASSERT_EQUALS(vertex_mesh.GetElement(2)->GetNodeGlobalIndex(i), node_indices_element_2[i]);
+        }
+    }
+
+    void TestT3SwapWithConcaveElements()
+    {
+        /*
+         * Create a mesh comprising ten nodes contained in one rectangle element,
+         * one L-shape element and one small triangle element. We will test that
+         * a T3 swap correctly removes the triangle element in this case.
+         *     ______       _______
+         *    |____|/      |_ _ | /
+         *    | |____  --> | |_\|/_
+         *    |______|     |_______|
+         */
+        std::vector<HENode<2>*> nodes;
+        nodes.push_back(new HENode<2>(0, true, 0.0, 0.0));
+        nodes.push_back(new HENode<2>(1, true, 2.0, 0.0));
+        nodes.push_back(new HENode<2>(2, true, 2.0, 1.0));
+        nodes.push_back(new HENode<2>(3, true, 1.0, 1.0));
+        nodes.push_back(new HENode<2>(4, true, 1.0, 2.0));
+        nodes.push_back(new HENode<2>(5, true, 0.0, 2.0));
+        nodes.push_back(new HENode<2>(6, true, 2.0, 2.0));
+        nodes.push_back(new HENode<2>(7, true, 2.0, 3.0));
+        nodes.push_back(new HENode<2>(8, true, 0.0, 3.0));
+        nodes.push_back(new HENode<2>(9, true, 3.0, 3.0));
+
+        std::vector<HENode<2>*> nodes_in_element0, nodes_in_element1, nodes_in_element2;
+        unsigned node_indices_in_element0[6] = {0, 1, 2, 3, 4, 5};
+        unsigned node_indices_in_element1[5] = {5, 4, 6, 7, 8};
+        unsigned node_indices_in_element2[3] = {7, 6 ,9};
+        for (unsigned i=0; i<6; i++)
+        {
+            nodes_in_element0.push_back(nodes[node_indices_in_element0[i]]);
+            if (i < 5)
+            {
+                nodes_in_element1.push_back(nodes[node_indices_in_element1[i]]);
+            }
+            if (i < 3)
+            {
+                nodes_in_element2.push_back(nodes[node_indices_in_element2[i]]);
+            }
+        }
+
+        std::vector<HEElement<2>*> elements;
+        elements.push_back(new HEElement<2>(0, nodes_in_element0));
+        elements.push_back(new HEElement<2>(1, nodes_in_element1));
+        elements.push_back(new HEElement<2>(2, nodes_in_element2));
+
+        HEMutableVertexMesh<2> mesh(nodes, elements);
+
+        // Set the threshold distance between vertices for a T3 swap as follows, to ease calculations
+        mesh.SetCellRearrangementThreshold(0.1*1.0/1.5);
+
+        // Move node 6  so that it overlaps element 0
+        ChastePoint<2> point = mesh.GetNode(6)->GetPoint();
+        point.SetCoordinate(0u, 1.5);
+        point.SetCoordinate(1u, 0.9);
+        mesh.SetNode(6, point);
+        mesh.UpdateElementGeometries();
+
+        TS_ASSERT_DELTA(mesh.GetNode(6)->rGetLocation()[0], 1.5, 1e-4);
+        TS_ASSERT_DELTA(mesh.GetNode(6)->rGetLocation()[1], 0.9, 1e-4);
+
+        TS_ASSERT_EQUALS(mesh.ElementIncludesPoint(mesh.GetNode(6)->rGetLocation(), 0), true);
+        TS_ASSERT_EQUALS(mesh.GetLocalIndexForElementEdgeClosestToPoint(mesh.GetNode(6)->rGetLocation(), 0), 2u);
+
+        // Call method to update mesh in this situation
+        mesh.ReMesh();//MoveOverlappingNodeOntoEdgeOfElement(mesh.GetNode(6), 0);
+
+        // Check that node 6 has been moved onto the edge a new node has been created and both added to elements 0 and 1
+        TS_ASSERT_EQUALS(mesh.GetNumElements(), 3u);
+        TS_ASSERT_EQUALS(mesh.GetNumNodes(), 12u);
+
+        // Test locations of moved and new nodes (10 and 11 are the next free node when 6 is merged)
+        TS_ASSERT_DELTA(mesh.GetNode(6)->rGetLocation()[0],  1.5, 1e-4);
+        TS_ASSERT_DELTA(mesh.GetNode(6)->rGetLocation()[1],  1.0, 1e-4);
+        TS_ASSERT_DELTA(mesh.GetNode(10)->rGetLocation()[0], 1.6, 1e-4);
+        TS_ASSERT_DELTA(mesh.GetNode(10)->rGetLocation()[1], 1.0, 1e-4);
+        TS_ASSERT_DELTA(mesh.GetNode(11)->rGetLocation()[0], 1.4, 1e-4);
+        TS_ASSERT_DELTA(mesh.GetNode(11)->rGetLocation()[1], 1.0, 1e-4);
+
+        // Test that each element contains the number of correct nodes following the rearrangement
+        TS_ASSERT_EQUALS(mesh.GetElement(0)->GetNumNodes(), 9u);
+        TS_ASSERT_EQUALS(mesh.GetElement(1)->GetNumNodes(), 6u);
+        TS_ASSERT_EQUALS(mesh.GetElement(2)->GetNumNodes(), 4u);
+
+        // Test that each element contains the correct nodes following the rearrangement
+        unsigned node_indices_element_0[9] = {0, 1, 2, 10, 6, 11, 3, 4, 5};
+        unsigned node_indices_element_1[6] = {5, 4, 11, 6, 7, 8};
+        unsigned node_indices_element_2[4] = {7, 6, 10, 9};
+        for (unsigned i=0; i<9; i++)
+        {
+            TS_ASSERT_EQUALS(mesh.GetElement(0)->GetNodeGlobalIndex(i), node_indices_element_0[i]);
+            if (i < 6)
+            {
+                TS_ASSERT_EQUALS(mesh.GetElement(1)->GetNodeGlobalIndex(i), node_indices_element_1[i]);
+            }
+            if (i < 4)
+            {
+                TS_ASSERT_EQUALS(mesh.GetElement(2)->GetNodeGlobalIndex(i), node_indices_element_2[i]);
+            }
+        }
+
+        // Test that the correct nodes are boundary nodes
+        for (unsigned i=0; i<mesh.GetNumNodes(); i++)
+        {
+            bool expected_boundary_node = (i!=6);
+            TS_ASSERT_EQUALS(mesh.GetNode(i)->IsBoundaryNode(), expected_boundary_node);
+        }
     }
 
     void TestPerformIntersectionSwap()
