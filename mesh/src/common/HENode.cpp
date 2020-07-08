@@ -40,6 +40,13 @@ HENode<SPACE_DIM>::HENode(const Node<SPACE_DIM> &rNode, HalfEdge<SPACE_DIM>* pEd
 {
 }
 
+template<unsigned SPACE_DIM>
+HENode<SPACE_DIM>::HENode(unsigned index, ChastePoint<SPACE_DIM> point, bool isBoundaryNode)
+:Node<SPACE_DIM>(index, point, isBoundaryNode),
+ mpEdge(nullptr)
+{
+}
+
 template<unsigned int SPACE_DIM>
 HENode<SPACE_DIM>::~HENode()
 {
@@ -72,20 +79,23 @@ HENode<SPACE_DIM>* HENode<SPACE_DIM>::GetNextNode() const
 template <unsigned int SPACE_DIM>
 std::set<unsigned int> HENode<SPACE_DIM>::GetContainingElementIndices() const
 {
-    assert(mpEdge!=nullptr);
     std::set<unsigned int> element_indices;
-    HalfEdge<SPACE_DIM>* edge = mpEdge;
-    HEElement<SPACE_DIM>* element;
-    //Iterate over outgoing edges...
-    do
+    if (mpEdge)
     {
-        //.. and get the elements to which they belong
-        element = edge->GetElement();
-        if (element)
-            element_indices.insert(element->GetIndex());
-        edge = edge->GetTwinHalfEdge()->GetNextHalfEdge();
+        assert(mpEdge!=nullptr);
+        HalfEdge<SPACE_DIM>* edge = mpEdge;
+        HEElement<SPACE_DIM>* element;
+        //Iterate over outgoing edges...
+        do
+        {
+            //.. and get the elements to which they belong
+            element = edge->GetElement();
+            if (element)
+                element_indices.insert(element->GetIndex());
+            edge = edge->GetTwinHalfEdge()->GetNextHalfEdge();
+        }
+        while (edge != mpEdge);
     }
-    while (edge != mpEdge);
     return element_indices;
 }
 

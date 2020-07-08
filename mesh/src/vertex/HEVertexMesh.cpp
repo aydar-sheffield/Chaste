@@ -594,6 +594,46 @@ double HEVertexMesh<SPACE_DIM>::GetSurfaceAreaOfElement(unsigned index)
 }
 
 template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM>  HEVertexMesh<SPACE_DIM>::GetAreaGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    HalfEdge<SPACE_DIM>* edge_from_this_node = pElement->GetHalfEdge(localIndex);
+    HalfEdge<SPACE_DIM>* prev_edge = edge_from_this_node->GetPreviousHalfEdge();
+
+    c_vector<double, SPACE_DIM> previous_node_location = prev_edge->GetOriginNode()->rGetLocation();
+    c_vector<double, SPACE_DIM> next_node_location = edge_from_this_node->GetTargetNode()->rGetLocation();
+    c_vector<double, SPACE_DIM> difference_vector = this->GetVectorFromAtoB(previous_node_location, next_node_location);
+
+    c_vector<double, SPACE_DIM> area_gradient;
+
+    area_gradient[0] = 0.5 * difference_vector[1];
+    area_gradient[1] = -0.5 * difference_vector[0];
+
+    return area_gradient;
+}
+
+template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM>  HEVertexMesh<SPACE_DIM>::GetAreaGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, HENode<SPACE_DIM>* pNode)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    HalfEdge<SPACE_DIM>* edge_to_this_node = pElement->GetHalfEdge(pNode);
+    HalfEdge<SPACE_DIM>* next_edge = edge_to_this_node->GetNextHalfEdge();
+
+    c_vector<double, SPACE_DIM> previous_node_location = edge_to_this_node->GetOriginNode()->rGetLocation();
+    c_vector<double, SPACE_DIM> next_node_location = next_edge->GetTargetNode()->rGetLocation();
+    c_vector<double, SPACE_DIM> difference_vector = this->GetVectorFromAtoB(previous_node_location, next_node_location);
+
+    c_vector<double, SPACE_DIM> area_gradient;
+
+    area_gradient[0] = 0.5 * difference_vector[1];
+    area_gradient[1] = -0.5 * difference_vector[0];
+
+    return area_gradient;
+}
+
+template<unsigned int SPACE_DIM>
 c_vector<double, SPACE_DIM>  HEVertexMesh<SPACE_DIM>::GetPreviousEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex)
 {
     assert(SPACE_DIM==2);
@@ -604,6 +644,65 @@ c_vector<double, SPACE_DIM>  HEVertexMesh<SPACE_DIM>::GetPreviousEdgeGradientOfE
     assert(edge_to_node->GetLength()>0);
     gradient /= edge_to_node->GetLength();
     return gradient;
+}
+
+template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM>  HEVertexMesh<SPACE_DIM>::GetPreviousEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, HENode<SPACE_DIM>* pNode)
+{
+    assert(SPACE_DIM==2);
+    c_vector<double, SPACE_DIM> gradient;
+    HalfEdge<SPACE_DIM>* edge_to_node = pElement->GetHalfEdge(pNode);
+    gradient = edge_to_node->GetVector();
+    assert(edge_to_node->GetLength()>0);
+    gradient /= edge_to_node->GetLength();
+    return gradient;
+}
+
+template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM>  HEVertexMesh<SPACE_DIM>::GetNextEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex)
+{
+    assert(SPACE_DIM==2);
+    c_vector<double, SPACE_DIM> gradient;
+    const unsigned int num_nodes = pElement->GetNumNodes();
+    HalfEdge<SPACE_DIM>* edge_to_node = pElement->GetHalfEdge((localIndex)%num_nodes);
+    gradient = -edge_to_node->GetVector();
+    assert(edge_to_node->GetLength()>0);
+    gradient /= edge_to_node->GetLength();
+    return gradient;
+}
+
+template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM>  HEVertexMesh<SPACE_DIM>::GetNextEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, HENode<SPACE_DIM>* pNode)
+{
+    assert(SPACE_DIM==2);
+    c_vector<double, SPACE_DIM> gradient;
+    HalfEdge<SPACE_DIM>* edge_to_node = pElement->GetHalfEdge(pNode)->GetNextHalfEdge();
+    gradient = -edge_to_node->GetVector();
+    assert(edge_to_node->GetLength()>0);
+    gradient /= edge_to_node->GetLength();
+    return gradient;
+}
+
+template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM> HEVertexMesh<SPACE_DIM>::GetPerimeterGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE
+
+    c_vector<double, SPACE_DIM> previous_edge_gradient = GetPreviousEdgeGradientOfElementAtNode(pElement, localIndex);
+    c_vector<double, SPACE_DIM> next_edge_gradient = GetNextEdgeGradientOfElementAtNode(pElement, localIndex);
+
+    return previous_edge_gradient + next_edge_gradient;
+}
+
+template<unsigned int SPACE_DIM>
+c_vector<double, SPACE_DIM> HEVertexMesh<SPACE_DIM>::GetPerimeterGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, HENode<SPACE_DIM>* pNode)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE
+
+    c_vector<double, SPACE_DIM> previous_edge_gradient = GetPreviousEdgeGradientOfElementAtNode(pElement, pNode);
+    c_vector<double, SPACE_DIM> next_edge_gradient = GetNextEdgeGradientOfElementAtNode(pElement, pNode);
+
+    return previous_edge_gradient + next_edge_gradient;
 }
 
 template<unsigned int SPACE_DIM>
@@ -820,6 +919,30 @@ void HEVertexMesh<SPACE_DIM>::ConstructFullEdges()
             next_edge = next_edge->GetNextHalfEdge();
         }while(next_edge!=elem_iter->GetHalfEdge());*/
     }
+}
+
+template <unsigned SPACE_DIM>
+unsigned HEVertexMesh<SPACE_DIM>::GetRosetteRankOfElement(unsigned index)
+{
+    assert(SPACE_DIM == 2 || SPACE_DIM == 3); // LCOV_EXCL_LINE - code will be removed at compile time
+
+    // Get pointer to this element
+    HEElement<SPACE_DIM>* p_element = GetElement(index);
+
+    // Loop over nodes in the current element and find which is contained in the most elements
+    unsigned rosette_rank = 0;
+    for (unsigned node_idx = 0; node_idx < p_element->GetNumNodes(); node_idx++)
+    {
+        unsigned num_elems_this_node = p_element->GetNode(node_idx)->GetNumContainingElements();
+
+        if (num_elems_this_node > rosette_rank)
+        {
+            rosette_rank = num_elems_this_node;
+        }
+    }
+
+    // Return the rosette rank
+    return rosette_rank;
 }
 
 template<unsigned int SPACE_DIM>

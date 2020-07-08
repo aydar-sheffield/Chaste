@@ -50,11 +50,14 @@ public:
     HENode(unsigned index, bool isBoundaryNode=false,
              double v1=0, double v2=0, double v3=0,
              HalfEdge<SPACE_DIM>* pEdge = nullptr);
+
     /**
      * Constructor to convert Node object to HENode object
      * @param node
      */
     HENode(const Node<SPACE_DIM> &rNode, HalfEdge<SPACE_DIM>* pEdge = nullptr);
+
+    HENode(unsigned index, ChastePoint<SPACE_DIM> point, bool isBoundaryNode = false);
 
     ~HENode();
     HalfEdge<SPACE_DIM>* GetOutgoingEdge() const override;

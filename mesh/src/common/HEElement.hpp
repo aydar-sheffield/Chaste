@@ -606,7 +606,7 @@ HEElement<SPACE_DIM>::EdgeIterator::EdgeIterator(HEElement<SPACE_DIM>& Element,
 template <unsigned SPACE_DIM>
 bool HEElement<SPACE_DIM>::EdgeIterator::IsAtEnd()
 {
-    return local_index>=mrElement.GetNumNodes();
+    return local_index>=mrElement.GetNumNodes(true);
 }
 
 template <unsigned int SPACE_DIM>

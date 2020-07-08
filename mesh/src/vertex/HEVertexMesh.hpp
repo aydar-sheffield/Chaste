@@ -20,6 +20,7 @@ using NodesAndElements = std::pair< std::vector<Node<SPACE_DIM>* >, std::vector<
 template <unsigned int SPACE_DIM>
 class HEVertexMesh: public AbstractMesh<SPACE_DIM, SPACE_DIM>
 {
+    friend class TestHEVertexMesh;
 protected:
     /** List of elements */
     std::vector<HEElement<SPACE_DIM>* > mElements;
@@ -229,6 +230,27 @@ public:
     virtual double GetSurfaceAreaOfElement(unsigned index);
 
     /**
+     * Compute the area gradient of a 2D element at one of its nodes.
+     *
+     * N.B. This calls GetVectorFromAtoB(), which can be overridden
+     * in daughter classes for non-Euclidean metrics.
+     *
+     * @param pElement  pointer to a specified vertex element
+     * @param localIndex  local index of a node in this element
+     *
+     * @return the gradient of the area of the element, evaluated at this node.
+     */
+    c_vector<double, SPACE_DIM> GetAreaGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex);
+
+    /**
+     * Compute the area gradient at the node
+     * @param pElement the element, area gradient of which is computed
+     * @param pNode the node at which the gradient is computed
+     * @return the gradient of the area of the element, evaluated at this node.
+     */
+    c_vector<double, SPACE_DIM> GetAreaGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, HENode<SPACE_DIM>* pNode);
+
+    /**
      * Compute the gradient of the edge of a 2D element ending at its nodes.
      *
      * N.B. This calls GetVectorFromAtoB(), which can be overridden
@@ -242,6 +264,54 @@ public:
      * @return the gradient of the edge of the element that ends at this node.
      */
     c_vector<double, SPACE_DIM> GetPreviousEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex);
+
+    /**
+     * Compute the gradient of the edge of a 2D element ending at its nodes.
+     * @param pElement pointer to a specified vertex element
+     * @param pNode the node in this element
+     * @return the gradient of the edge of the element that ends at this node.
+     */
+    c_vector<double, SPACE_DIM> GetPreviousEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, HENode<SPACE_DIM>* pNode);
+
+    /**
+     * Compute the gradient of the edge of a 2D element starting at its nodes.
+     *
+     * N.B. This calls GetVectorFromAtoB(), which can be overridden
+     * in daughter classes for non-Euclidean metrics.
+     *
+     * @param pElement  pointer to a specified vertex element
+     * @param localIndex  local index of a node in this element
+     *
+     * @return the gradient of the edge of the element that starts at this node.
+     */
+    c_vector<double, SPACE_DIM> GetNextEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex);
+
+    /**
+     * Compute the gradient of the edge of a 2D element starting at its nodes.
+     * @param pElement pointer to a specified vertex element
+     * @param pNode the node in this element
+     * @return the gradient of the edge of the element that starts at this node.
+     */
+    c_vector<double, SPACE_DIM> GetNextEdgeGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, HENode<SPACE_DIM>* pNode);
+
+    /**
+     * Compute the gradient of the perimeter of a 2D element at its nodes.
+     * This returns the sum of GetPreviousEdgeGradientAtNode() and GetNextEdgeGradientAtNode().
+     *
+     * @param pElement  pointer to a specified vertex element
+     * @param localIndex  local index of a node in this element
+     *
+     * @return the gradient of the perimeter of the element, evaluated at this node.
+     */
+    c_vector<double, SPACE_DIM> GetPerimeterGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, unsigned localIndex);
+
+    /**
+     * Compute the gradient of the perimeter of a 2D element at its nodes.
+     * @param pElement pointer to a specified vertex element
+     * @param localIndex local index of a node in this element
+     * @return the gradient of the perimeter of the element, evaluated at this node.
+     */
+    c_vector<double, SPACE_DIM> GetPerimeterGradientOfElementAtNode(HEElement<SPACE_DIM>* pElement, HENode<SPACE_DIM>* pNode);
 
     /**
      * Computes the volume of element and stores the result
@@ -326,6 +396,17 @@ public:
      * @return the elongation shape factor of the element.
      */
     double GetElongationShapeFactorOfElement(unsigned elementIndex);
+
+    /**
+     * Get the "rosette rank" of an element.
+     *
+     * This is defined as the maximum number of elements shared by any node in the specified element.
+     *
+     * @param index  the global index of a specified vertex element
+     *
+     * @return the rosette rank of the element
+     */
+    unsigned GetRosetteRankOfElement(unsigned index);
 
     FullEdge<SPACE_DIM>* GetFullEdge(const unsigned int index) const;
 

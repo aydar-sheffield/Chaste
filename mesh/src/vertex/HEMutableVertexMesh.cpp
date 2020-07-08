@@ -183,6 +183,17 @@ unsigned int HEMutableVertexMesh<SPACE_DIM>::AddEdge(HalfEdge<SPACE_DIM>* pEdge)
 }
 
 template<unsigned SPACE_DIM>
+unsigned HEMutableVertexMesh<SPACE_DIM>::DivideElementAlongShortAxis(HEElement<SPACE_DIM>* pElement, bool placeOriginalElementBelow)
+{
+    assert(SPACE_DIM == 2);                // LCOV_EXCL_LINE
+
+    c_vector<double, SPACE_DIM> short_axis = this->GetShortAxisOfElement(pElement->GetIndex());
+
+    unsigned new_element_index = DivideElementAlongGivenAxis(pElement, short_axis, placeOriginalElementBelow);
+    return new_element_index;
+}
+
+template<unsigned SPACE_DIM>
 unsigned HEMutableVertexMesh<SPACE_DIM>::DivideElementAlongGivenAxis(HEElement<SPACE_DIM>* pElement,
                                                                      c_vector<double, SPACE_DIM> axisOfDivision,
                                                                      bool placeOriginalElementBelow)
@@ -290,6 +301,11 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::DivideElementAlongGivenAxis(HEElement<S
         HENode<SPACE_DIM>* added_node = new HENode<SPACE_DIM>(0, intersecting_edges[i]->IsOnBoundary(), intersection[0], intersection[1]);
         AddNode(added_node);
         HalfEdge<SPACE_DIM>* new_edge = pElement->AddNode(intersecting_edges[i], added_node);
+        HEElement<SPACE_DIM>* neighbouring_element = intersecting_edges[i]->GetTwinHalfEdge()->GetElement();
+        if (neighbouring_element)
+        {
+            neighbouring_element->UpdateGeometry();
+        }
         AddEdge(new_edge);
     }
 
@@ -345,6 +361,8 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::DivideElement(HEElement<SPACE_DIM>* pEl
     AddElement(new_element);
     pElement->SetHalfEdge(new_edge_twin);
 
+    pElement->UpdateGeometry();
+    new_element->UpdateGeometry();
     c_vector<double, SPACE_DIM> centroid_old, centroid_new;
     centroid_old = this->GetCentroidOfElement(pElement->GetIndex());
     centroid_new = this->GetCentroidOfElement(new_element_index);
@@ -366,11 +384,10 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::DivideElement(HEElement<SPACE_DIM>* pEl
             new_element->SetHalfEdge(new_edge_twin);
         }
     }
+
     new_element->RegisterWithHalfEdges();
     pElement->RegisterWithHalfEdges();
 
-    pElement->UpdateGeometry();
-    new_element->UpdateGeometry();
     return new_element_index;
 }
 
@@ -451,7 +468,8 @@ bool HEMutableVertexMesh<SPACE_DIM>::CheckForIntersections()
         {
             assert(!(node_iter->IsDeleted()));
             HENode<SPACE_DIM>* node = static_cast<HENode<SPACE_DIM>* >(&(*node_iter));
-            std::set<unsigned int> containing_element_ind = node->GetContainingElementIndices();
+            std::set<unsigned int> containing_element_ind;
+            containing_element_ind = node->GetContainingElementIndices();
             for (typename HEVertexMesh<SPACE_DIM>::HEElementIterator elem_iter = this->GetElementIteratorBegin();
                     elem_iter != this->GetElementIteratorEnd();
                     ++elem_iter)
