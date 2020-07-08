@@ -44,7 +44,8 @@ void HEElement<SPACE_DIM>::CommonConstructor(const std::vector<HENode<SPACE_DIM>
 
             //If a new outgoing edge needs to be constructed, check to see if an existing outgoing edge
             //is shared with this element. If it is not, this element must only have one common vertex with at least one element.
-            //Therefore, an external outgoing edge of this element must be the next edge of another element's external edge pointing to this node
+            //Therefore, an external outgoing edge of this element must be the next edge of another element's
+            //external edge pointing to this node
             //I.e. we have:
             // \ V /
             //  \ /
@@ -456,6 +457,7 @@ std::set<HalfEdge<SPACE_DIM>* > HEElement<SPACE_DIM>::DeleteNode(HENode<SPACE_DI
         }while(next_in_edge != in_edge);
     }
     mNumNodes--;
+    pNode->SetOutgoingEdge(nullptr);
     return deleted_edges;
 }
 

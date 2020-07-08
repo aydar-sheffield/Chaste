@@ -173,13 +173,12 @@ NodesAndElements<SPACE_DIM> HEVertexMesh<SPACE_DIM>::ConvertToVertexNodesAndElem
     for (HEElement<SPACE_DIM>* he_element : mElements)
     {
         std::vector<Node<SPACE_DIM>* > element_nodes;
-        HalfEdge<SPACE_DIM>* starting_edge = he_element->GetHalfEdge()->GetPreviousHalfEdge();
-        HalfEdge<SPACE_DIM>* next_edge = starting_edge;
-        do
+        typename HEElement<SPACE_DIM>::NodeIterator start_iter = he_element->GetNodeIteratorBegin();
+        typename HEElement<SPACE_DIM>::NodeIterator end_iter = he_element->GetNodeIteratorEnd();
+        for(; start_iter != end_iter; ++start_iter)
         {
-            element_nodes.push_back(he_node_to_node_map.at(next_edge->GetTargetNode()));
-            next_edge = next_edge->GetNextHalfEdge();
-        }while(next_edge != starting_edge);
+            element_nodes.push_back(*start_iter);
+        }
         VertexElement<SPACE_DIM, SPACE_DIM>* vertex_element
         = new VertexElement<SPACE_DIM, SPACE_DIM>(he_element->GetIndex(), element_nodes);
         elements.push_back(vertex_element);
@@ -232,8 +231,57 @@ bool HEVertexMesh<SPACE_DIM>::ElementIncludesPoint(const c_vector<double, SPACE_
     // Initialise boolean
     bool element_includes_point = false;
 
-    HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
+    typename HEElement<SPACE_DIM>::EdgeIterator start_iter = p_element->GetEdgeIteratorBegin();
+    typename HEElement<SPACE_DIM>::EdgeIterator end_iter = p_element->GetEdgeIteratorEnd();
+
     // Remap the origin to the first vertex to allow alternative distance metrics to be used in subclasses
+    c_vector<double, SPACE_DIM> first_vertex = (*start_iter)->GetOriginNode()->rGetLocation();
+    c_vector<double, SPACE_DIM> test_point = this->GetVectorFromAtoB(first_vertex, rTestPoint);
+
+    // Loop over edges of the element
+    c_vector<double, SPACE_DIM> vertexA = zero_vector<double>(SPACE_DIM);
+    for(; start_iter != end_iter; ++start_iter)
+    {
+        // Check if this edge crosses the ray running out horizontally (increasing x, fixed y) from the test point
+        c_vector<double, SPACE_DIM> vector_a_to_point = this->GetVectorFromAtoB(vertexA, test_point);
+
+        // Pathological case - test point coincides with vertexA
+        // (we will check vertexB next time we go through the for loop)
+        if (norm_2(vector_a_to_point) < DBL_EPSILON)
+        {
+            return false;
+        }
+
+        c_vector<double, SPACE_DIM> vertexB = this->GetVectorFromAtoB(first_vertex, start_iter->GetTargetNode()->rGetLocation());
+        c_vector<double, SPACE_DIM> vector_b_to_point = this->GetVectorFromAtoB(vertexB, test_point);
+        c_vector<double, SPACE_DIM> vector_a_to_b = this->GetVectorFromAtoB(vertexA, vertexB);
+
+        // Pathological case - ray coincides with horizontal edge
+        if ((fabs(vector_a_to_b[1]) < DBL_EPSILON) && (fabs(vector_a_to_point[1]) < DBL_EPSILON) && (fabs(vector_b_to_point[1]) < DBL_EPSILON))
+        {
+            if ((vector_a_to_point[0] > 0) != (vector_b_to_point[0] > 0))
+            {
+                return false;
+            }
+        }
+
+        // Non-pathological case
+        // A and B on different sides of the line y = test_point[1]
+        if ((vertexA[1] > test_point[1]) != (vertexB[1] > test_point[1]))
+        {
+            // Intersection of y=test_point[1] and vector_a_to_b is on the right of test_point
+            if (test_point[0] < vertexA[0] + vector_a_to_b[0] * vector_a_to_point[1] / vector_a_to_b[1])
+            {
+                element_includes_point = !element_includes_point;
+            }
+        }
+
+        vertexA = vertexB;
+    }
+
+
+    /*// Remap the origin to the first vertex to allow alternative distance metrics to be used in subclasses
+    HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
     c_vector<double, SPACE_DIM> first_vertex = edge->GetOriginNode()->rGetLocation();
     c_vector<double, SPACE_DIM> test_point = this->GetVectorFromAtoB(first_vertex, rTestPoint);
 
@@ -278,7 +326,7 @@ bool HEVertexMesh<SPACE_DIM>::ElementIncludesPoint(const c_vector<double, SPACE_
 
         vertexA = vertexB;
         next_edge = next_edge->GetNextHalfEdge();
-    }while(next_edge != edge);
+    }while(next_edge != edge);*/
 
 
     return element_includes_point;
@@ -292,19 +340,18 @@ unsigned HEVertexMesh<SPACE_DIM>::GetLocalIndexForElementEdgeClosestToPoint(cons
 
     // Get the element
     HEElement<SPACE_DIM>* p_element = GetElement(elementIndex);
-    HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
-    HalfEdge<SPACE_DIM>* next_edge = edge;
+
 
     double min_squared_normal_distance = DBL_MAX;
     unsigned min_distance_edge_index = UINT_MAX;
-
-    // Loop over edges of the element
+    typename HEElement<SPACE_DIM>::EdgeIterator start_iter = p_element->GetEdgeIteratorBegin();
+    typename HEElement<SPACE_DIM>::EdgeIterator end_iter = p_element->GetEdgeIteratorEnd();
     unsigned local_index = 0;
-    do
+    for (; start_iter != end_iter; ++start_iter)
     {
         // Get the end points of this edge
-        c_vector<double, SPACE_DIM> vertexA = next_edge->GetOriginNode()->rGetLocation();
-        c_vector<double, SPACE_DIM> vertexB = next_edge->GetTargetNode()->rGetLocation();
+        c_vector<double, SPACE_DIM> vertexA = start_iter->GetOriginNode()->rGetLocation();
+        c_vector<double, SPACE_DIM> vertexB = start_iter->GetTargetNode()->rGetLocation();
 
         c_vector<double, SPACE_DIM> vector_a_to_point = this->GetVectorFromAtoB(vertexA, rTestPoint);
         c_vector<double, SPACE_DIM> vector_a_to_b = this->GetVectorFromAtoB(vertexA, vertexB);
@@ -342,8 +389,56 @@ unsigned HEVertexMesh<SPACE_DIM>::GetLocalIndexForElementEdgeClosestToPoint(cons
             min_distance_edge_index = local_index;
         }
         local_index++;
+    }
+
+    /*// Loop over edges of the element
+    HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
+    HalfEdge<SPACE_DIM>* next_edge = edge;
+    unsigned local_index = 0;
+    do
+    {
+        // Get the end points of this edge
+        c_vector<double, SPACE_DIM> vertexA = next_edge->GetOriginNode()->rGetLocation();
+        c_vector<double, SPACE_DIM> vertexB = next_edge->GetTargetNode()->rGetLocation();
+
+        c_vector<double, SPACE_DIM> vector_a_to_point = this->GetVectorFromAtoB(vertexA, rTestPoint);
+        c_vector<double, SPACE_DIM> vector_a_to_b = this->GetVectorFromAtoB(vertexA, vertexB);
+        double distance_a_to_b = norm_2(vector_a_to_b);
+
+        c_vector<double, SPACE_DIM> edge_ab_unit_vector = vector_a_to_b / norm_2(vector_a_to_b);
+        double distance_parallel_to_edge = inner_prod(vector_a_to_point, edge_ab_unit_vector);
+
+        double squared_distance_normal_to_edge = SmallPow(norm_2(vector_a_to_point), 2) - SmallPow(distance_parallel_to_edge, 2);
+
+
+         * If the point lies almost bang on the supporting line of the edge, then snap to the line.
+         * This allows us to do floating point tie-breaks when line is exactly at a node.
+         * We adopt a similar approach if the point is at the same position as a point in the
+         * element.
+
+        if (squared_distance_normal_to_edge < DBL_EPSILON)
+        {
+            squared_distance_normal_to_edge = 0.0;
+        }
+
+        if (fabs(distance_parallel_to_edge) < DBL_EPSILON)
+        {
+            distance_parallel_to_edge = 0.0;
+        }
+        else if (fabs(distance_parallel_to_edge - distance_a_to_b) < DBL_EPSILON)
+        {
+            distance_parallel_to_edge = distance_a_to_b;
+        }
+
+        // Make sure node is within the confines of the edge and is the nearest edge to the node \this breaks for convex elements
+        if (squared_distance_normal_to_edge < min_squared_normal_distance && distance_parallel_to_edge >= 0 && distance_parallel_to_edge <= distance_a_to_b)
+        {
+            min_squared_normal_distance = squared_distance_normal_to_edge;
+            min_distance_edge_index = local_index;
+        }
+        local_index++;
         next_edge = next_edge->GetNextHalfEdge();
-    }while(next_edge != edge);
+    }while(next_edge != edge);*/
     assert(min_distance_edge_index < p_element->GetNumNodes());
     return min_distance_edge_index;
 }
@@ -401,7 +496,34 @@ c_vector<double, SPACE_DIM> HEVertexMesh<SPACE_DIM>::GetCentroidOfElement(unsign
             // Note that we cannot use GetVolumeOfElement() below as it returns the absolute, rather than signed, area
             double element_signed_area = 0.0;
 
+            typename HEElement<SPACE_DIM>::EdgeIterator start_iter = p_element->GetEdgeIteratorBegin();
+            typename HEElement<SPACE_DIM>::EdgeIterator end_iter = p_element->GetEdgeIteratorEnd();
             // Map the first vertex to the origin and employ GetVectorFromAtoB() to allow for periodicity
+            c_vector<double, SPACE_DIM> first_node_location;
+            first_node_location = start_iter->GetOriginNode()->rGetLocation();
+            c_vector<double, SPACE_DIM> pos_1;
+            pos_1 = zero_vector<double>(SPACE_DIM);
+
+            for (; start_iter != end_iter; ++start_iter)
+            {
+                c_vector<double, SPACE_DIM> next_node_location = start_iter->GetTargetNode()->rGetLocation();
+                c_vector<double, SPACE_DIM> pos_2 = this->GetVectorFromAtoB(first_node_location, next_node_location);
+
+                double this_x = pos_1[0];
+                double this_y = pos_1[1];
+                double next_x = pos_2[0];
+                double next_y = pos_2[1];
+
+                double signed_area_term = this_x * next_y - this_y * next_x;
+
+                centroid_x += (this_x + next_x) * signed_area_term;
+                centroid_y += (this_y + next_y) * signed_area_term;
+                element_signed_area += 0.5 * signed_area_term;
+
+                pos_1 = pos_2;
+            }
+
+            /*// Map the first vertex to the origin and employ GetVectorFromAtoB() to allow for periodicity
             HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
             c_vector<double, SPACE_DIM> first_node_location;
             first_node_location = edge->GetOriginNode()->rGetLocation();
@@ -428,7 +550,7 @@ c_vector<double, SPACE_DIM> HEVertexMesh<SPACE_DIM>::GetCentroidOfElement(unsign
 
                 pos_1 = pos_2;
                 next_edge = next_edge->GetNextHalfEdge();
-            }while(next_edge!=edge);
+            }while(next_edge!=edge);*/
 
             assert(element_signed_area != 0.0);
 
@@ -510,8 +632,36 @@ c_vector<double, 3> HEVertexMesh<SPACE_DIM>::CalculateMomentsOfElement(unsigned 
     // Since we compute I_xx, I_yy and I_xy about the centroid, we must shift each vertex accordingly
     c_vector<double, SPACE_DIM> centroid = GetCentroidOfElement(index);
 
+    typename HEElement<SPACE_DIM>::EdgeIterator start_iter = p_element->GetEdgeIteratorBegin();
+    typename HEElement<SPACE_DIM>::EdgeIterator end_iter = p_element->GetEdgeIteratorEnd();
+
     // Map the first vertex to the origin and employ GetVectorFromAtoB() to allow for periodicity
-    HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
+    c_vector<double, SPACE_DIM> first_node_location;
+    first_node_location = start_iter->GetOriginNode()->rGetLocation();
+
+    c_vector<double, SPACE_DIM> pos_1;
+    pos_1 = this->GetVectorFromAtoB(centroid, first_node_location);
+
+
+    for (; start_iter != end_iter; ++start_iter)
+    {
+        c_vector<double, SPACE_DIM> next_node_location = start_iter->GetTargetNode()->rGetLocation();
+        c_vector<double, SPACE_DIM> pos_2 = this->GetVectorFromAtoB(centroid, next_node_location);
+
+        double signed_area_term = pos_1(0) * pos_2(1) - pos_2(0) * pos_1(1);
+        // Ixx
+        moments(0) += (pos_1(1) * pos_1(1) + pos_1(1) * pos_2(1) + pos_2(1) * pos_2(1)) * signed_area_term;
+
+        // Iyy
+        moments(1) += (pos_1(0) * pos_1(0) + pos_1(0) * pos_2(0) + pos_2(0) * pos_2(0)) * signed_area_term;
+
+        // Ixy
+        moments(2) += (pos_1(0) * pos_2(1) + 2 * pos_1(0) * pos_1(1) + 2 * pos_2(0) * pos_2(1) + pos_2(0) * pos_1(1)) * signed_area_term;
+
+        pos_1 = pos_2;
+    }
+
+    /*HalfEdge<SPACE_DIM>* edge = p_element->GetHalfEdge();
     c_vector<double, SPACE_DIM> first_node_location;
     first_node_location = edge->GetOriginNode()->rGetLocation();
 
@@ -537,7 +687,7 @@ c_vector<double, 3> HEVertexMesh<SPACE_DIM>::CalculateMomentsOfElement(unsigned 
 
         pos_1 = pos_2;
         next_edge = next_edge->GetNextHalfEdge();
-    }while(next_edge!=edge);
+    }while(next_edge!=edge);*/
 
     moments(0) /= 12;
     moments(1) /= 12;
@@ -637,7 +787,23 @@ void HEVertexMesh<SPACE_DIM>::ConstructFullEdges()
              elem_iter != this->GetElementIteratorEnd();
              ++elem_iter)
     {
-        HalfEdge<SPACE_DIM>* next_edge = elem_iter->GetHalfEdge();
+        typename HEElement<SPACE_DIM>::EdgeIterator start_iter = elem_iter->GetEdgeIteratorBegin();
+        typename HEElement<SPACE_DIM>::EdgeIterator end_iter = elem_iter->GetEdgeIteratorEnd();
+        for (; start_iter != end_iter; ++start_iter)
+        {
+            //If the halfedge has not been bundled into a full edge...
+            if (traversal_set.count(*start_iter)==0)
+            {
+                //... construct full edge of this halfedge and its twin
+                FullEdge<SPACE_DIM>* edge = new FullEdge<SPACE_DIM>(*start_iter);
+                mFullEdges.push_back(edge);
+                traversal_set.insert(*start_iter);
+                traversal_set.insert(start_iter->GetTwinHalfEdge());
+                mHalfToFullEdgeMap.insert(std::pair<HalfEdge<SPACE_DIM>*, FullEdge<SPACE_DIM>* >(*start_iter, edge));
+                mHalfToFullEdgeMap.insert(std::pair<HalfEdge<SPACE_DIM>*, FullEdge<SPACE_DIM>* >(start_iter->GetTwinHalfEdge(), edge));
+            }
+        }
+        /*HalfEdge<SPACE_DIM>* next_edge = elem_iter->GetHalfEdge();
         do
         {
             //If the halfedge has not been bundled into a full edge...
@@ -652,7 +818,7 @@ void HEVertexMesh<SPACE_DIM>::ConstructFullEdges()
                 mHalfToFullEdgeMap.insert(std::pair<HalfEdge<SPACE_DIM>*, FullEdge<SPACE_DIM>* >(next_edge->GetTwinHalfEdge(), edge));
             }
             next_edge = next_edge->GetNextHalfEdge();
-        }while(next_edge!=elem_iter->GetHalfEdge());
+        }while(next_edge!=elem_iter->GetHalfEdge());*/
     }
 }
 

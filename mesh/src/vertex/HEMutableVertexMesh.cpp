@@ -155,6 +155,18 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::AddElement(HEElement<SPACE_DIM>* pNewEl
     {
         this->mElements[new_element_index] = pNewElement;
     }
+
+    //Register with edges
+    typename HEElement<SPACE_DIM>::EdgeIterator start_iter = pNewElement->GetEdgeIteratorBegin();
+    typename HEElement<SPACE_DIM>::EdgeIterator end_iter = pNewElement->GetEdgeIteratorEnd();
+    for (; start_iter != end_iter; ++start_iter)
+    {
+        if (this->mHalfToFullEdgeMap.count(*start_iter)==0)
+        {
+            AddEdge(*start_iter);
+        }
+    }
+
     return pNewElement->GetIndex();
 }
 
@@ -360,6 +372,37 @@ unsigned HEMutableVertexMesh<SPACE_DIM>::DivideElement(HEElement<SPACE_DIM>* pEl
     pElement->UpdateGeometry();
     new_element->UpdateGeometry();
     return new_element_index;
+}
+
+template<unsigned SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::DeleteElementPriorToReMesh(unsigned int index)
+{
+    assert(SPACE_DIM == 2); // LCOV_EXCL_LINE
+
+    // Mark any nodes that are contained only in this element as deleted
+    for (unsigned i=0; i<this->mElements[index]->GetNumNodes(); i++)
+    {
+        HENode<SPACE_DIM>* p_node = this->mElements[index]->GetNode(i);
+
+        if (p_node->GetNumContainingElements() == 1)
+        {
+            DeleteNodePriorToReMesh(p_node->GetIndex());
+        }
+
+        // Mark all the nodes contained in the removed element as boundary nodes
+        p_node->SetAsBoundaryNode(true);
+    }
+
+    // Mark this element as deleted
+    this->mElements[index]->MarkAsDeleted();
+    this->mDeletedElementIndices.push_back(index);
+}
+
+template<unsigned SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::DeleteNodePriorToReMesh(unsigned index)
+{
+    this->mNodes[index]->MarkAsDeleted();
+    this->mDeletedNodeIndices.push_back(index);
 }
 
 template<unsigned SPACE_DIM>
@@ -902,16 +945,44 @@ void HEMutableVertexMesh<SPACE_DIM>::MergeEdgesInT3Swap(HalfEdge<SPACE_DIM>* edg
     }
 }
 
-template<unsigned SPACE_DIM>
-void HEMutableVertexMesh<SPACE_DIM>::HandleHighOrderJunctions(FullEdge<SPACE_DIM>& full_edge)
-{
-
-}
-
 template<unsigned int SPACE_DIM>
 void HEMutableVertexMesh<SPACE_DIM>::RemoveDeletedNodesAndElements(VertexElementMap& rElementMap)
 {
+    // Make sure the map is big enough.  Each entry will be set in the loop below.
+    rElementMap.Resize(this->GetNumAllElements());
 
+    // Remove any elements that have been marked for deletion and store all other elements in a temporary structure
+    std::vector<HEElement<SPACE_DIM>*> live_elements;
+    for (unsigned i=0; i<this->mElements.size(); i++)
+    {
+        if (this->mElements[i]->IsDeleted())
+        {
+            delete this->mElements[i];
+            rElementMap.SetDeleted(i);
+        }
+        else
+        {
+            live_elements.push_back(this->mElements[i]);
+            rElementMap.SetNewIndex(i, (unsigned)(live_elements.size()-1));
+        }
+    }
+
+    // Sanity check
+    assert(this->mDeletedElementIndices.size() == this->mElements.size() - live_elements.size());
+
+    // Repopulate the elements vector and reset the list of deleted element indices
+    this->mDeletedElementIndices.clear();
+    this->mElements = live_elements;
+
+    // Finally, reset the element indices to run from zero
+    for (unsigned i=0; i<this->mElements.size(); i++)
+    {
+        this->mElements[i]->SetIndex(i);
+    }
+
+    // Remove deleted nodes and edges
+    RemoveDeletedEdges();
+    RemoveDeletedNodes();
 }
 
 template<unsigned int SPACE_DIM>
@@ -2600,12 +2671,6 @@ HENode<SPACE_DIM>* HEMutableVertexMesh<SPACE_DIM>::RemoveTriangle(HalfEdge<SPACE
     return p_new_node;
 }
 
-template <unsigned int SPACE_DIM>
-void HEMutableVertexMesh<SPACE_DIM>::CheckForRosettes()
-{
-
-}
-
 template<unsigned SPACE_DIM>
 c_vector<double, 2>
 HEMutableVertexMesh<SPACE_DIM>::WidenEdgeOrCorrectIntersectionLocationIfNecessary(HalfEdge<SPACE_DIM>* pEdge, c_vector<double,2> intersection)
@@ -2681,6 +2746,454 @@ void HEMutableVertexMesh<SPACE_DIM>::SetNode(unsigned nodeIndex, ChastePoint<SPA
     this->mNodes[nodeIndex]->SetPoint(point);
 }
 
+template<unsigned SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::HandleHighOrderJunctions(FullEdge<SPACE_DIM>& full_edge)
+{
+    std::pair<HENode<SPACE_DIM>*, HENode<SPACE_DIM>* > nodes = full_edge.GetNodes();
+    unsigned node_a_rank = nodes.first->GetNumContainingElements();
+    unsigned node_b_rank = nodes.second->GetNumContainingElements();
+
+    if ((node_a_rank > 3) && (node_b_rank > 3))
+    {
+        // The code can't handle this case
+        EXCEPTION("Both nodes involved in a swap event are contained in more than three elements");
+    }
+    else // the rosette degree should increase in this case
+    {
+        assert(node_a_rank > 3 || node_b_rank > 3);
+        /*
+         * One of the nodes will have 3 containing element indices, the other
+         * will have at least four. We first identify which node is which.
+         */
+        HENode<SPACE_DIM>* high_rank = node_a_rank > node_b_rank ? nodes.first : nodes.second;
+        HENode<SPACE_DIM>* low_rank = node_a_rank > node_b_rank ? nodes.second : nodes.first;
+        this->PerformRosetteRankIncrease(high_rank, low_rank);
+        this->RemoveDeletedEdges();
+        this->RemoveDeletedNodes();
+    }
+}
+
+template<unsigned SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::PerformRosetteRankIncrease(HENode<SPACE_DIM>* p_high_rank, HENode<SPACE_DIM>* p_low_rank)
+{
+    if (p_high_rank->GetNumContainingElements()<p_low_rank->GetNumContainingElements())
+    {
+        HENode<SPACE_DIM>* tmp = p_high_rank;
+        p_high_rank = p_low_rank;
+        p_low_rank = p_high_rank;
+    }
+    else if (p_high_rank->GetNumContainingElements()==p_low_rank->GetNumContainingElements())
+    {
+        EXCEPTION("Rosette rank increase with nodes of equal equal rank is not supported.");
+    }
+    std::set<unsigned> low_rank_elem_indices = p_low_rank->GetContainingElementIndices();
+    /**
+     * The picture below shows the situation we are in.  The central node (marked with an 'X')
+     * is contained in (at least) four elements already (A, B, C and D), and this is the
+     * rosette node which we have designated as hi_rank_node.
+     *
+     * The node shared by elements C, D and E has come within the cell rearrangement threshold
+     * of the rosette node in order for this method to have been called.  We have designated
+     * this node lo_rank_node.
+     *
+     * We now 'merge' hi_rank_node and lo_rank_node, but keep hi_rank_node where it is
+     * (which is why we don't call PerformNodeMerge(), as that would move both nodes to
+     * their average location).
+     *
+     * To accomplish this merge, we need do nothing to elements A and B.  We remove lo_rank_node
+     * from elements C and D, and we replace lo_rank_node by hi_rank_node in element E.
+     *
+     *
+     *      \  A  /
+     *       \   /
+     *        \ /
+     *     B   X   C
+     *        / \ ______
+     *       /   \
+     *      /  D  \  E
+     */
+
+    std::set<unsigned int> low_elements = p_low_rank->GetContainingElementIndices();
+
+    typename HENode<SPACE_DIM>::IncomingEdgeIterator start_iter_in = p_low_rank->GetIncomingEdgeIteratorBegin();
+    typename HENode<SPACE_DIM>::IncomingEdgeIterator end_iter_in = p_low_rank->GetIncomingEdgeIteratorEnd();
+
+    //Redirect the edges so that the edge pointing to low_rank node now point the high rank node
+    HalfEdge<SPACE_DIM>* shrunk_edge = nullptr;
+    for (; start_iter_in != end_iter_in; ++start_iter_in)
+    {
+        if (start_iter_in->GetOriginNode()!=p_high_rank)
+        {
+            start_iter_in->SetTargetNode(p_high_rank);
+        }
+        else
+        {
+            shrunk_edge = *start_iter_in;
+        }
+    }
+    assert(shrunk_edge);
+
+    if (p_high_rank->GetOutgoingEdge()==shrunk_edge)
+    {
+        p_high_rank->SetOutgoingEdge(shrunk_edge->GetTwinHalfEdge()->GetNextHalfEdge());
+    }
+
+    // Modify adjacency relations edges
+    shrunk_edge->GetNextHalfEdge()->SetPreviousHalfEdge(shrunk_edge->GetPreviousHalfEdge(),true);
+    shrunk_edge->GetTwinHalfEdge()->GetNextHalfEdge()->SetPreviousHalfEdge(shrunk_edge->GetTwinHalfEdge()->GetPreviousHalfEdge(),true);
+
+    HEElement<SPACE_DIM>* shrunk_edge_element = shrunk_edge->GetElement();
+    if (shrunk_edge_element)
+    {
+        if (shrunk_edge_element->GetHalfEdge()==shrunk_edge)
+            shrunk_edge_element->SetHalfEdge(shrunk_edge->GetNextHalfEdge());
+    }
+    HEElement<SPACE_DIM>* twin_shrunk_edge_element = shrunk_edge->GetTwinHalfEdge()->GetElement();
+    if (twin_shrunk_edge_element)
+    {
+        if (twin_shrunk_edge_element->GetHalfEdge()==shrunk_edge->GetTwinHalfEdge())
+            twin_shrunk_edge_element->SetHalfEdge(shrunk_edge->GetTwinHalfEdge()->GetNextHalfEdge());
+    }
+
+    //Update affected elements
+    for (unsigned int idx : low_rank_elem_indices)
+    {
+        this->GetElement(idx)->UpdateGeometry();
+    }
+
+    // Tidy up the mesh by ensuring the global instance of lo_rank_node is deleted
+    assert(!(p_low_rank->IsDeleted()));
+    p_low_rank->MarkAsDeleted();
+    this->mDeletedNodeIndices.push_back(p_low_rank->GetIndex());
+    this->MarkHalfEdgeAsDeleted(shrunk_edge);
+}
+
+template<unsigned SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::PerformProtorosetteResolution(HENode<SPACE_DIM>* pProtorosetteNode)
+{
+    // Find global indices of elements around the protorosette node
+    std::set<unsigned> protorosette_node_containing_elem_indices = pProtorosetteNode->GetContainingElementIndices();
+
+    // Double check we are dealing with a protorosette
+    assert(protorosette_node_containing_elem_indices.size() == 4);
+
+    // Get random number (0, 1, 2 or 3), as the resolution axis is assumed to be random
+    unsigned random_elem_increment = RandomNumberGenerator::Instance()->randMod(4);
+
+    // Select random element by advancing iterator a random number times
+    std::set<unsigned>::const_iterator elem_index_iter(protorosette_node_containing_elem_indices.begin());
+    advance(elem_index_iter, random_elem_increment);
+
+    /**
+     * Ordering elements as follows:
+     *
+     *      \  A  /
+     *       \   /
+     *        \ /
+     *     B   X   D
+     *        / \
+     *       /   \
+     *      /  C  \
+     *
+     * Element A is the randomly chosen element.  Element C, which is directly
+     * opposite A, will end up separated from A, while the two elements B and
+     * D which start adjacent to A will end up sharing a common edge:
+     *
+     *      \  A  /
+     *       \   /
+     *        \ /
+     *         |
+     *    B    |    D
+     *         |
+     *        / \
+     *       /   \
+     *      /  C  \
+     *
+     */
+
+    /*
+     * We need to find the global indices of elements B, C and D.
+     */
+
+    unsigned elem_a_idx = *elem_index_iter;
+
+    // Get pointer to element we've chosen at random (element A)
+    HEElement<SPACE_DIM>* p_elem_a = this->GetElement(elem_a_idx);
+
+    //Get the incoming edge of element A. The twin of this edge belongs to element B
+    HalfEdge<SPACE_DIM>* inc_edge_in_A = p_elem_a->GetHalfEdge(pProtorosetteNode);
+    HEElement<SPACE_DIM>* p_elem_b = inc_edge_in_A->GetTwinHalfEdge()->GetElement();
+    assert(p_elem_b);
+    //Similarly, we find elements C and D
+    HalfEdge<SPACE_DIM>* inc_edge_in_B = p_elem_b->GetHalfEdge(pProtorosetteNode);
+    HEElement<SPACE_DIM>* p_elem_c = inc_edge_in_B->GetTwinHalfEdge()->GetElement();
+    assert(p_elem_c);
+    HalfEdge<SPACE_DIM>* inc_edge_in_C = p_elem_c->GetHalfEdge(pProtorosetteNode);
+    HEElement<SPACE_DIM>* p_elem_d = inc_edge_in_C->GetTwinHalfEdge()->GetElement();
+    assert(p_elem_d);
+
+    //Check to see that we made a full cycle back to element A
+    HalfEdge<SPACE_DIM>* inc_edge_in_D = p_elem_d->GetHalfEdge(pProtorosetteNode);
+    assert(inc_edge_in_D->GetTwinHalfEdge()->GetElement()==p_elem_a);
+
+    /**
+     * Next, we compute where to place the two nodes which will replace the single protorosette node.
+     *
+     * We place each node along the line joining the protorosette node to the centroid of element which will contain it,
+     * and the distance along this line is half of the swap distance.
+     *
+     * To do this, we will move the existing protorosette node in to element A, and create a new node in element C.  We
+     * then need to tidy up the nodes by adding the new node to elements B, C and D, and removing the protorosette node
+     * from element C.
+     *
+     * NOTE: as the protorosette node was not necessarily on the line joining the centroids of elements A and C, unlike
+     * in a T1 swap, the new node locations will not necessarily be the full swap distance apart.
+     */
+
+    double swap_distance = (this->mCellRearrangementRatio) * (this->mCellRearrangementThreshold);
+
+    // Get normalized vectors to centre of elements A and B from protorosette node
+    c_vector<double, SPACE_DIM> node_to_elem_a_centre = this->GetCentroidOfElement(elem_a_idx) - pProtorosetteNode->rGetLocation();
+    node_to_elem_a_centre /= norm_2(node_to_elem_a_centre);
+
+    c_vector<double, SPACE_DIM> node_to_elem_c_centre = this->GetCentroidOfElement(p_elem_c->GetIndex()) - pProtorosetteNode->rGetLocation();
+    node_to_elem_c_centre /= norm_2(node_to_elem_c_centre);
+
+    // Calculate new node locations
+    c_vector<double, SPACE_DIM> new_location_of_protorosette_node = pProtorosetteNode->rGetLocation() + (0.5 * swap_distance) * node_to_elem_a_centre;
+    c_vector<double, SPACE_DIM> location_of_new_node = pProtorosetteNode->rGetLocation() + (0.5 * swap_distance) * node_to_elem_c_centre;
+
+    // Move protorosette node to new location
+    pProtorosetteNode->rGetModifiableLocation() = new_location_of_protorosette_node;
+
+    // Create new node in correct location
+    HENode<SPACE_DIM>* p_new_node = new HENode<SPACE_DIM>(GetNumNodes(), location_of_new_node, false);
+    AddNode(p_new_node);
+
+    /**
+     * Here we insert the node into element B edge that points to the central node.
+     * The added edge is adjacent to elements B and C. The added edge must now point from node B to new node as
+     * seen from element D, i.e. the added edge must be adjacent to elements B and D.
+     * To do that, the incoming edge in element C must point to the new node and the newly added_edge as its next edge.
+     */
+    HalfEdge<SPACE_DIM>* added_edge = p_elem_b->AddNode(inc_edge_in_B, p_new_node);
+    inc_edge_in_C->SetTargetNode(p_new_node);
+    inc_edge_in_C->SetNextHalfEdge(added_edge->GetTwinHalfEdge(), true);
+
+    inc_edge_in_B->GetTwinHalfEdge()->SetElement(p_elem_d);
+    if (p_elem_c->GetHalfEdge()==inc_edge_in_B->GetTwinHalfEdge())
+        p_elem_c->SetHalfEdge(inc_edge_in_B->GetTwinHalfEdge()->GetPreviousHalfEdge());
+
+    inc_edge_in_B->GetTwinHalfEdge()->SetPreviousHalfEdge(inc_edge_in_D, true);
+    inc_edge_in_B->GetTwinHalfEdge()->SetNextHalfEdge(inc_edge_in_C->GetTwinHalfEdge(),true);
+
+    p_elem_a->UpdateGeometry();
+    p_elem_b->UpdateGeometry();
+    p_elem_c->UpdateGeometry();
+    p_elem_d->UpdateGeometry();
+}
+
+template<unsigned SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::PerformRosetteRankDecrease(HENode<SPACE_DIM>* pRosetteNode)
+{
+    // Find global indices of elements around the protorosette node
+    std::set<unsigned> rosette_node_containing_elem_indices = pRosetteNode->GetContainingElementIndices();
+    unsigned rosette_rank = rosette_node_containing_elem_indices.size();
+
+    // Double check we're dealing with a rosette
+    assert(rosette_rank > 4);
+
+    // Get random number in [0, 1, ..., n) where n is rank of rosette, as the resolution axis is assumed to be random
+    unsigned random_elem_increment = RandomNumberGenerator::Instance()->randMod(rosette_rank);
+
+    // Select random element by advancing iterator a random number times
+    std::set<unsigned>::const_iterator elem_index_iter(rosette_node_containing_elem_indices.begin());
+    advance(elem_index_iter, random_elem_increment);
+
+    /**
+     * We have now picked a vertex element at random from the rosette.
+     * This element will now be disconnected from the rosette in a manner
+     * analogous to performing a T1 swap.
+     *
+     * The node at the centre of the rosette will not move, and a new
+     * node will be created a suitable distance away, along a line joining
+     * the rosette node and the centroid of the element we have randomly
+     * selected to move.
+     *
+     * Ordering of elements is as follows:
+     *
+     *      \  S  /
+     *       \   /
+     *     N  \ /  P
+     *    -----X-----
+     *        / \
+     *       /   \
+     *      /     \
+     *
+     * where element S is the selected element,
+     * N is the next (counterclockwise) element from S, and
+     * P is the previous (clockwise) element from S.
+     *
+     * Elements N and P will end up sharing an edge:
+     *
+     *      \  S  /
+     *       \   /
+     *        \ /
+     *      N  |  P
+     *         |
+     *    -----*-----
+     *        / \
+     *       /   \
+     *      /     \
+     *
+     */
+
+    /*
+     * We need to find the global indices of elements N and P.  We do this with set intersections.
+     */
+
+    // Get the vertex element S (which we randomly selected)
+    unsigned elem_s_idx = *elem_index_iter;
+    HEElement<SPACE_DIM>* p_elem_s = this->GetElement(elem_s_idx);
+
+    //Get the incoming edge in element S. The twin of this edge belongs to element N
+    HalfEdge<SPACE_DIM>* inc_edge_in_S = p_elem_s->GetHalfEdge(pRosetteNode);
+    HEElement<SPACE_DIM>* p_elem_n = inc_edge_in_S->GetTwinHalfEdge()->GetElement();
+    assert(p_elem_n);
+
+    HalfEdge<SPACE_DIM>* out_edge_in_S = inc_edge_in_S->GetNextHalfEdge();
+    HalfEdge<SPACE_DIM>* inc_edge_in_P = out_edge_in_S->GetTwinHalfEdge();
+    HEElement<SPACE_DIM>* p_elem_p = inc_edge_in_P->GetElement();
+
+    /**
+     * Next, we compute where to place the new node which will separate the rosette node from element S.
+     *
+     * We place this node along the line joining the rosette node to the centroid of element S, at a distance of the
+     * swap distance ( (rearrangement ratio) x (rearrangement threshold) )
+     */
+
+    double swap_distance = (this->mCellRearrangementRatio) * (this->mCellRearrangementThreshold);
+
+    // Calculate location of new node
+    c_vector<double, 2> node_to_selected_elem = this->GetCentroidOfElement(elem_s_idx) - pRosetteNode->rGetLocation();
+    node_to_selected_elem /= norm_2(node_to_selected_elem);
+    c_vector<double, 2> new_node_location = pRosetteNode->rGetLocation() + (swap_distance * node_to_selected_elem);
+
+    // Create new node in correct location
+    HENode<SPACE_DIM>* p_new_node = new HENode<SPACE_DIM>(GetNumNodes(), new_node_location, false);
+    AddNode(p_new_node);
+
+
+    typename HENode<SPACE_DIM>::IncomingEdgeIterator start_iter_in = pRosetteNode->GetIncomingEdgeIteratorBegin();
+    typename HENode<SPACE_DIM>::IncomingEdgeIterator end_iter_in = pRosetteNode->GetIncomingEdgeIteratorEnd();
+    for (; start_iter_in != end_iter_in; ++start_iter_in)
+    {
+        if (start_iter_in->GetElement()!=p_elem_s && start_iter_in->GetElement() != p_elem_p)
+        {
+            start_iter_in->SetTargetNode(p_new_node);
+        }
+    }
+
+    /**
+     * We add the node to element N and make the newly constructed edge to be adjacent to elements N and P
+     */
+    HalfEdge<SPACE_DIM>* out_edge_in_N = inc_edge_in_S->GetTwinHalfEdge();
+    HalfEdge<SPACE_DIM>* inc_edge_in_N = out_edge_in_N->GetPreviousHalfEdge();
+    HalfEdge<SPACE_DIM>* added_edge = p_elem_n->AddNode(inc_edge_in_N, p_new_node);
+    HalfEdge<SPACE_DIM>* twin_inc_in_N = inc_edge_in_N->GetTwinHalfEdge();
+
+    added_edge->GetTwinHalfEdge()->SetPreviousHalfEdge(twin_inc_in_N->GetPreviousHalfEdge(),true);
+
+    if (twin_inc_in_N->GetElement()->GetHalfEdge() == twin_inc_in_N)
+        twin_inc_in_N->GetElement()->SetHalfEdge(twin_inc_in_N->GetPreviousHalfEdge());
+    twin_inc_in_N->SetElement(p_elem_p);
+    twin_inc_in_N->SetNextHalfEdge(inc_edge_in_P->GetNextHalfEdge(),true);
+    twin_inc_in_N->SetPreviousHalfEdge(inc_edge_in_P,true);
+
+    for (unsigned int idx : rosette_node_containing_elem_indices)
+    {
+        this->GetElement(idx)->UpdateGeometry();
+    }
+}
+
+template<unsigned SPACE_DIM>
+void HEMutableVertexMesh<SPACE_DIM>::CheckForRosettes()
+{
+    /**
+     * First, we loop over each node and populate vectors of protorosette and rosette nodes which need to undergo
+     * resolution.
+     *
+     * We do not perform the resolution events in this initial loop because the resolution events involve changing
+     * nodes in the mesh.
+     */
+
+    // Vectors to store the nodes that need resolution events
+    std::vector<HENode<SPACE_DIM>* > protorosette_nodes;
+    std::vector<HENode<SPACE_DIM>* > rosette_nodes;
+
+    // First loop in which we populate these vectors
+    unsigned num_nodes = this->GetNumAllNodes();
+    for (unsigned node_idx = 0 ; node_idx < num_nodes ; node_idx++)
+    {
+        HENode<SPACE_DIM>* current_node = this->GetNode(node_idx);
+        unsigned node_rank = current_node->GetNumContainingElements();
+
+        if (node_rank < 4)
+        {
+            // Nothing to do if the node is not high-rank
+            continue;
+        }
+        else if (node_rank == 4)
+        {
+            // For protorosette nodes, we check against a random number to decide if resolution is necessary
+            if (this->mProtorosetteResolutionProbabilityPerTimestep >= RandomNumberGenerator::Instance()->ranf())
+            {
+                protorosette_nodes.push_back(current_node);
+            }
+        }
+        else // if (node_rank > 4)
+        {
+            // For rosette nodes, we check against a random number to decide if resolution is necessary
+            if (this->mRosetteResolutionProbabilityPerTimestep >= RandomNumberGenerator::Instance()->ranf())
+            {
+                rosette_nodes.push_back(current_node);
+            }
+        }
+    }
+
+    /**
+     * Finally, we loop over the contents of each node vector and perform the necessary resolution events.
+     *
+     * Because each resolution event changes nodes, we include several assertions to catch possible unconsidered
+     * behaviour.
+     */
+
+    // First, resolve any protorosettes
+    for (unsigned node_idx = 0 ; node_idx < protorosette_nodes.size() ; node_idx++)
+    {
+        HENode<SPACE_DIM>* current_node = protorosette_nodes[node_idx];
+
+        // Verify that node has not been marked for deletion, and that it is still contained in four elements
+        assert( !(current_node->IsDeleted()) );
+        assert( current_node->GetNumContainingElements() == 4 );
+
+        // Perform protorosette resolution
+        this->PerformProtorosetteResolution(current_node);
+    }
+
+    // Finally, resolve any rosettes
+    for (unsigned node_idx = 0 ; node_idx < rosette_nodes.size() ; node_idx++)
+    {
+        HENode<SPACE_DIM>* current_node = rosette_nodes[node_idx];
+
+        // Verify that node has not been marked for deletion, and that it is still contained in at least four elements
+        assert( !(current_node->IsDeleted()) );
+        assert( current_node->GetNumContainingElements() > 4 );
+
+        // Perform protorosette resolution
+        this->PerformRosetteRankDecrease(current_node);
+    }
+}
 // Explicit instantiation
 template class HEMutableVertexMesh<1>;
 template class HEMutableVertexMesh<2>;

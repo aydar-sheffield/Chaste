@@ -34,6 +34,8 @@ public:
     std::set<unsigned int> GetContainingElementIndices() const;
     HalfEdge<SPACE_DIM>* operator()(unsigned int index);
     HalfEdge<SPACE_DIM>* at(unsigned int index) const;
+
+    std::pair<HENode<SPACE_DIM>*, HENode<SPACE_DIM>* > GetNodes() const;
 };
 
 #endif /* FULLEDGE_HPP_ */

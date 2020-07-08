@@ -17,6 +17,7 @@ class HEMutableVertexMesh: public HEVertexMesh<SPACE_DIM>, public AbstractMutabl
 {
     friend class TestHEMutableVertexMesh;
     friend class TestHEMutableVertexMeshReMesh;
+    friend class TestHEMutableVertexMeshRosetteMethods;
 protected:
     /** Indices of nodes that have been deleted. These indices can be reused when adding new elements/nodes. */
     std::vector<unsigned> mDeletedNodeIndices;
@@ -209,10 +210,10 @@ protected:
      * cell with that of the rosette centre, keeping the rosette
      * centre in the same position.
      *
-     * @param pNodeA one of the nodes to perform the merge with
+     * @param pNodeA one of the nodes with higher rank to perform the merge with
      * @param pNodeB the other node to perform the merge with
      */
-    void PerformRosetteRankIncrease(HENode<SPACE_DIM>* pNodeA, HENode<SPACE_DIM>* pNodeB);
+    void PerformRosetteRankIncrease(HENode<SPACE_DIM>* p_high_rank, HENode<SPACE_DIM>* p_low_rank);
 
     /**
      * Helper method for ReMesh(), called by CheckForRosettes().
@@ -455,6 +456,9 @@ public:
      */
     void RemoveDeletedNodes();
 
+    /**
+     * Helper method for ReMesh(). Removes the deleted edges from the mesh and relabels the edge indices.
+     */
     void RemoveDeletedEdges();
 
     /**

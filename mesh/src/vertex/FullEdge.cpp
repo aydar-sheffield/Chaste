@@ -88,7 +88,11 @@ HalfEdge<SPACE_DIM>* FullEdge<SPACE_DIM>::at(unsigned int index) const
     assert(index<=1);
     return index == 0 ? mpFirst : mpSecond;
 }
-
+template<unsigned int SPACE_DIM>
+std::pair<HENode<SPACE_DIM>*, HENode<SPACE_DIM>* > FullEdge<SPACE_DIM>::GetNodes() const
+{
+    return std::pair<HENode<SPACE_DIM>*, HENode<SPACE_DIM>* >(mpFirst->GetTargetNode(), mpSecond->GetTargetNode());
+}
 template class FullEdge<1>;
 template class FullEdge<2>;
 template class FullEdge<3>;
