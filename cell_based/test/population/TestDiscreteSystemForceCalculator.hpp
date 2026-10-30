@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -46,7 +46,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "DiscreteSystemForceCalculator.hpp"
 #include "FixedG1GenerationalCellCycleModel.hpp"
 #include "CellsGenerator.hpp"
-#include "GeneralisedLinearSpringForce.hpp"
+#include "LinearSpringForce.hpp"
 #include "AbstractCellBasedTestSuite.hpp"
 #include "SmartPointers.hpp"
 #include "NumericFileComparison.hpp"
@@ -60,7 +60,7 @@ public:
     {
         // Set up a cell population
         HoneycombMeshGenerator mesh_generator(7, 5, 0, 2.0);
-        MutableMesh<2,2>* p_mesh = mesh_generator.GetMesh();
+        boost::shared_ptr<MutableMesh<2,2> > p_mesh = mesh_generator.GetMesh();
         std::vector<unsigned> location_indices = mesh_generator.GetCellLocationIndices();
 
         CellsGenerator<FixedG1GenerationalCellCycleModel,2> cells_generator;
@@ -70,7 +70,7 @@ public:
         MeshBasedCellPopulationWithGhostNodes<2> cell_population(*p_mesh, cells, location_indices);
 
         // Create the force law and pass in to a std::list
-        MAKE_PTR(GeneralisedLinearSpringForce<2>, p_force);
+        MAKE_PTR(LinearSpringForce<2>, p_force);
         std::vector<boost::shared_ptr<AbstractTwoBodyInteractionForce<2> > > force_collection;
         force_collection.push_back(p_force);
 
@@ -93,7 +93,7 @@ public:
         TS_ASSERT(neighbouring_node_indices == expected_node_indices);
 
         // Test CalculateFtAndFn
-        double spring_stiffness = p_force->GetMeinekeSpringStiffness();
+        double spring_stiffness = p_force->GetSpringStiffness();
         double expected_ft = spring_stiffness*(cos(M_PI/12.0) + cos(5.0*M_PI/12.0) - cos(3.0*M_PI/12.0));
         double expected_fn = spring_stiffness*(sin(M_PI/12.0) + sin(5.0*M_PI/12.0) + sin(3.0*M_PI/12.0));
         std::vector<double> Ft_and_Fn = calculator.CalculateFtAndFn(node_index,M_PI/4.0);
@@ -150,7 +150,7 @@ public:
     {
         // Set up a cell population
         HoneycombMeshGenerator mesh_generator(7, 5, 0, 2.0);
-        MutableMesh<2,2>* p_mesh = mesh_generator.GetMesh();
+        boost::shared_ptr<MutableMesh<2,2> > p_mesh = mesh_generator.GetMesh();
 
         CellsGenerator<FixedG1GenerationalCellCycleModel, 2> cells_generator;
         std::vector<CellPtr> cells;
@@ -159,7 +159,7 @@ public:
         MeshBasedCellPopulation<2> cell_population(*p_mesh, cells);
 
         // Create the force law and pass in to a std::list
-        MAKE_PTR(GeneralisedLinearSpringForce<2>, p_force);
+        MAKE_PTR(LinearSpringForce<2>, p_force);
         std::vector<boost::shared_ptr<AbstractTwoBodyInteractionForce<2> > > force_collection;
         force_collection.push_back(p_force);
 
@@ -172,7 +172,7 @@ public:
         TS_ASSERT_EQUALS(calculated_results[0].size(), p_mesh->GetNumNodes());
         TS_ASSERT_EQUALS(calculated_results[1].size(), p_mesh->GetNumNodes());
 
-        double spring_stiffness = p_force->GetMeinekeSpringStiffness();
+        double spring_stiffness = p_force->GetSpringStiffness();
         double expected_minimum_interior = spring_stiffness*( 2.0*sin(M_PI/3.0) );
         double expected_maximum_interior = spring_stiffness*( sin(M_PI/6.0) + sin(M_PI/2.0) + sin(5.0*M_PI/6.0) );
 
@@ -219,7 +219,7 @@ public:
         // Set up a cell population
 
         HoneycombMeshGenerator mesh_generator(7, 5, 0, 2.0);
-        MutableMesh<2,2>* p_mesh = mesh_generator.GetMesh();
+        boost::shared_ptr<MutableMesh<2,2> > p_mesh = mesh_generator.GetMesh();
 
         CellsGenerator<FixedG1GenerationalCellCycleModel, 2> cells_generator;
         std::vector<CellPtr> cells;
@@ -228,7 +228,7 @@ public:
         MeshBasedCellPopulation<2> cell_population(*p_mesh, cells);
 
         // Create the force law and pass in to a std::list
-        MAKE_PTR(GeneralisedLinearSpringForce<2>, p_force);
+        MAKE_PTR(LinearSpringForce<2>, p_force);
         std::vector<boost::shared_ptr<AbstractTwoBodyInteractionForce<2> > > force_collection;
         force_collection.push_back(p_force);
 
@@ -272,7 +272,7 @@ public:
 
         MeshBasedCellPopulation<2> cell_population(mesh, cells);
 
-        MAKE_PTR(GeneralisedLinearSpringForce<2>, p_force);
+        MAKE_PTR(LinearSpringForce<2>, p_force);
         std::vector<boost::shared_ptr<AbstractTwoBodyInteractionForce<2> > > force_collection;
         force_collection.push_back(p_force);
 

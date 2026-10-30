@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -550,7 +550,6 @@ void AbstractContinuumMechanicsSolver<DIM>::CreateVtkOutput(std::string spatialS
     {
         EXCEPTION("No output directory was given so no output was written, cannot convert to VTK format");
     }
-#ifdef CHASTE_VTK
     VtkMeshWriter<DIM, DIM> mesh_writer(this->mOutputDirectory + "/vtk", "solution", true);
 
     mesh_writer.AddPointData(spatialSolutionName, this->rGetSpatialSolution());
@@ -571,7 +570,6 @@ void AbstractContinuumMechanicsSolver<DIM>::CreateVtkOutput(std::string spatialS
     mesh_writer.AddCellData("Attribute", element_attribute);
 
     mesh_writer.WriteFilesUsingMesh(this->mrQuadMesh);
-#endif
 }
 
 template<unsigned DIM>
@@ -750,6 +748,7 @@ void AbstractContinuumMechanicsSolver<DIM>::ApplyDirichletBoundaryConditions(App
             // E.g. for a boundary node at the zeroth node (x_0 = value), this is equal to
             //   -value*[0 a_21 a_31 .. a_N1]
             // and will be added to the RHS.
+            PetscVecTools::Finalise(matrix_col); //PETSc 3.19 doesn't like mixing "set" mode (above) with "add" mode
             PetscVecTools::AddScaledVector(mDirichletBoundaryConditionsVector, matrix_col, minus_value);
             PetscTools::Destroy(matrix_col);
         }
@@ -766,6 +765,8 @@ void AbstractContinuumMechanicsSolver<DIM>::ApplyDirichletBoundaryConditions(App
             PetscMatTools::ZeroRowsAndColumnsWithValueOnDiagonal(mPreconditionMatrix, rows, 1.0);
 
             // Apply the RHS boundary conditions modification if required.
+            // (AddScaledVector now needs assembly to be finalised.)
+            PetscVecTools::Finalise(mLinearSystemRhsVector);
             PetscVecTools::AddScaledVector(mLinearSystemRhsVector, mDirichletBoundaryConditionsVector, 1.0);
         }
         else

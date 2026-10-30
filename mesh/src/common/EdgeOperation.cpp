@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2019, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -36,38 +36,33 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "EdgeOperation.hpp"
 
 EdgeOperation::EdgeOperation()
-{}
-
-EdgeOperation::EdgeOperation(EDGE_OPERATION operation, unsigned elementIndex,
-                             EdgeRemapInfo* pRemapInfo, const bool isIndexRemapped)
-:
-                             mElementIndex(elementIndex),
-                             mElementIndex2(0),
-                             mpRemapInfo(pRemapInfo),
-                             mIsElementIndexRemapped(isIndexRemapped)
 {
-    this->mOperation = operation;
-    this->mpRemapInfo2 = nullptr;
+}
+
+EdgeOperation::EdgeOperation(EDGE_OPERATION operation,
+                             unsigned elementIndex,
+                             EdgeRemapInfo remapInfo,
+                             const bool isIndexRemapped)
+    : mOperation(operation),
+      mElementIndex(elementIndex),
+      mElementIndex2(0),
+      mRemapInfo(std::move(remapInfo)),
+      mRemapInfo2(),
+      mIsElementIndexRemapped(isIndexRemapped)
+{
 }
 
 EdgeOperation::EdgeOperation(unsigned elementIndex,
                              unsigned elementIndex2,
-                             EdgeRemapInfo* pRemapInfo,
-                             EdgeRemapInfo* pRemapInfo2)
-:
-        mElementIndex(elementIndex),
-        mElementIndex2(elementIndex2),
-        mpRemapInfo(pRemapInfo),
-        mpRemapInfo2(pRemapInfo2),
-        mIsElementIndexRemapped(false)
+                             EdgeRemapInfo remapInfo,
+                             EdgeRemapInfo remapInfo2)
+    : mOperation(EDGE_OPERATION_DIVIDE),
+      mElementIndex(elementIndex),
+      mElementIndex2(elementIndex2),
+      mRemapInfo(std::move(remapInfo)),
+      mRemapInfo2(std::move(remapInfo2)),
+      mIsElementIndexRemapped(false)
 {
-    this->mOperation = EDGE_OPERATION_DIVIDE;
-}
-
-EdgeOperation::~EdgeOperation()
-{
-    delete this->mpRemapInfo;
-    delete this->mpRemapInfo2;
 }
 
 EDGE_OPERATION EdgeOperation::GetOperation() const
@@ -80,7 +75,7 @@ unsigned EdgeOperation::GetElementIndex() const
     return this->mElementIndex;
 }
 
-void EdgeOperation::SetElementIndex(const unsigned int index)
+void EdgeOperation::SetElementIndex(const unsigned index)
 {
     this->mElementIndex  = index;
 }
@@ -90,27 +85,22 @@ unsigned EdgeOperation::GetElementIndex2() const
     return this->mElementIndex2;
 }
 
-void EdgeOperation::SetElementIndex2(const unsigned int index)
+void EdgeOperation::SetElementIndex2(const unsigned index)
 {
-    this->mElementIndex2  = index;
+    this->mElementIndex2 = index;
 }
 
-EdgeRemapInfo* EdgeOperation::GetRemapInfo() const
+const EdgeRemapInfo& EdgeOperation::rGetRemapInfo() const
 {
-    return mpRemapInfo;
+    return mRemapInfo;
 }
 
-EdgeRemapInfo* EdgeOperation::GetRemapInfo2() const
+const EdgeRemapInfo& EdgeOperation::rGetRemapInfo2() const
 {
-    return mpRemapInfo2;
+    return mRemapInfo2;
 }
 
 bool EdgeOperation::IsElementIndexRemapped() const
 {
     return mIsElementIndexRemapped;
 }
-
-
-#include "SerializationExportWrapperForCpp.hpp"
-// Declare identifier for the serializer
-CHASTE_CLASS_EXPORT(EdgeOperation)

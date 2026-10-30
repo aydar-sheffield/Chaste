@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -57,6 +57,14 @@ const char* ChasteBuildRootDir();
 const char* ChasteSourceRootDir();
 
 /**
+ * @return the install prefix (CMAKE_INSTALL_PREFIX) this Chaste was configured with.
+ * Will always give you the absolute path with a trailing slash. Used to locate an installed
+ * copy of the provenance/ directory when this Chaste is used out of tree, via ChasteConfig.cmake,
+ * rather than from its own source or build tree.
+ */
+const char* ChasteInstallRootDir();
+
+/**
  * @return the folder in which compiled files are placed for the given
  * Chaste component.
  * Will always give you the absolute path with a trailing slash.
@@ -70,6 +78,12 @@ std::string ChasteComponentBuildDir(const std::string& rComponent);
  * that contains the compiled files.
  */
 std::string ChasteBuildDirName();
+
+/**
+ * @return the default location of the test output. This can be overridden
+ * by setting env var CHASTE_TEST_OUTPUT.
+ */
+std::string DefaultChasteTestOutput();
 
 /**
  * @return the build type string used in building Chaste.

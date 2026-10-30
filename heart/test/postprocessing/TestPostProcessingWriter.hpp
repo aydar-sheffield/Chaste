@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -470,7 +470,6 @@ public:
 
     void TestVtkOutput()
     {
-#ifdef CHASTE_VTK
         HeartConfig::Instance()->Reset();
 
         TrianglesMeshReader<2,2> mesh_reader("mesh/test/data/2D_0_to_1mm_400_elements");
@@ -529,9 +528,6 @@ public:
         {
             TS_ASSERT_DELTA(apd_data[i], 0.0, 1e-9);
         }
-#else
-        std::cout << "VTK is not installed / Chaste is not configured to use it, this test didn't do anything.\n";
-#endif
     }
 
     void TestDifferentNumberOfPaces()

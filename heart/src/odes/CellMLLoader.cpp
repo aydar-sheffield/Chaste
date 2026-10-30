@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -106,13 +106,11 @@ boost::shared_ptr<AbstractCardiacCell> CellMLLoader::LoadCardiacCell(void)
     return p_model;
 }
 
-#ifdef CHASTE_CVODE
 boost::shared_ptr<AbstractCvodeCell> CellMLLoader::LoadCvodeCell(void)
 {
     AbstractCardiacCellInterface* p_loaded_cell = LoadCellMLFile(true);
     boost::shared_ptr<AbstractCvodeCell> p_model(dynamic_cast<AbstractCvodeCell*>(p_loaded_cell));
     return p_model;
 }
-#endif
 
 

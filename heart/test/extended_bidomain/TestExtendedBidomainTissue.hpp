@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -59,6 +59,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "OrthotropicConductivityTensors.hpp"
 #include "TetrahedralMesh.hpp"
 #include "AbstractStimulusFactory.hpp"
+#include "ZeroStimulusCellFactory.hpp"
 #include <petsc.h>
 #include "PetscSetupAndFinalize.hpp"
 
@@ -142,6 +143,19 @@ public:
     StimulusFactory2D() : AbstractStimulusFactory<2>()
     {}
     boost::shared_ptr<AbstractStimulusFunction> CreateStimulusForNode(Node<2>* pNode)
+    {
+        boost::shared_ptr<SimpleStimulus> p_stimulus ( new SimpleStimulus(-428000, 1.0, 0.1) );
+        return p_stimulus;
+    }
+};
+
+/**this is just for testing in 1D*/
+class StimulusFactory1D: public AbstractStimulusFactory<1>
+{
+public:
+    StimulusFactory1D() : AbstractStimulusFactory<1>()
+    {}
+    boost::shared_ptr<AbstractStimulusFunction> CreateStimulusForNode(Node<1>* pNode)
     {
         boost::shared_ptr<SimpleStimulus> p_stimulus ( new SimpleStimulus(-428000, 1.0, 0.1) );
         return p_stimulus;
@@ -321,6 +335,53 @@ public:
         TS_ASSERT_EQUALS(extended_bidomain_tissue.rGetExtracellularConductivityTensor(4u)(1,1),152.0);//within second cuboid
         TS_ASSERT_EQUALS(extended_bidomain_tissue.rGetExtracellularConductivityTensor(8u)(0,0),65.0);//elsewhere, e.g. element 8
 
+    }
+
+    void TestExtendedTissueHeterogeneousConductivitiesIn1d()
+    {
+        // ExtendedBidomainTissue<1> is explicitly instantiated (see the bottom of
+        // ExtendedBidomainTissue.cpp) but, unlike <2> and <3> above, is never otherwise constructed
+        // in this suite. That leaves ExplicitCVectorCopy<1>()'s explicit-copy branch (a workaround
+        // for a GCC 1-D c_vector copy-assignment warning, see #280) uninstantiated. That branch is
+        // only reached via the conductivity-heterogeneities code path exercised by
+        // TestExtendedTissueHeterogeneous3D() above, so we repeat a minimal version of it here in 1D.
+        HeartConfig::Instance()->Reset();
+
+        TetrahedralMesh<1,1> mesh;
+        mesh.ConstructRegularSlabMesh(1.0, 4.0);
+
+        // HeartConfig::SetConductivityHeterogeneities() always takes 3D cuboids and conductivity
+        // vectors, regardless of the tissue's actual SPACE_DIM (only the first SPACE_DIM
+        // components are read back by GetConductivityHeterogeneities()).
+        ChastePoint<3> lower_corner(0.0, 0.0, 0.0);
+        ChastePoint<3> upper_corner(4.0, 0.0, 0.0);
+        std::vector<ChasteCuboid<3> > heterogeneity_area;
+        heterogeneity_area.push_back(ChasteCuboid<3>(lower_corner, upper_corner)); // covers the whole mesh
+
+        std::vector<c_vector<double,3> > intra_conductivities;
+        intra_conductivities.push_back(Create_c_vector(1.0, 0.0, 0.0));
+        std::vector<c_vector<double,3> > extra_conductivities;
+        extra_conductivities.push_back(Create_c_vector(2.0, 0.0, 0.0));
+
+        HeartConfig::Instance()->SetConductivityHeterogeneities(heterogeneity_area, intra_conductivities, extra_conductivities);
+        HeartConfig::Instance()->SetIntracellularConductivities(Create_c_vector(15.0));
+        HeartConfig::Instance()->SetExtracellularConductivities(Create_c_vector(65.0));
+
+        ZeroStimulusCellFactory<CellLuoRudy1991FromCellML, 1> stimulated_cell_factory;
+        ZeroStimulusCellFactory<CellLuoRudy1991FromCellML, 1> unstimulated_cell_factory;
+        StimulusFactory1D extracellular_stimulus_factory;
+
+        stimulated_cell_factory.SetMesh(&mesh);
+        unstimulated_cell_factory.SetMesh(&mesh);
+        extracellular_stimulus_factory.SetMesh(&mesh);
+
+        ExtendedBidomainTissue<1> extended_bidomain_tissue( &stimulated_cell_factory, &unstimulated_cell_factory, &extracellular_stimulus_factory);
+
+        // Every element lies within the single heterogeneity cuboid, which covers the whole mesh.
+        TS_ASSERT_EQUALS(extended_bidomain_tissue.rGetIntracellularConductivityTensor(0u)(0,0), 1.0);
+        TS_ASSERT_EQUALS(extended_bidomain_tissue.rGetExtracellularConductivityTensor(0u)(0,0), 2.0);
+
+        HeartConfig::Instance()->Reset();
     }
 
     void TestExtendedTissueHeterogeneousConductivities2D()
@@ -544,7 +605,14 @@ public:
             HeartConfig::Instance()->SetMeshFileName("mesh/test/data/cube_136_elements");
 
             TrianglesMeshReader<3,3> mesh_reader("mesh/test/data/cube_136_elements");
+#ifndef CHASTE_SCOTCH_PARMETIS
             DistributedTetrahedralMesh<3,3> mesh;
+#else
+            // For libscotchparmetis turn off smart partitioning
+            // PT-Scotch will produce good partitions but it cannot be forced to always
+            // give the same partition of the same mesh twice running.
+            DistributedTetrahedralMesh<3,3> mesh(DistributedTetrahedralMeshPartitionType::DUMB);
+#endif
             mesh.ConstructFromMeshReader(mesh_reader);
 
             UnStimulatedCellFactory first_cell;
@@ -648,7 +716,14 @@ public:
             // Also, when testing in parallel, we use it to get the vector factory to loop over the nodes we own.
             // this is because  p_extended_tissue->pGetMesh()->GetDistributedVectorFactory() doesn't compile (discards qualifier stuff caused by use of const).
             TrianglesMeshReader<3,3> mesh_reader("mesh/test/data/cube_136_elements");
+#ifndef CHASTE_SCOTCH_PARMETIS
             DistributedTetrahedralMesh<3,3> mesh;
+#else
+            // For libscotchparmetis turn off smart partitioning
+            // PT-Scotch will produce good partitions but it cannot be forced to always
+            // give the same partition of the same mesh twice running.
+            DistributedTetrahedralMesh<3,3> mesh(DistributedTetrahedralMeshPartitionType::DUMB);
+#endif
             mesh.ConstructFromMeshReader(mesh_reader);
 
             TS_ASSERT_EQUALS(mesh.GetNumNodes(), p_extended_tissue->pGetMesh()->GetNumNodes());//note: this is allowed because GetNumNodes has const in the signature

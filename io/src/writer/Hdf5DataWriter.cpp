@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -230,7 +230,7 @@ Hdf5DataWriter::Hdf5DataWriter(DistributedVectorFactory& rVectorFactory,
                 // Read data from hyperslab in the file into the hyperslab in memory
                 mIncompleteNodeIndices.clear();
                 mIncompleteNodeIndices.resize(num_node_indices);
-                H5Aread(attribute_id, H5T_NATIVE_UINT, &mIncompleteNodeIndices[0]);
+                H5Aread(attribute_id, H5T_NATIVE_UINT, mIncompleteNodeIndices.data());
                 // Assume there is no permutation when extending.  We're going throw an exception at the
                 // end of the block (so setting mIncompletePermIndices is only for safety.
                 mIncompletePermIndices = mIncompleteNodeIndices;
@@ -629,7 +629,7 @@ void Hdf5DataWriter::EndDefineMode()
                          H5P_DEFAULT, H5P_DEFAULT);
 
         // Write to the attribute (the original node index labels)
-        H5Awrite(attr, H5T_NATIVE_UINT, &mIncompleteNodeIndices[0]);
+        H5Awrite(attr, H5T_NATIVE_UINT, mIncompleteNodeIndices.data());
 
         H5Sclose(colspace);
         H5Aclose(attr);
@@ -771,21 +771,23 @@ void Hdf5DataWriter::PutVector(int variableID, Vec petscVector)
 
     // Define memspace and hyperslab
     hid_t memspace, hyperslab_space;
-    if (mNumberOwned != 0)
-    {
-        hsize_t v_size[1] = { mNumberOwned };
-        memspace = H5Screate_simple(1, v_size, nullptr);
+    // HDF5 circa 1.11 or 1.12 has a problem with H5S_NULL so we revert to
+    // a non-owning process having an empty memspace and slab with "select none"
+    // See https://github.com/HDFGroup/vol-log-based/commit/c8c65b751a1fc2e86f8f3ea8a7315545ad051189
+    hsize_t v_size[1] = { mNumberOwned };
+    memspace = H5Screate_simple(1, v_size, nullptr);
 
-        hsize_t count[DATASET_DIMS] = { 1, mNumberOwned, 1 };
-        hsize_t offset_dims[DATASET_DIMS] = { mCurrentTimeStep, mOffset, (unsigned)(variableID) };
+    hsize_t count[DATASET_DIMS] = { 1, mNumberOwned, 1 };
+    hsize_t offset_dims[DATASET_DIMS] = { mCurrentTimeStep, mOffset, (unsigned)(variableID) };
 
-        hyperslab_space = H5Dget_space(mVariablesDatasetId);
-        H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, offset_dims, nullptr, count, nullptr);
-    }
-    else
+    hyperslab_space = H5Dget_space(mVariablesDatasetId);
+    H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, offset_dims, nullptr, count, nullptr);
+    if (mNumberOwned == 0)
     {
-        memspace = H5Screate(H5S_NULL);
-        hyperslab_space = H5Screate(H5S_NULL);
+        //memspace = H5Screate(H5S_NULL);
+        //hyperslab_space = H5Screate(H5S_NULL);
+        H5Sselect_none(memspace);
+        H5Sselect_none(hyperslab_space);
     }
 
     // Create property list for collective dataset
@@ -908,7 +910,9 @@ void Hdf5DataWriter::PutStripedVector(std::vector<int> variableIDs, Vec petscVec
     }
     // Define memspace and hyperslab
     hid_t memspace, hyperslab_space;
-    if (mNumberOwned != 0)
+    // HDF5 1.12.0 appears to have a problem with H5S_NULL so we revert to
+    // a non-owning process having an empty memspace and slab
+    //if (mNumberOwned != 0)
     {
         hsize_t v_size[1] = { mNumberOwned * NUM_STRIPES };
         memspace = H5Screate_simple(1, v_size, nullptr);
@@ -921,11 +925,11 @@ void Hdf5DataWriter::PutStripedVector(std::vector<int> variableIDs, Vec petscVec
         hyperslab_space = H5Dget_space(mVariablesDatasetId);
         H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, start, stride, number_blocks, block_size);
     }
-    else
-    {
-        memspace = H5Screate(H5S_NULL);
-        hyperslab_space = H5Screate(H5S_NULL);
-    }
+    //else
+    //{
+    //    memspace = H5Screate(H5S_NULL);
+    //    hyperslab_space = H5Screate(H5S_NULL);
+    //}
 
     // Create property list for collective dataset write, and write! Finally.
     hid_t property_list_id = H5Pcreate(H5P_DATASET_XFER);
@@ -1010,7 +1014,9 @@ void Hdf5DataWriter::WriteCache()
 
     // Define memspace and hyperslab
     hid_t memspace, hyperslab_space;
-    if (mNumberOwned != 0)
+    // HDF5 circa 1.11 or 1.12 has a problem with H5S_NULL so we revert to
+    // a non-owning process having an empty memspace and slab with "select none"
+    // See https://github.com/HDFGroup/vol-log-based/commit/c8c65b751a1fc2e86f8f3ea8a7315545ad051189
     {
         hsize_t v_size[1] = { mDataCache.size() };
         memspace = H5Screate_simple(1, v_size, nullptr);
@@ -1022,10 +1028,12 @@ void Hdf5DataWriter::WriteCache()
         hyperslab_space = H5Dget_space(mVariablesDatasetId);
         H5Sselect_hyperslab(hyperslab_space, H5S_SELECT_SET, start, nullptr, count, nullptr);
     }
-    else
+    if (mNumberOwned == 0)
     {
-        memspace = H5Screate(H5S_NULL);
-        hyperslab_space = H5Screate(H5S_NULL);
+        //memspace = H5Screate(H5S_NULL);
+        //hyperslab_space = H5Screate(H5S_NULL);
+        H5Sselect_none(memspace);
+        H5Sselect_none(hyperslab_space);
     }
 
     // Create property list for collective dataset write
@@ -1033,7 +1041,9 @@ void Hdf5DataWriter::WriteCache()
     H5Pset_dxpl_mpio(property_list_id, H5FD_MPIO_COLLECTIVE);
 
     // Write!
-    H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, hyperslab_space, property_list_id, &mDataCache[0]);
+    // mDataCache is empty on a process with nothing to write, which must still take part in
+    // this collective write, so use data() rather than indexing element [0].
+    H5Dwrite(mVariablesDatasetId, H5T_NATIVE_DOUBLE, memspace, hyperslab_space, property_list_id, mDataCache.data());
 
     // Tidy up
     H5Sclose(memspace);

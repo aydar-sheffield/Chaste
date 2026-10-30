@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -33,8 +33,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#ifdef CHASTE_CVODE
-
 #include <cassert>
 #include <sstream>
 
@@ -49,13 +47,15 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cvode/cvode.h>
 #include <sundials/sundials_nvector.h>
 
-#if CHASTE_SUNDIALS_VERSION >= 30000
+#if CHASTE_SUNDIALS_VERSION < 70000
 #include <cvode/cvode_direct.h> /* access to CVDls interface            */
+#endif
 #include <sundials/sundials_types.h> /* defs. of realtype, sunindextype      */
 #include <sunlinsol/sunlinsol_dense.h> /* access to dense SUNLinearSolver      */
 #include <sunmatrix/sunmatrix_dense.h> /* access to dense SUNMatrix            */
-#else
-#include <cvode/cvode_dense.h>
+
+#if CHASTE_SUNDIALS_VERSION >= 60000
+#include "CvodeContextManager.hpp"  // access to shared SUNContext object required by Sundials 6.0+
 #endif
 
 //#include "Debug.hpp"
@@ -88,21 +88,15 @@ int AbstractCvodeSystemRhsAdaptor(realtype t, N_Vector y, N_Vector ydot, void* p
     }
     catch (const Exception& e)
     {
-#if CHASTE_SUNDIALS_VERSION <= 20300
-        // Really old CVODE used to solve past the requested time points and could trigger this exception unnecessarily...
-        if (e.CheckShortMessageContains("is outside the times stored in the data clamp") == "")
-        {
-            return 1; // This may be a recoverable error!
-        }
-#endif
-
         std::cerr << "CVODE RHS Exception: " << e.GetMessage()
                   << std::endl
                   << std::flush;
         return -1;
     }
 
-    //    // Something like this might help CVODE when things are a bit unstable...
+    //    Something like this might help CVODE when things are a bit unstable...
+    //    We tried this again in Jan 2023 but now with VerifyStateVariables() returning a recoverable error when values look off. However this didn't improve the situation.
+    //    See: https://github.com/Chaste/Chaste/issues/46
     //    try
     //    {
     //        p_ode_system->VerifyStateVariables();
@@ -117,21 +111,9 @@ int AbstractCvodeSystemRhsAdaptor(realtype t, N_Vector y, N_Vector ydot, void* p
 }
 
 /*
- * Absolute chaos here with four different possible interfaces to the jacobian.
+ * The dense Jacobian function in the form CVODE expects.
  */
-#if CHASTE_SUNDIALS_VERSION >= 30000
-// Sundials 3.0 - has taken away the argument N at the top...
 int AbstractCvodeSystemJacAdaptor(realtype t, N_Vector y, N_Vector ydot, CHASTE_CVODE_DENSE_MATRIX jacobian,
-#elif CHASTE_SUNDIALS_VERSION >= 20500
-// Sundials 2.5
-int AbstractCvodeSystemJacAdaptor(long int N, realtype t, N_Vector y, N_Vector ydot, CHASTE_CVODE_DENSE_MATRIX jacobian,
-#elif CHASTE_SUNDIALS_VERSION >= 20400
-// Sundials 2.4
-int AbstractCvodeSystemJacAdaptor(int N, realtype t, N_Vector y, N_Vector ydot, DlsMat jacobian,
-#else
-// Sundials 2.3 and below (not sure how far below, but this is 2006 so old enough).
-int AbstractCvodeSystemJacAdaptor(long int N, DenseMat jacobian, realtype t, N_Vector y, N_Vector ydot,
-#endif
                                   void* pData, N_Vector tmp1, N_Vector tmp2, N_Vector tmp3)
 {
     assert(pData != nullptr);
@@ -153,21 +135,16 @@ AbstractCvodeSystem::AbstractCvodeSystem(unsigned numberOfStateVariables)
         : AbstractParameterisedSystem<N_Vector>(numberOfStateVariables),
           mLastSolutionState(nullptr),
           mLastSolutionTime(0.0),
-#if CHASTE_SUNDIALS_VERSION >= 20400
           mForceReset(false),
-#else
-          // Old Sundials don't seem to 'go back' when something has changed
-          // properly, and give more inaccurate answers.
-          mForceReset(true),
-#endif
           mForceMinimalReset(false),
-#if CHASTE_SUNDIALS_VERSION >= 30000
           mpSundialsDenseMatrix(nullptr),
           mpSundialsLinearSolver(nullptr),
-#endif
           mHasAnalyticJacobian(false),
           mUseAnalyticJacobian(false),
           mpCvodeMem(nullptr),
+#if CHASTE_SUNDIALS_VERSION >= 60000
+          mpSundialsContextManager(CvodeContextManager::Instance()),
+#endif
           mMaxSteps(0),
           mLastInternalStepSize(0)
 {
@@ -179,7 +156,11 @@ void AbstractCvodeSystem::Init()
     DeleteVector(mStateVariables);
     mStateVariables = GetInitialConditions();
     DeleteVector(mParameters);
+#if CHASTE_SUNDIALS_VERSION >= 60000
+    mParameters = N_VNew_Serial(rGetParameterNames().size(), CvodeContextManager::Instance()->GetSundialsContext());
+#else
     mParameters = N_VNew_Serial(rGetParameterNames().size());
+#endif
     for (int i = 0; i < NV_LENGTH_S(mParameters); i++)
     {
         NV_Ith_S(mParameters, i) = 0.0;
@@ -408,79 +389,60 @@ void AbstractCvodeSystem::SetupCvode(N_Vector initialConditions,
     if (!mpCvodeMem)
     {
         //std::cout << "New CVODE solver\n";
-#if CHASTE_SUNDIALS_VERSION >= 40000
+#if CHASTE_SUNDIALS_VERSION >= 60000
+        mpCvodeMem = CVodeCreate(CV_BDF, CvodeContextManager::Instance()->GetSundialsContext());
+#else
         //  v4.0.0 release notes: instead of specifying the nonlinear iteration type when creating the CVODE(S) memory structure,
         //  CVODE(S) uses the SUNNONLINSOL_NEWTON module implementation of a Newton iteration by default.
         mpCvodeMem = CVodeCreate(CV_BDF);
-#else
-        mpCvodeMem = CVodeCreate(CV_BDF, CV_NEWTON);
 #endif
         if (mpCvodeMem == nullptr)
             EXCEPTION("Failed to SetupCvode CVODE"); // LCOV_EXCL_LINE
 
         // Set error handler
-        CVodeSetErrHandlerFn(mpCvodeMem, CvodeErrorHandler, nullptr);
-// Set the user data
-#if CHASTE_SUNDIALS_VERSION >= 20400
-        CVodeSetUserData(mpCvodeMem, (void*)(this));
+#if CHASTE_SUNDIALS_VERSION >= 70000
+    SUNContext_PushErrHandler(CvodeContextManager::Instance()->GetSundialsContext(),  CvodeErrorHandler, nullptr);
 #else
-        CVodeSetFdata(mpCvodeMem, (void*)(this));
+        CVodeSetErrHandlerFn(mpCvodeMem, CvodeErrorHandler, nullptr);
 #endif
+// Set the user data
+        CVodeSetUserData(mpCvodeMem, (void*)(this));
 // Setup CVODE
-#if CHASTE_SUNDIALS_VERSION >= 20400
         CVodeInit(mpCvodeMem, AbstractCvodeSystemRhsAdaptor, tStart, initialConditions);
         CVodeSStolerances(mpCvodeMem, mRelTol, mAbsTol);
-#else
-        CVodeMalloc(mpCvodeMem, AbstractCvodeSystemRhsAdaptor, tStart, initialConditions,
-                    CV_SS, mRelTol, &mAbsTol);
-#endif
 
-#if CHASTE_SUNDIALS_VERSION >= 30000
+#if CHASTE_SUNDIALS_VERSION >= 60000
+        /* Create dense matrix SUNDenseMatrix for use in linear solves */
+        mpSundialsDenseMatrix = SUNDenseMatrix(NV_LENGTH_S(initialConditions), NV_LENGTH_S(initialConditions), CvodeContextManager::Instance()->GetSundialsContext());
+#else
         /* Create dense matrix SUNDenseMatrix for use in linear solves */
         mpSundialsDenseMatrix = SUNDenseMatrix(NV_LENGTH_S(initialConditions), NV_LENGTH_S(initialConditions));
 #endif
 
-#if CHASTE_SUNDIALS_VERSION >= 40000
+#if CHASTE_SUNDIALS_VERSION >= 60000
+        /* Create dense SUNLinSol_Dense object for use by CVode */
+        mpSundialsLinearSolver = SUNLinSol_Dense(initialConditions, mpSundialsDenseMatrix, CvodeContextManager::Instance()->GetSundialsContext());
+
+        /* Call CVodeSetLinearSolver to attach the matrix and linear solver to CVode */
+        CVodeSetLinearSolver(mpCvodeMem, mpSundialsLinearSolver, mpSundialsDenseMatrix);
+#else
         /* Create dense SUNLinSol_Dense object for use by CVode */
         mpSundialsLinearSolver = SUNLinSol_Dense(initialConditions, mpSundialsDenseMatrix);
 
         /* Call CVodeSetLinearSolver to attach the matrix and linear solver to CVode */
         CVodeSetLinearSolver(mpCvodeMem, mpSundialsLinearSolver, mpSundialsDenseMatrix);
-#elif CHASTE_SUNDIALS_VERSION >= 30000
-        /* Create dense SUNDenseLinearSolver object for use by CVode */
-        mpSundialsLinearSolver = SUNDenseLinearSolver(initialConditions, mpSundialsDenseMatrix);
-
-        /* Call CVDlsSetLinearSolver to attach the matrix and linear solver to CVode */
-        CVDlsSetLinearSolver(mpCvodeMem, mpSundialsLinearSolver, mpSundialsDenseMatrix);
-#else
-        // CVODE < v3.0.0
-        // Attach a linear solver for Newton iteration
-        CVDense(mpCvodeMem, NV_LENGTH_S(initialConditions));
 #endif
 
         if (mUseAnalyticJacobian)
         {
-#if CHASTE_SUNDIALS_VERSION >= 40000
             CVodeSetJacFn(mpCvodeMem, AbstractCvodeSystemJacAdaptor);
-#elif CHASTE_SUNDIALS_VERSION >= 30000
-            CVDlsSetJacFn(mpCvodeMem, AbstractCvodeSystemJacAdaptor);
-#elif CHASTE_SUNDIALS_VERSION >= 20400
-            CVDlsSetDenseJacFn(mpCvodeMem, AbstractCvodeSystemJacAdaptor);
-#else
-            CVDenseSetJacFn(mpCvodeMem, AbstractCvodeSystemJacAdaptor, (void*)(this));
-#endif
         }
     }
     else if (reinit)
     {
 //std::cout << "Resetting CVODE solver\n";
-#if CHASTE_SUNDIALS_VERSION >= 20400
         CVodeReInit(mpCvodeMem, tStart, initialConditions);
         //CVodeSStolerances(mpCvodeMem, mRelTol, mAbsTol); - "all solver inputs remain in effect" so we don't need this.
-#else
-        CVodeReInit(mpCvodeMem, AbstractCvodeSystemRhsAdaptor, tStart, initialConditions,
-                    CV_SS, mRelTol, &mAbsTol);
-#endif
     }
 
     // Set max dt and change max steps if wanted
@@ -525,7 +487,6 @@ void AbstractCvodeSystem::FreeCvodeMemory()
     }
     mpCvodeMem = nullptr;
 
-#if CHASTE_SUNDIALS_VERSION >= 30000
     if (mpSundialsLinearSolver)
     {
         /* Free the linear solver memory */
@@ -539,7 +500,6 @@ void AbstractCvodeSystem::FreeCvodeMemory()
         SUNMatDestroy(mpSundialsDenseMatrix);
     }
     mpSundialsDenseMatrix = nullptr;
-#endif
 }
 
 void AbstractCvodeSystem::CvodeError(int flag, const char* msg,
@@ -551,23 +511,11 @@ void AbstractCvodeSystem::CvodeError(int flag, const char* msg,
     free(p_flag_name);
     if (flag == CV_LSETUP_FAIL)
     {
-#if CHASTE_SUNDIALS_VERSION >= 20500
         long int ls_flag;
-#else
-        int ls_flag;
-#endif
         char* p_ls_flag_name;
 
-#if CHASTE_SUNDIALS_VERSION >= 40000
         CVodeGetLastLinFlag(mpCvodeMem, &ls_flag);
         p_ls_flag_name = CVodeGetLinReturnFlagName(ls_flag);
-#elif CHASTE_SUNDIALS_VERSION >= 20400
-        CVDlsGetLastFlag(mpCvodeMem, &ls_flag);
-        p_ls_flag_name = CVDlsGetReturnFlagName(ls_flag);
-#else
-        CVDenseGetLastFlag(mpCvodeMem, &ls_flag);
-        p_ls_flag_name = CVDenseGetReturnFlagName(ls_flag);
-#endif
         err << " (LS flag=" << ls_flag << ":" << p_ls_flag_name << ")";
         free(p_ls_flag_name);
     }
@@ -661,5 +609,3 @@ void AbstractCvodeSystem::ForceUseOfNumericalJacobian(bool useNumericalJacobian)
 //        }
 //    }
 //}
-
-#endif // CHASTE_CVODE

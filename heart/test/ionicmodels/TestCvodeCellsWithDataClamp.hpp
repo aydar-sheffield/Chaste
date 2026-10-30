@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -33,6 +33,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
+/*
+CellMl files are found using cmake_fetch in /heart/test/CMakeLists.txt
+the CellML files will be downloaded on the cmake step into _deps/cellml_repo-src/cellml/
+*/
+
+
 #ifndef TESTCVODECELLSWITHDATACLAMP_HPP_
 #define TESTCVODECELLSWITHDATACLAMP_HPP_
 
@@ -64,17 +70,16 @@ private:
     double tol = 0.02; // mV
     void InterpolatorTimesAndGenerateReferenceTrace(std::vector<std::string> args, std::string outputFolder, double tol)
     {
-#ifdef CHASTE_CVODE
         OutputFileHandler handler(outputFolder, true);
-	
-        FileFinder cellml_file("heart/test/data/cellml/Shannon2004.cellml", RelativeTo::ChasteSourceRoot);
+
+        FileFinder cellml_file("_deps/cellml_repo-src/cellml/shannon_wang_puglisi_weber_bers_2004.cellml", RelativeTo::ChasteBuildRoot);
         handler.CopyFileTo(cellml_file);
 
-	CellMLToSharedLibraryConverter converter(true);
-	converter.SetOptions(args);
+    CellMLToSharedLibraryConverter converter(true);
+    converter.SetOptions(args);
 
         // Do the conversion
-        FileFinder copied_file(outputFolder + "/Shannon2004.cellml", RelativeTo::ChasteTestOutput);
+        FileFinder copied_file(outputFolder + "/shannon_wang_puglisi_weber_bers_2004.cellml", RelativeTo::ChasteTestOutput);
         DynamicCellModelLoaderPtr p_loader = converter.Convert(copied_file);
 
 
@@ -208,14 +213,9 @@ private:
                 data_clamp_voltage_results_file->close();
             }
         }
-#else
-        std::cout << "Cvode is not enabled.\n";
-#endif
     }
 
-#ifdef CHASTE_CVODE
     boost::shared_ptr<AbstractCardiacCellWithModifiers<AbstractCvodeCellWithDataClamp >> mpModel;
-#endif
 
 public:
     void TestInterpolatorTimesAndGenerateReferenceTrace()
@@ -232,7 +232,6 @@ public:
     void TestArchivingCvodeCellsWithDataClamp()
     {
         // We also hijack this test to test the archiving and restoration of modifiers.
-#ifdef CHASTE_CVODE
         //Archive
         OutputFileHandler handler("archive", false);
         handler.SetArchiveDirectory();
@@ -323,9 +322,6 @@ public:
 
             delete p_cell;
         }
-#else
-       std::cout << "Cvode is not enabled.\n";
-#endif // CHASTE_CVODE
    }
 };
 

@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -42,6 +42,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include "UblasVectorInclude.hpp"
 
@@ -49,7 +50,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "MeshBasedCellPopulationWithGhostNodes.hpp"
 #include "HoneycombMeshGenerator.hpp"
 #include "CryptProjectionForce.hpp"
-#include "GeneralisedLinearSpringForce.hpp"
+#include "LinearSpringForce.hpp"
+#include "NodeBasedCellPopulation.hpp"
 #include "WntConcentration.hpp"
 #include "SimulationTime.hpp"
 #include "MutableMesh.hpp"
@@ -79,7 +81,7 @@ public:
         SimulationTime::Instance()->SetEndTimeAndNumberOfTimeSteps(1.0,1);
 
         HoneycombMeshGenerator generator(num_cells_width, num_cells_depth, thickness_of_ghost_layer);
-        MutableMesh<2,2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<MutableMesh<2,2> > p_mesh = generator.GetMesh();
 
         // Centre the mesh at (0,0)
         ChasteCuboid<2> bounding_box=p_mesh->CalculateBoundingBox();
@@ -218,7 +220,7 @@ public:
         WntConcentration<2>::Instance()->SetCryptProjectionParameterA(0.001);
         WntConcentration<2>::Instance()->SetCryptProjectionParameterB(0.001);
         CryptProjectionForce flat_crypt_projection_force;
-        GeneralisedLinearSpringForce<2> linear_force;
+        LinearSpringForce<2> linear_force;
 
         // Normally this would be set up at the start of rCalculateforcesOfEachNode
         flat_crypt_projection_force.UpdateNode3dLocationMap(cell_population);
@@ -258,7 +260,7 @@ public:
         SimulationTime::Instance()->SetEndTimeAndNumberOfTimeSteps(1.0,1);
 
         HoneycombMeshGenerator generator(num_cells_width, num_cells_depth, thickness_of_ghost_layer);
-        MutableMesh<2,2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<MutableMesh<2,2> > p_mesh = generator.GetMesh();
 
         // Centre the mesh at (0,0)
         ChasteCuboid<2> bounding_box=p_mesh->CalculateBoundingBox();
@@ -472,7 +474,7 @@ public:
         SimulationTime::Instance()->SetEndTimeAndNumberOfTimeSteps(1.0, 1);
 
         HoneycombMeshGenerator generator(cells_across, cells_up, thickness_of_ghost_layer);
-        MutableMesh<2,2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<MutableMesh<2,2> > p_mesh = generator.GetMesh();
         std::vector<unsigned> location_indices = generator.GetCellLocationIndices();
 
         // Set up cells
@@ -481,7 +483,7 @@ public:
         MeshBasedCellPopulationWithGhostNodes<2> cell_population(*p_mesh, cells, location_indices);
 
         // Create two different force laws and add to a std::vector
-        GeneralisedLinearSpringForce<2> linear_force;
+        LinearSpringForce<2> linear_force;
 
         WntConcentration<2>::Instance()->SetCryptProjectionParameterA(0.0001);
         WntConcentration<2>::Instance()->SetCryptProjectionParameterB(0.0001);
@@ -519,13 +521,13 @@ public:
             }
 
             // Forces should be twice the forces found using Meineke alone (since a flat crypt is used)
-            TS_ASSERT_DELTA(cell_population.GetNode(60)->rGetAppliedForce()[0], 2*0.5*linear_force.GetMeinekeSpringStiffness(), 1e-4);
+            TS_ASSERT_DELTA(cell_population.GetNode(60)->rGetAppliedForce()[0], 2*0.5*linear_force.GetSpringStiffness(), 1e-4);
             TS_ASSERT_DELTA(cell_population.GetNode(60)->rGetAppliedForce()[1], 0.0, 1e-4);
 
-            TS_ASSERT_DELTA(cell_population.GetNode(59)->rGetAppliedForce()[0], 2*(-3+4.0/sqrt(7.0))*linear_force.GetMeinekeSpringStiffness(), 1e-4);
+            TS_ASSERT_DELTA(cell_population.GetNode(59)->rGetAppliedForce()[0], 2*(-3+4.0/sqrt(7.0))*linear_force.GetSpringStiffness(), 1e-4);
             TS_ASSERT_DELTA(cell_population.GetNode(59)->rGetAppliedForce()[1], 0.0, 1e-4);
 
-            TS_ASSERT_DELTA(cell_population.GetNode(58)->rGetAppliedForce()[0], 2*0.5*linear_force.GetMeinekeSpringStiffness(), 1e-4);
+            TS_ASSERT_DELTA(cell_population.GetNode(58)->rGetAppliedForce()[0], 2*0.5*linear_force.GetSpringStiffness(), 1e-4);
             TS_ASSERT_DELTA(cell_population.GetNode(58)->rGetAppliedForce()[1], 0.0, 1e-4);
         }
 

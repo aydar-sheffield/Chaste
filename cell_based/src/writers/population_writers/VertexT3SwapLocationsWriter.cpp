@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -34,12 +34,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "VertexT3SwapLocationsWriter.hpp"
-#include "AbstractCellPopulation.hpp"
 #include "MeshBasedCellPopulation.hpp"
 #include "CaBasedCellPopulation.hpp"
 #include "NodeBasedCellPopulation.hpp"
 #include "PottsBasedCellPopulation.hpp"
 #include "VertexBasedCellPopulation.hpp"
+#include "ImmersedBoundaryCellPopulation.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 VertexT3SwapLocationsWriter<ELEMENT_DIM, SPACE_DIM>::VertexT3SwapLocationsWriter()
@@ -70,8 +70,7 @@ void VertexT3SwapLocationsWriter<ELEMENT_DIM, SPACE_DIM>::Visit(PottsBasedCellPo
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void VertexT3SwapLocationsWriter<ELEMENT_DIM, SPACE_DIM>::Visit(VertexBasedCellPopulation<SPACE_DIM>* pCellPopulation)
 {
-    std::vector<T3SwapInfo<SPACE_DIM> > t3_swap_info
-            = pCellPopulation->rGetMesh().GetOperationRecorder()->GetT3SwapsInfo();
+    std::vector<T3SwapInfo<SPACE_DIM> > t3_swap_info = pCellPopulation->rGetMesh().GetOperationRecorder()->GetT3SwapsInfo();
 
     *this->mpOutStream << t3_swap_info.size() << "\t";
     for (unsigned index = 0;  index < t3_swap_info.size(); index++)
@@ -83,6 +82,11 @@ void VertexT3SwapLocationsWriter<ELEMENT_DIM, SPACE_DIM>::Visit(VertexBasedCellP
     }
 
     pCellPopulation->rGetMesh().GetOperationRecorder()->ClearT3SwapsInfo();
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void VertexT3SwapLocationsWriter<ELEMENT_DIM, SPACE_DIM>::Visit(ImmersedBoundaryCellPopulation<SPACE_DIM>* pCellPopulation)
+{
 }
 
 // Explicit instantiation

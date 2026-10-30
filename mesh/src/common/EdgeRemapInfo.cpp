@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2019, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -36,23 +36,27 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "EdgeRemapInfo.hpp"
 
 EdgeRemapInfo::EdgeRemapInfo()
-{}
-
-EdgeRemapInfo::EdgeRemapInfo(const std::vector<long int> &edgesMapping, const std::vector<unsigned int> &edgesStatus)
-:
-mEdgesMapping(edgesMapping),
-mEdgeStatus(edgesStatus)
-{}
+{
+}
 
 EdgeRemapInfo::~EdgeRemapInfo()
-{}
+{
+}
 
-std::vector<long int> EdgeRemapInfo::GetEdgesMapping() const
+EdgeRemapInfo::EdgeRemapInfo(const std::vector<long>& rEdgesMapping,
+                             const std::vector<unsigned>& rEdgesStatus)
+    : mUnused(false),
+      mEdgesMapping(rEdgesMapping),
+      mEdgeStatus(rEdgesStatus)
+{
+}
+
+std::vector<long> EdgeRemapInfo::GetEdgesMapping() const
 {
     return mEdgesMapping;
 }
 
-std::vector<unsigned int> EdgeRemapInfo::GetEdgesStatus() const
+std::vector<unsigned> EdgeRemapInfo::GetEdgesStatus() const
 {
     return mEdgeStatus;
 }
@@ -62,11 +66,12 @@ std::vector<double> EdgeRemapInfo::GetSplitProportions() const
     return mSplitProportions;
 }
 
-void EdgeRemapInfo::SetSplitProportions(const std::vector<double> thetas)
+void EdgeRemapInfo::SetSplitProportions(const std::vector<double> proportions)
 {
-    mSplitProportions = thetas;
+    mSplitProportions = proportions;
 }
 
-#include "SerializationExportWrapperForCpp.hpp"
-// Declare identifier for the serializer
-CHASTE_CLASS_EXPORT(EdgeRemapInfo)
+bool EdgeRemapInfo::GetUnused() const
+{
+    return mUnused;
+}

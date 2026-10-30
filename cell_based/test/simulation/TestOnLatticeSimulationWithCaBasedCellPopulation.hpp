@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -40,11 +40,9 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Must be included before other cell_based headers
 #include "CellBasedSimulationArchiver.hpp"
-#ifdef CHASTE_VTK
 #define _BACKWARD_BACKWARD_WARNING_H 1 //Cut out the strstream deprecated warning for now (gcc4.3)
 #include <vtkXMLUnstructuredGridReader.h>
 #include <vtkUnstructuredGrid.h>
-#endif //CHASTE_VTK
 #include "HoneycombMeshGenerator.hpp"
 #include "PottsMeshGenerator.hpp"
 #include "CellsGenerator.hpp"
@@ -90,7 +88,7 @@ public:
 
         // Create a simple tetrahedral mesh
         HoneycombMeshGenerator generator(3, 3, 0);
-        TetrahedralMesh<2,2>* p_generating_mesh = generator.GetMesh();
+        boost::shared_ptr<TetrahedralMesh<2,2> > p_generating_mesh = generator.GetMesh();
 
         // Convert this to a NodesOnlyMesh
         NodesOnlyMesh<2> mesh;
@@ -120,7 +118,7 @@ public:
 
         // Create a simple 2D PottsMesh
         PottsMeshGenerator<2> generator(3, 0, 0, 3, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -201,7 +199,7 @@ public:
 
         // Create a simple 2D PottsMesh
         PottsMeshGenerator<2> generator(10, 0, 0, 10, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -249,7 +247,6 @@ public:
         TS_ASSERT_EQUALS(simulator.GetNumBirths(), 20u);
         TS_ASSERT_EQUALS(simulator.rGetCellPopulation().GetNumRealCells(), 22u);
 
-#ifdef CHASTE_VTK
         // Test that the VTK writer has produced a file
         OutputFileHandler output_file_handler(output_directory, false);
         std::string results_dir = output_file_handler.GetOutputDirectoryFullPath();
@@ -261,7 +258,6 @@ public:
         // Final file
         FileFinder vtk_file2(results_dir + "results_from_time_0/results_400.vtu", RelativeTo::Absolute);
         TS_ASSERT(vtk_file2.Exists());
- #endif //CHASTE_VTK
     }
 
     void TestCaMonolayerWithDeath()
@@ -273,7 +269,7 @@ public:
 
         // Create a simple 2D PottsMesh
         PottsMeshGenerator<2> generator(10, 0, 0, 10, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -341,7 +337,7 @@ public:
 
         // Create a simple 2D PottsMesh
         PottsMeshGenerator<2> generator(10, 0, 0, 10, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -400,30 +396,27 @@ public:
         TS_ASSERT_EQUALS(simulator.GetNumBirths(), 0u);
         TS_ASSERT(simulator.GetNumDeaths() > 0);
 
-        #ifdef CHASTE_VTK
-            // Check that the ordering in the vtk file is correct
-            OutputFileHandler output_file_handler("TestCaMonolayerWithApoptoticCellKiller", false);
-            std::string results_dir = output_file_handler.GetOutputDirectoryFullPath();
+        // Check that the ordering in the vtk file is correct
+        OutputFileHandler output_file_handler("TestCaMonolayerWithApoptoticCellKiller", false);
+        std::string results_dir = output_file_handler.GetOutputDirectoryFullPath();
 
-            // Read in the final timepoint
-            FileFinder vtk_file2(results_dir + "results_from_time_0/results_5.vtu", RelativeTo::Absolute);
-            TS_ASSERT(vtk_file2.Exists());
-            vtkSmartPointer<vtkXMLUnstructuredGridReader> p_reader = vtkSmartPointer<vtkXMLUnstructuredGridReader>::New();
-            p_reader->SetFileName(vtk_file2.GetAbsolutePath().c_str());
-            p_reader->Update();
+        // Read in the final timepoint
+        FileFinder vtk_file2(results_dir + "results_from_time_0/results_5.vtu", RelativeTo::Absolute);
+        TS_ASSERT(vtk_file2.Exists());
+        vtkSmartPointer<vtkXMLUnstructuredGridReader> p_reader = vtkSmartPointer<vtkXMLUnstructuredGridReader>::New();
+        p_reader->SetFileName(vtk_file2.GetAbsolutePath().c_str());
+        p_reader->Update();
 
-            // The point index should be the same as the entry in the "Location Index For Test" array at this stage.
-            vtkSmartPointer<vtkUnstructuredGrid> p_grid = p_reader->GetOutput();
-            unsigned counter = 0;
-            for (CaBasedCellPopulation<2>::Iterator cell_iter = cell_population.Begin(); cell_iter != cell_population.End(); ++cell_iter)
-            {
-                unsigned location_index = cell_population.GetLocationIndexUsingCell(*cell_iter);
-                TS_ASSERT(counter < unsigned(p_grid->GetNumberOfPoints()));
-                TS_ASSERT_EQUALS(location_index, unsigned(p_grid->GetPointData()->GetArray("Location Index For Test")->GetTuple1(counter)));
-                counter++;
-            }
-
-        #endif //CHASTE_VTK
+        // The point index should be the same as the entry in the "Location Index For Test" array at this stage.
+        vtkSmartPointer<vtkUnstructuredGrid> p_grid = p_reader->GetOutput();
+        unsigned counter = 0;
+        for (CaBasedCellPopulation<2>::Iterator cell_iter = cell_population.Begin(); cell_iter != cell_population.End(); ++cell_iter)
+        {
+            unsigned location_index = cell_population.GetLocationIndexUsingCell(*cell_iter);
+            TS_ASSERT(counter < unsigned(p_grid->GetNumberOfPoints()));
+            TS_ASSERT_EQUALS(location_index, unsigned(p_grid->GetPointData()->GetArray("Location Index For Test")->GetTuple1(counter)));
+            counter++;
+        }
     }
 
     void TestCaMonolayerWithRandomSwitching()
@@ -435,7 +428,7 @@ public:
 
         // Create a simple 2D PottsMesh
         PottsMeshGenerator<2> generator(4, 0, 0, 4, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -504,7 +497,7 @@ public:
         CellId::ResetMaxCellId();
 
         PottsMeshGenerator<2> generator(5, 0, 0, 5, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         std::vector<CellPtr> cells;
         MAKE_PTR(DifferentiatedCellProliferativeType, p_diff_type);
@@ -585,7 +578,7 @@ public:
 
         // Create a simple 2D PottsMesh
         PottsMeshGenerator<2> generator(10, 0, 0, 10, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -630,7 +623,7 @@ public:
 
         // Create a simple 3D PottsMesh
         PottsMeshGenerator<3> generator(10, 0, 0, 10, 0, 0, 10, 0, 0);
-        PottsMesh<3>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<3> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -680,7 +673,7 @@ public:
 
         // Create a simple 2D PottsMesh
         PottsMeshGenerator<2> generator(2, 0, 0, 1, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -719,7 +712,6 @@ public:
         TS_ASSERT_EQUALS(simulator.GetNumBirths(), 1u);
         TS_ASSERT_EQUALS(simulator.GetNumDeaths(), 0u);
 
-#ifdef CHASTE_VTK
         // Test that VTK writer has produced a file
         OutputFileHandler output_file_handler(output_directory, false);
         std::string results_dir = output_file_handler.GetOutputDirectoryFullPath();
@@ -731,7 +723,6 @@ public:
         // Final file
         FileFinder vtk_file2(results_dir + "results_from_time_0/results_400.vtu", RelativeTo::Absolute);
         TS_ASSERT(vtk_file2.Exists());
-#endif //CHASTE_VTK
     }
 
     /*
@@ -747,7 +738,7 @@ public:
 
         // Create a simple 2D PottsMesh
         PottsMeshGenerator<2> generator(10, 0, 0, 10, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -812,7 +803,7 @@ public:
         EXIT_IF_PARALLEL;
 
         PottsMeshGenerator<2> generator(10, 0, 0, 10, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         std::vector<CellPtr> cells;
         MAKE_PTR(DifferentiatedCellProliferativeType, p_diff_type);
@@ -860,7 +851,7 @@ public:
         EXIT_IF_PARALLEL;
 
         PottsMeshGenerator<2> generator(10, 0, 0, 10, 0, 0);
-        PottsMesh<2>* p_mesh = generator.GetMesh();
+        boost::shared_ptr<PottsMesh<2> > p_mesh = generator.GetMesh();
 
         std::vector<CellPtr> cells;
         MAKE_PTR(DifferentiatedCellProliferativeType, p_diff_type);

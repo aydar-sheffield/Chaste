@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2019, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -34,34 +34,35 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "Edge.hpp"
-template<unsigned SPACE_DIM>
+
+template <unsigned SPACE_DIM>
 Edge<SPACE_DIM>::Edge(unsigned index)
     : mIndex(index),
       mIsDeleted(false)
 {
-    this->mIndex = index;
 }
 
-template<unsigned SPACE_DIM>
-Edge<SPACE_DIM>::Edge(unsigned index, Node<SPACE_DIM>* pNode0, Node<SPACE_DIM>* pNode1)
+template <unsigned SPACE_DIM>
+Edge<SPACE_DIM>::Edge(unsigned index,
+                      Node<SPACE_DIM>* pNodeA,
+                      Node<SPACE_DIM>* pNodeB)
     : mIndex(index),
       mIsDeleted(false)
 {
-    this->SetNodes(pNode0, pNode1);
+    this->SetNodes(pNodeA, pNodeB);
 }
 
-template<unsigned SPACE_DIM>
-Edge<SPACE_DIM>::~Edge()
+template <unsigned SPACE_DIM>
+std::pair<unsigned, unsigned> Edge<SPACE_DIM>::GenerateMapIndex(unsigned indexA,
+                                                                unsigned indexB)
 {
-    mNodes.clear();
+    return std::make_pair(std::min(indexA, indexB), std::max(indexA, indexB));
 }
 
 template<unsigned SPACE_DIM>
 void Edge<SPACE_DIM>::MarkAsDeleted()
 {
     mIsDeleted = true;
-    mNodes[0]->RemoveEdge(mIndex);
-    mNodes[1]->RemoveEdge(mIndex);
 }
 
 template<unsigned SPACE_DIM>
@@ -83,19 +84,12 @@ unsigned Edge<SPACE_DIM>::GetIndex() const
 }
 
 template<unsigned SPACE_DIM>
-UIndexPair Edge<SPACE_DIM>::GetMapIndex()
+std::pair<unsigned ,unsigned> Edge<SPACE_DIM>::GetMapIndex()
 {
     assert(mNodes.size() == 2);
-    auto index0 = mNodes[0]->GetIndex();
-    auto index1 = mNodes[1]->GetIndex();
-    if (index0 > index1)
-    {
-        auto indexSwap = index0;
-        index0 = index1;
-        index1 = indexSwap;
-    }
-
-    return UIndexPair(index0, index1);
+    const unsigned index0 = mNodes[0]->GetIndex();
+    const unsigned index1 = mNodes[1]->GetIndex();
+    return Edge<SPACE_DIM>::GenerateMapIndex(index0, index1);
 }
 
 template<unsigned SPACE_DIM>
@@ -105,18 +99,20 @@ void Edge<SPACE_DIM>::RemoveNodes()
 }
 
 template<unsigned SPACE_DIM>
-void Edge<SPACE_DIM>::SetNodes(Node<SPACE_DIM>* pNode0, Node<SPACE_DIM>* pNode1)
+void Edge<SPACE_DIM>::SetNodes(Node<SPACE_DIM>* pNodeA,
+                               Node<SPACE_DIM>* pNodeB)
 {
     // Clear the nodes first
     this->RemoveNodes();
 
     // Add nodes
-    this->mNodes.push_back(pNode0);
-    this->mNodes.push_back(pNode1);
+    this->mNodes.push_back(pNodeA);
+    this->mNodes.push_back(pNodeB);
 }
 
 template<unsigned SPACE_DIM>
-void Edge<SPACE_DIM>::ReplaceNode(Node<SPACE_DIM>* pOldNode, Node<SPACE_DIM>* pNewNode)
+void Edge<SPACE_DIM>::ReplaceNode(Node<SPACE_DIM>* pOldNode,
+                                  Node<SPACE_DIM>* pNewNode)
 {
     for (unsigned i = 0; i < 2; i++)
     {
@@ -143,9 +139,9 @@ unsigned Edge<SPACE_DIM>::GetNumNodes()
 template<unsigned SPACE_DIM>
 bool Edge<SPACE_DIM>::ContainsNode(Node<SPACE_DIM>* pNode) const
 {
-    for (auto node : mNodes)
+    for (auto p_node : mNodes)
     {
-        if (node->GetIndex() == pNode->GetIndex())
+        if (p_node->GetIndex() == pNode->GetIndex())
         {
             return true;
         }
@@ -172,8 +168,12 @@ std::set<unsigned> Edge<SPACE_DIM>::GetOtherElements(unsigned elementIndex)
 {
     std::set<unsigned> otherElements;
     for (unsigned elem: mElementIndices)
+    {
         if (elem != elementIndex)
+        {
             otherElements.insert(elem);
+        }
+    }
     return otherElements;
 }
 
@@ -198,8 +198,8 @@ std::set<unsigned> Edge<SPACE_DIM>::GetNeighbouringElementIndices()
     auto elem_indices1 = mNodes[1]->rGetContainingElementIndices();
 
     std::set_intersection(elem_indices0.begin(), elem_indices0.end(),
-            elem_indices1.begin(), elem_indices1.end(),
-            std::inserter(neighbouring_element_indices, neighbouring_element_indices.begin()));
+                          elem_indices1.begin(), elem_indices1.end(),
+                          std::inserter(neighbouring_element_indices, neighbouring_element_indices.begin()));
 
     return neighbouring_element_indices;
 }
@@ -211,59 +211,15 @@ unsigned Edge<SPACE_DIM>::GetNumElements()
 }
 
 template<unsigned SPACE_DIM>
-bool Edge<SPACE_DIM>::IsEdgeValid()
-{
-    // MUST have 2 existing nodes to form an edge
-    if (mNodes.size() != 2)
-    {
-        printf("[Error] Edge %i - has less than two nodes\n", this->mIndex);
-        return false;
-    }
-
-    // Nodes should not be nullptr
-    for (auto node : mNodes)
-    {
-        if (node == nullptr)
-        {
-            printf("[Error] Edge %i - has a nullptr node\n", this->mIndex);
-            return false;
-        }
-    }
-
-    // Can't have associated elements if we're less than 2D
-    if (SPACE_DIM <= 1 && mElementIndices.size() > 0)
-    {
-        printf("[Error] Edge %i - Can't have an associated element if less than 2D\n", this->mIndex);
-        return false;
-    }
-
-    // An edge can only have a maximum of two elements in 2D
-    if (SPACE_DIM == 2 && mElementIndices.size() > 2)
-    {
-        printf("[Error] Edge %i - an edge can only have a maximum of two neighbouring elements in 2D\n", this->mIndex);
-        return false;
-    }
-
-    auto neighbour_indices = GetNeighbouringElementIndices();
-    if (neighbour_indices != mElementIndices)
-    {
-        printf("[Error] Edge %i - the neighbouring elements in mElementIndices does not match with node\n", this->mIndex);
-        return false;
-    }
-
-    return true;
-}
-
-template<unsigned SPACE_DIM>
 bool Edge<SPACE_DIM>::IsBoundaryEdge() const
 {
     return mElementIndices.size()<=1;
 }
 
 template <unsigned SPACE_DIM>
-bool Edge<SPACE_DIM>::operator==(const Edge<SPACE_DIM>& edge) const
+bool Edge<SPACE_DIM>::operator==(const Edge<SPACE_DIM>& rEdge) const
 {
-    return this->ContainsNode(edge.GetNode(0))&&this->ContainsNode(edge.GetNode(1));
+    return this->ContainsNode(rEdge.GetNode(0)) && this->ContainsNode(rEdge.GetNode(1));
 }
 
 // Explicit instantiation

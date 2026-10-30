@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -142,7 +142,7 @@ void PetscTools::Barrier(const std::string callerId)
                   << "Barrier " << mNumBarriers << " \"" << callerId << "\"." << std::endl
                   << std::flush;
 #endif
-        PetscBarrier(PETSC_NULL);
+        PetscBarrier(CHASTE_PETSC_NULLPTR);
 #ifdef DEBUG_BARRIERS
         std::cout << "DEBUG: proc " << PetscTools::GetMyRank() << ": Post "
                   << "Barrier " << mNumBarriers++ << " \"" << callerId << "\"." << std::endl
@@ -296,7 +296,7 @@ void PetscTools::SetupMat(Mat& rMat, int numRows, int numColumns,
         MatSetType(rMat, MATSEQAIJ);
         if (rowPreallocation > 0)
         {
-            MatSeqAIJSetPreallocation(rMat, rowPreallocation, PETSC_NULL);
+            MatSeqAIJSetPreallocation(rMat, rowPreallocation, CHASTE_PETSC_NULLPTR);
         }
     }
     else
@@ -304,7 +304,7 @@ void PetscTools::SetupMat(Mat& rMat, int numRows, int numColumns,
         MatSetType(rMat, MATMPIAIJ);
         if (rowPreallocation > 0)
         {
-            MatMPIAIJSetPreallocation(rMat, rowPreallocation, PETSC_NULL, rowPreallocation, PETSC_NULL);
+            MatMPIAIJSetPreallocation(rMat, rowPreallocation, CHASTE_PETSC_NULLPTR, rowPreallocation, CHASTE_PETSC_NULLPTR);
         }
     }
 
@@ -364,6 +364,36 @@ void PetscTools::DumpPetscObject(const Vec& rVec, const std::string& rOutputFile
 
 void PetscTools::ReadPetscObject(Mat& rMat, const std::string& rOutputFileFullPath, Vec rParallelLayout)
 {
+
+#if PETSC_VERSION_GE(3, 11, 2) // PETSc 3.11.2 or newer
+    // All modern versions of PETSc allow us to directly read into a non-standard parallel layout
+    PetscViewer view;
+    PetscFileMode type = FILE_MODE_READ;
+    PetscViewerBinaryOpen(PETSC_COMM_WORLD, rOutputFileFullPath.c_str(),
+                          type, &view);
+
+    if (rParallelLayout != nullptr)
+    {
+        // Create an empty matrix with non-default parallel layout
+        PetscInt num_rows, num_local_rows;
+        VecGetSize(rParallelLayout, &num_rows);
+        VecGetLocalSize(rParallelLayout, &num_local_rows);
+        /// \todo: #1082 work out appropriate nz allocation.
+        PetscTools::SetupMat(rMat, num_rows, num_rows, 100, num_local_rows, num_local_rows, false);
+
+    }
+    else
+    {
+        // Create an empty matrix with default parallel layout
+        MatCreate(PETSC_COMM_WORLD, &rMat);
+        MatSetType(rMat, MATMPIAIJ);
+    }
+
+    // Read into parallel matrix
+    MatLoad(rMat, view);
+    PetscViewerDestroy(PETSC_DESTROY_PARAM(view));
+#else
+    // Code below is for unsupported versions of PETSc
     /*
      * PETSc (as of 3.1) doesn't provide any method for loading a Mat object with a user-defined parallel
      * layout, i.e. there's no equivalent to VecLoadIntoVector for Mat's.
@@ -406,15 +436,12 @@ void PetscTools::ReadPetscObject(Mat& rMat, const std::string& rOutputFileFullPa
         /// \todo: #1082 work out appropriate nz allocation.
         PetscTools::SetupMat(temp_mat, num_rows, num_rows, 100, num_local_rows, num_local_rows, false);
 
-#if PETSC_VERSION_GE(3, 11, 2) // PETSc 3.11.2 or newer
-        PetscTools::ChasteMatCopy(rMat, temp_mat, DIFFERENT_NONZERO_PATTERN);
-#else
         MatCopy(rMat, temp_mat, DIFFERENT_NONZERO_PATTERN);
-#endif
 
         PetscTools::Destroy(rMat);
         rMat = temp_mat;
     }
+#endif
 }
 
 void PetscTools::ReadPetscObject(Vec& rVec, const std::string& rOutputFileFullPath, Vec rParallelLayout)
@@ -465,7 +492,7 @@ bool PetscTools::HasParMetis()
 
     // We are expecting an error from PETSC on systems that don't have the interface, so suppress it
     // in case it aborts
-    PetscPushErrorHandler(PetscIgnoreErrorHandler, nullptr);
+    PetscPushErrorHandler(PetscReturnErrorHandler, nullptr);
 
 #if (PETSC_VERSION_MAJOR == 2 || (PETSC_VERSION_MAJOR == 3 && PETSC_VERSION_MINOR < 2))
     PetscErrorCode parmetis_installed_error = MatPartitioningSetType(part, MAT_PARTITIONING_PARMETIS);
@@ -480,51 +507,5 @@ bool PetscTools::HasParMetis()
     // then there isn't a proper handle to destroy.
     MatPartitioningDestroy(PETSC_DESTROY_PARAM(part));
 
-    // Get out of jail free card for Windows where the latest configuration of the integration machine shows that our implementation doesn't work as expected.
-#ifdef _MSC_VER
-    //\todo #2016 (or similar ticket).  The method NodePartitioner::PetscMatrixPartitioning is not working in parallel
-    if (parmetis_installed_error == 0)
-    {
-        WARN_ONCE_ONLY("The PETSc/parMETIS interface is correctly installed but does not yet work in Windows so matrix-based partitioning will be turned off.");
-    }
-    return false;
-#endif
-
     return (parmetis_installed_error == 0);
 }
-
-#if PETSC_VERSION_GE(3, 11, 2) // PETSc 3.11.2 or newer
-PetscErrorCode PetscTools::ChasteMatCopy(Mat A, Mat B, MatStructure str)
-{
-    PetscErrorCode ierr;
-    PetscInt i, rstart = 0, rend = 0, nz;
-    const PetscInt* cwork;
-    const PetscScalar* vwork;
-
-    PetscBool assembled;
-    MatAssembled(B, &assembled);
-    if (assembled == PETSC_TRUE)
-    {
-        ierr = MatZeroEntries(B);
-        CHKERRQ(ierr);
-    }
-
-    ierr = MatGetOwnershipRange(A, &rstart, &rend);
-    CHKERRQ(ierr);
-    for (i = rstart; i < rend; i++)
-    {
-        ierr = MatGetRow(A, i, &nz, &cwork, &vwork);
-        CHKERRQ(ierr);
-        ierr = MatSetValues(B, 1, &i, nz, cwork, vwork, INSERT_VALUES);
-        CHKERRQ(ierr);
-        ierr = MatRestoreRow(A, i, &nz, &cwork, &vwork);
-        CHKERRQ(ierr);
-    }
-
-    ierr = MatAssemblyBegin(B, MAT_FINAL_ASSEMBLY);
-    CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(B, MAT_FINAL_ASSEMBLY);
-    CHKERRQ(ierr);
-    PetscFunctionReturn(0);
-}
-#endif

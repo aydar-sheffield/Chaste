@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -40,6 +40,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include "VertexMeshReader.hpp"
 #include "VertexMeshWriter.hpp"
@@ -777,6 +778,55 @@ public:
         expected_elements_containing_node_6.insert(2);
 
         TS_ASSERT_EQUALS(vertex_mesh.GetNode(6)->rGetContainingElementIndices(), expected_elements_containing_node_6);
+
+        // Testing recording of cell division information
+        std::vector<CellDivisionInfo<2> > div_info = vertex_mesh.GetOperationRecorder()->GetCellDivisionInfo();
+        TS_ASSERT_DELTA(div_info[0].mLocation[0], 0.0, 1e-8);
+        TS_ASSERT_DELTA(div_info[0].mLocation[1], 0.0, 1e-8);
+        TS_ASSERT_DELTA(div_info[0].mDivisionAxis(0), 1.0, 1e-8);
+        TS_ASSERT_DELTA(div_info[0].mDivisionAxis(1), 0.0, 1e-8);
+        TS_ASSERT_DELTA(div_info[0].mDaughterLocation1[0], 0.0, 1e-8);
+        TS_ASSERT_DELTA(div_info[0].mDaughterLocation1[1], -1.0, 1e-8);
+        TS_ASSERT_DELTA(div_info[0].mDaughterLocation2[0], 0.0, 1e-8);
+        TS_ASSERT_DELTA(div_info[0].mDaughterLocation2[1], 1.0, 1e-8);
+
+        //Testing archiving of cell division info
+        OutputFileHandler handler("TestCellDivisionInfoArchiving", false);
+        std::string archive_filename = handler.GetOutputDirectoryFullPath() + "CellDivisionInfo.arch";
+
+        {
+            // Create an output archive
+            std::ofstream ofs(archive_filename.c_str());
+            boost::archive::text_oarchive output_arch(ofs);
+
+            // Write the division info
+            output_arch << *vertex_mesh.GetOperationRecorder();
+        }
+
+        vertex_mesh.GetOperationRecorder()->ClearCellDivisionInfo();
+        div_info = vertex_mesh.GetOperationRecorder()->GetCellDivisionInfo();
+        TS_ASSERT_EQUALS(div_info.size(), 0u);
+
+        // Retrieve the archive
+        {
+            // Load cell division information info
+            std::ifstream ifs(archive_filename.c_str(), std::ios::binary);
+            boost::archive::text_iarchive input_arch(ifs);
+
+            VertexMeshOperationRecorder<2,2> recorder;
+            input_arch >> recorder;
+            std::vector<CellDivisionInfo<2> > all_info = recorder.GetCellDivisionInfo();
+            TS_ASSERT_EQUALS(all_info.size(), 1u);
+
+            TS_ASSERT_DELTA(all_info[0].mLocation[0], 0.0, 1e-8);
+            TS_ASSERT_DELTA(all_info[0].mLocation[1], 0.0, 1e-8);
+            TS_ASSERT_DELTA(all_info[0].mDivisionAxis(0), 1.0, 1e-8);
+            TS_ASSERT_DELTA(all_info[0].mDivisionAxis(1), 0.0, 1e-8);
+            TS_ASSERT_DELTA(all_info[0].mDaughterLocation1[0], 0.0, 1e-8);
+            TS_ASSERT_DELTA(all_info[0].mDaughterLocation1[1], -1.0, 1e-8);
+            TS_ASSERT_DELTA(all_info[0].mDaughterLocation2[0], 0.0, 1e-8);
+            TS_ASSERT_DELTA(all_info[0].mDaughterLocation2[1], 1.0, 1e-8);
+        }
     }
 
     void TestDivideVertexElementWithBoundaryNodes()
@@ -1812,7 +1862,7 @@ public:
     void TestSetAndGetDistanceForT3SwapChecking()
     {
         HoneycombVertexMeshGenerator mesh_generator(10,10); // is_flat_bottom, T1swaptthreshold, T2swapthreshold, elementArea
-        MutableVertexMesh<2,2>* p_mesh = mesh_generator.GetMesh();
+        boost::shared_ptr<MutableVertexMesh<2,2> > p_mesh = mesh_generator.GetMesh();
         double standard_distance = p_mesh->GetDistanceForT3SwapChecking();
         TS_ASSERT_EQUALS(standard_distance, 5.0);
 
@@ -1824,71 +1874,6 @@ public:
     void TestHandleHighOrderJunctions()
     {
         //\todo need to re-implement this
-    }
-
-    void TestEdgesCreation()
-    {
-        const unsigned ELEMENT_DIM = 2;
-        const unsigned SPACE_DIM = 2;
-
-        unsigned exampleEdgeIndex = 1;
-
-        // Empty edge should be invalid
-        Edge<2>* testEdge = new Edge<2>(exampleEdgeIndex);
-        TS_ASSERT(!testEdge->IsEdgeValid());
-
-        TS_ASSERT_EQUALS(exampleEdgeIndex, testEdge->GetIndex());
-
-        // Add nodes to the edge, check validity and centre position
-        Node<SPACE_DIM> node0(0, ChastePoint<SPACE_DIM>(0,0,0));
-        Node<SPACE_DIM> node1(1, ChastePoint<SPACE_DIM>(1,1,1));
-
-        testEdge->SetNodes(&node0, &node1);
-        auto edgeCentreLocation = testEdge->rGetCentreLocation();
-        TS_ASSERT(testEdge->IsEdgeValid());
-        TS_ASSERT(edgeCentreLocation[0] == 0.5 && edgeCentreLocation[1] == 0.5);
-
-        // Generate two hex vertex elements
-        std::vector<Node<SPACE_DIM>*> nodes0, nodes1, allnodes;
-        nodes0.push_back(new Node<SPACE_DIM>(0));
-        nodes0.push_back(new Node<SPACE_DIM>(1));
-        nodes0.push_back(new Node<SPACE_DIM>(2));
-        nodes0.push_back(new Node<SPACE_DIM>(3));
-        nodes0.push_back(new Node<SPACE_DIM>(4));
-        nodes0.push_back(new Node<SPACE_DIM>(5));
-
-        nodes1.push_back(nodes0[0]);
-        nodes1.push_back(nodes0[1]);
-        nodes1.push_back(new Node<SPACE_DIM>(6));
-        nodes1.push_back(new Node<SPACE_DIM>(7));
-        nodes1.push_back(new Node<SPACE_DIM>(8));
-        nodes1.push_back(new Node<SPACE_DIM>(9));
-
-        allnodes.insert(allnodes.end(), nodes0.begin(), nodes0.end());
-        allnodes.insert(allnodes.end(), nodes1.begin(), nodes1.end());
-
-        std::vector<VertexElement<ELEMENT_DIM,SPACE_DIM>*> elements;
-        elements.push_back(new VertexElement<ELEMENT_DIM,SPACE_DIM>(0, nodes0));
-        elements.push_back(new VertexElement<ELEMENT_DIM,SPACE_DIM>(1, nodes1));
-
-        // Generate a mesh which will automatically build the edges in the constructor
-        VertexMesh<ELEMENT_DIM, SPACE_DIM>* mesh = new VertexMesh<ELEMENT_DIM, SPACE_DIM>(allnodes, elements);
-        for (unsigned i = 0; i < mesh->GetNumElements(); i++)
-        {
-            auto element = mesh->GetElement(i);
-            TS_ASSERT(element->CheckEdgesAreValid());
-        }
-
-        // Also test with honeycomb mesh (MutableVertexMesh)
-        HoneycombVertexMeshGenerator generator(2, 2);
-        MutableVertexMesh<2,2>* honeycombMesh = generator.GetMesh();
-        TS_ASSERT_EQUALS(honeycombMesh->GetNumEdges(), 19);
-        for (unsigned i = 0; i < honeycombMesh->GetNumElements(); i++)
-        {
-            auto element = honeycombMesh->GetElement(i);
-            TS_ASSERT(element->CheckEdgesAreValid());
-        }
-
     }
 };
 

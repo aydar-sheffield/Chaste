@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -33,25 +33,29 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#ifdef CHASTE_CVODE
 #ifndef _CVODEADAPTOR_HPP_
 #define _CVODEADAPTOR_HPP_
 
+#include <memory>
 #include <vector>
 
 #include <boost/serialization/base_object.hpp>
 #include "ChasteSerialization.hpp"
 
 #include "AbstractIvpOdeSolver.hpp"
+#include "CvodeContextManager.hpp"
 #include "OdeSolution.hpp"
 
 // CVODE headers
 #include <cvode/cvode.h>
 #include <nvector/nvector_serial.h>
 
-#if CHASTE_SUNDIALS_VERSION >= 30000
 #include <sunlinsol/sunlinsol_dense.h> /* access to dense SUNLinearSolver      */
 #include <sunmatrix/sunmatrix_dense.h> /* access to dense SUNMatrix            */
+
+#if CHASTE_SUNDIALS_VERSION >= 70000
+///\todo We should prefer sunrealtype in our own code in future
+#define realtype sunrealtype
 #endif
 
 /**
@@ -60,8 +64,13 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * Throw an Exception to report errors, rather than the CVODE approach of magic
  * return codes.
  */
+#if CHASTE_SUNDIALS_VERSION >= 70000
+void CvodeErrorHandler(int errorCode, const char* module, const char* function,
+                       const char* message, SUNErrCode errCode, void* pData, SUNContext sunContext);
+#else
 void CvodeErrorHandler(int errorCode, const char* module, const char* function,
                        char* message, void* pData);
+#endif
 // Note: declared here since it's also used by AbstractCvodeCell.
 
 /**
@@ -128,6 +137,14 @@ private:
     /** Pointer to the CVODE memory block. */
     void* mpCvodeMem;
 
+#if CHASTE_SUNDIALS_VERSION >= 60000
+    /**
+     * Shared ownership of the SUNContext this solver's Sundials objects were created
+     * against, to guarantee the context outlives them. See CvodeContextManager.
+     */
+    std::shared_ptr<CvodeContextManager> mpSundialsContextManager;
+#endif
+
     /** The CVODE data structure. */
     CvodeData mData;
 
@@ -161,12 +178,10 @@ private:
     /** Whether to ignore changes in the state variables when deciding whether to reset. */
     bool mForceMinimalReset;
 
-#if CHASTE_SUNDIALS_VERSION >= 30000
     /** Working memory for CVODE to store a dense matrix */
     SUNMatrix mpSundialsDenseMatrix;
     /** Working memory for CVODE's linear solver */
     SUNLinearSolver mpSundialsLinearSolver;
-#endif
 
     /**
      * Record where the last solve got to so we know whether to re-initialise.
@@ -335,4 +350,3 @@ public:
 CHASTE_CLASS_EXPORT(CvodeAdaptor)
 
 #endif // _CVODEADAPTOR_HPP_
-#endif // CHASTE_CVODE

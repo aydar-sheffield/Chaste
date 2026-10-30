@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -49,19 +49,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
- * = An example showing how generate a complete conducting airway model given segmentations of CT airways and lobes =
+ * ## An example showing how generate a complete conducting airway model given segmentations of CT airways and lobes
  *
  * In this tutorial we demonstrate using Chaste's airway generation algorithm to create a complete model of
  * the conducting airways (mean generation ~16) from computed tomography segmentations. Note that the execution
  * time for this tutorial on a standard desktop PC is several minutes.
  */
-
-/*
- * Note that the airway generation code is dependent of having VTK installed.  However, we cannot put a guard around the
- * whole file since that gives compiler errors if VTK is not installed.  Instead we guard the internals of each test, and
- * any includes that will be missing if VTK is not present.
- */
-#ifdef CHASTE_VTK
 
 /*
  * We include some VTK classes to allow STL files to be read
@@ -71,15 +64,13 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkPolyData.h"
 #include "vtkSTLReader.h"
 
-#endif // CHASTE_VTK
-
 /* The usual headers are included */
 #include <cxxtest/TestSuite.h>
 
-/* {{{MultiLobeAirwayGenerator}}} is the class that does most of the work in generating a complete airway tree */
+/* `MultiLobeAirwayGenerator` is the class that does most of the work in generating a complete airway tree */
 #include "MultiLobeAirwayGenerator.hpp"
 
-/* All test suites should include either {{{PetscSetupAndFinalize}}} or {{{FakePetscSetup}}}.  This code does not
+/* All test suites should include either `PetscSetupAndFinalize` or `FakePetscSetup`.  This code does not
  * currently use any parallel functionality so it might include either.
  */
 #include "PetscSetupAndFinalize.hpp"
@@ -91,12 +82,10 @@ public: // Tests should be public!
 
     void TestGenerateAirways()
     {
-#if defined(CHASTE_VTK) && ( (VTK_MAJOR_VERSION >= 5 && VTK_MINOR_VERSION >= 6) || VTK_MAJOR_VERSION >= 6)
-
         EXIT_IF_PARALLEL;
 
         /* First, we load up a mesh containing the centre lines and radii of the central airways extracted from
-         * a CT image. The mesh needs to be of the type {{{SPACE_DIM=3}}} and {{{ELEMENT_DIM=1}}}; that is it defines a mesh that exists
+         * a CT image. The mesh needs to be of the type `SPACE_DIM=3` and `ELEMENT_DIM=1`; that is it defines a mesh that exists
          * in 3D space and is made up of 1D line elements. Each node in the mesh is expected to have two attributes
          * associated with it. The first attribute specifies the radius of the airways that node. Thus the mesh defines a series
          * of cylinders that represent the airways. The second attribute specifies whether the node is a terminal node or not.
@@ -121,8 +110,8 @@ public: // Tests should be public!
             iter->AddNodeAttribute(fmod(terminal_marker[iter->GetIndex()],2));
         }
 
-        /* We now define a {{{MultiLobeAirwayGenerator}}} to allow us to generate the distal airways to form a complete
-         * conducting airway tree. {{{MultiLobeAirwayGenerator}}} provides an easy to use interface to {{{AirwayGenerator}}}
+        /* We now define a `MultiLobeAirwayGenerator` to allow us to generate the distal airways to form a complete
+         * conducting airway tree. `MultiLobeAirwayGenerator` provides an easy to use interface to `AirwayGenerator`
          * and facilitates the generation of airways into a complete lung, rather than the user having to do
          * each lobe separately.
          */
@@ -130,8 +119,8 @@ public: // Tests should be public!
 
         /* We need to set a number of parameters to ensure the resulting airway tree is consistent with known
          * human morphometric data. The values given here can be considered standard for human lungs.
-         * The most important of these is the {{{NumberOfPointsPerLung}}}, which (approximately)
-         * specifies the number of terminals in the tree. The next is the {{{BranchingFraction}}}, which controls how long
+         * The most important of these is the `NumberOfPointsPerLung`, which (approximately)
+         * specifies the number of terminals in the tree. The next is the `BranchingFraction`, which controls how long
          * the generated airways will be. The diameter ratio is used to control the rate at which airway diameters
          * decrease between airway orders.
          */
@@ -176,27 +165,25 @@ public: // Tests should be public!
         rul_reader->Update();
         generator.AddLobe(rul_reader->GetOutput(), RIGHT);
 
-        /* We now perform two preprocessing steps prior to generation. {{{AssignGrowthApices}}} determine
+        /* We now perform two preprocessing steps prior to generation. `AssignGrowthApices` determine
          * which lobe each of the terminal ends of the central airways segmentation are in.
          */
         generator.AssignGrowthApices();
 
         /* Distribute points creates the target acinar points within the lung volume. The number
-         * created is as specified previously using {{{SetNumberOfPointsPerLung}}}.
+         * created is as specified previously using `SetNumberOfPointsPerLung`.
          */
         generator.DistributePoints();
 
         /* We now generate the distal airways. The output is automatically written as a mesh in
          * both tetgen format and VTK unstructured grid format to
-         * {{{$CHASTE_TEST_OUTPUT/TestAirwayGenerationTutorial/}}}
+         * `$CHASTE_TEST_OUTPUT/TestAirwayGenerationTutorial/`
          *
          * The resulting geometry can most easily be viewed in Paraview by loading the unstructured grid
          * file. Application of a 'Extract Surface' filter followed by a 'Tube' filter allows the centreline
          * and radius information to be view as a series of tubes.
          */
         generator.Generate("TestAirwayGenerationTutorial", "example_complete_conducting_airway");
-
-#endif // VTK >= 5.6
     }
 };
 

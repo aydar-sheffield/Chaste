@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -38,7 +38,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "CodegenLongHelperTestSuite.hpp"
 
-#include <boost/foreach.hpp>
 #include <vector>
 
 #include "HeartConfig.hpp"
@@ -54,7 +53,6 @@ class TestCodegenLongEasyModels : public CodegenLongHelperTestSuite
 public:
     void TestAnalyticCvodeCellsOpt()
     {
-#ifdef CHASTE_CVODE
         std::string dirname("TestCodegenLongCvodeAnalyticJ-easy_models-opt");
         std::vector<std::string> args;
         args.push_back("--Wu");
@@ -62,9 +60,7 @@ public:
         args.push_back("--use-analytic-jacobian");
         args.push_back("--opt");
 
-        HeartConfig::Instance()->SetOdePdeAndPrintingTimeSteps(0.01, 0.1, 1.0);
         RunTests(dirname, easy_models, args);
-#endif
     }
 
     void TestBackwardEulerCellsOpt()

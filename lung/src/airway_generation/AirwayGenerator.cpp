@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -47,27 +47,20 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <UblasIncludes.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
 
-#ifdef CHASTE_VTK
-
 #define _BACKWARD_BACKWARD_WARNING_H 1 //Cut out the strstream deprecated warning for now (gcc4.3)
-#include "vtkVersion.h"
 
-#if ((VTK_MAJOR_VERSION >= 5 && VTK_MINOR_VERSION >= 6) || VTK_MAJOR_VERSION >= 6)
-
-#include "vtkGeometryFilter.h"
 #include "vtkDoubleArray.h"
+#include <vtkClipPolyData.h>
 #include "vtkPlane.h"
 #include "vtkPoints.h"
 #include "vtkPointData.h"
 #include "vtkPolyVertex.h"
 #include "vtkMassProperties.h"
 #include "vtkMath.h"
-#include "vtkTableBasedClipDataSet.h"
 #include "vtkCellArray.h"
 #include "vtkLine.h"
 #include "vtkUnsignedIntArray.h"
 #include "vtkUnstructuredGrid.h"
-#include "vtkMassProperties.h"
 #include "vtkPolyDataConnectivityFilter.h"
 #include "vtkXMLUnstructuredGridWriter.h"
 #include "vtkAppendFilter.h"
@@ -124,11 +117,7 @@ vtkSmartPointer<vtkPolyData> AirwayGenerator::CreatePointCloudUsingTargetPoints(
 {
     //Determine the spacing of the points being generated
     vtkSmartPointer<vtkMassProperties> mass_properties = vtkSmartPointer<vtkMassProperties>::New();
-#if VTK_MAJOR_VERSION >= 6
     mass_properties->SetInputData(mLobeSurface);
-#else
-    mass_properties->SetInput(mLobeSurface);
-#endif
 
     double point_spacing = std::pow(mass_properties->GetVolume()/rApproxPoints, 1.0/3.0);
 
@@ -235,26 +224,19 @@ vtkSmartPointer<vtkPolyData> AirwayGenerator::SplitPointCloud(vtkSmartPointer<vt
                                                               double rOrigin[3],
                                                               bool insideOut)
 {
-    vtkSmartPointer<vtkPlane> clip_plane = vtkSmartPointer<vtkPlane>::New();
+    auto clip_plane = vtkSmartPointer<vtkPlane>::New();
     clip_plane->SetNormal(rNormal);
     clip_plane->SetOrigin(rOrigin);
 
-    vtkSmartPointer<vtkTableBasedClipDataSet > clipper = vtkSmartPointer<vtkTableBasedClipDataSet >::New();
-#if VTK_MAJOR_VERSION >= 6
+    auto clipper = vtkSmartPointer<vtkClipPolyData>::New();
     clipper->SetInputData(pointCloud);
-#else
-    clipper->SetInputConnection(pointCloud->GetProducerPort());
-#endif
     clipper->SetClipFunction(clip_plane);
-    clipper->GenerateClippedOutputOff();
+    clipper->SetGenerateClipScalars(1);
     clipper->SetInsideOut(insideOut);
+    clipper->GenerateClippedOutputOff();
     clipper->Update();
 
-    vtkSmartPointer<vtkGeometryFilter> filter = vtkSmartPointer<vtkGeometryFilter>::New();
-    filter->SetInputConnection(clipper->GetOutputPort());
-    filter->Update();
-
-    return filter->GetOutput();
+    return clipper->GetOutput();
 }
 
 void AirwayGenerator::AddInitialApex(double rStartLocation[3],
@@ -666,11 +648,7 @@ double AirwayGenerator::DistanceFromLobeSurface(double point[3])
 double AirwayGenerator::CalculateLobeVolume()
 {
     vtkSmartPointer<vtkMassProperties> mass_properties = vtkSmartPointer<vtkMassProperties>::New();
-#if VTK_MAJOR_VERSION >= 6
     mass_properties->SetInputData(mLobeSurface);
-#else
-    mass_properties->SetInput(mLobeSurface);
-#endif
 
     return mass_properties->GetVolume();
 }
@@ -679,11 +657,7 @@ void AirwayGenerator::WriteDecomposedAirways(std::string rOutputDirectory, std::
 {
     // Use a vtk connectivity filter to separate the airway tree
     vtkSmartPointer<vtkPolyDataConnectivityFilter> connectivity_filter = vtkSmartPointer<vtkPolyDataConnectivityFilter>::New();
-#if VTK_MAJOR_VERSION >= 6
     connectivity_filter->SetInputData(mAirwayTree);
-#else
-    connectivity_filter->SetInput(mAirwayTree);
-#endif
     connectivity_filter->Update();
     connectivity_filter->SetExtractionModeToSpecifiedRegions();
 
@@ -700,11 +674,7 @@ void AirwayGenerator::WriteDecomposedAirways(std::string rOutputDirectory, std::
         vtu_file_name << output.GetOutputDirectoryFullPath() << rOutputFileNameRoot << "_" << connected_region << ".vtu";
 
         vtkSmartPointer<vtkCleanPolyData> poly_clean = vtkSmartPointer<vtkCleanPolyData>::New();
-#if VTK_MAJOR_VERSION >= 6
         poly_clean->SetInputConnection(connectivity_filter->GetOutputPort());
-#else
-        poly_clean->SetInput(connectivity_filter->GetOutput());
-#endif
         poly_clean->Update();
 
         vtkSmartPointer<vtkUnstructuredGrid> grid = vtkSmartPointer<vtkUnstructuredGrid>::New();
@@ -740,11 +710,7 @@ void AirwayGenerator::WriteDecomposedAirways(std::string rOutputDirectory, std::
 
         vtkSmartPointer<vtkXMLUnstructuredGridWriter> vtu_writer = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
         vtu_writer->SetFileName(vtu_file_name.str().c_str());
-#if VTK_MAJOR_VERSION >= 6
         vtu_writer->SetInputData(filtered_grid);
-#else
-        vtu_writer->SetInput(filtered_grid);
-#endif
         vtu_writer->Write();
 
         // Load the vtu in to a Chaste mesh and serialize out in triangles/tetgen format
@@ -768,7 +734,3 @@ void AirwayGenerator::WriteDecomposedAirways(std::string rOutputDirectory, std::
         combined_mesh_writer.WriteFilesUsingMesh(combined_mesh);
     }
 }
-
-#endif //( (VTK_MAJOR_VERSION >= 5 && VTK_MINOR_VERSION >= 6) || VTK_MAJOR_VERSION >= 6)
-
-#endif //CHASTE_VTK

@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -267,8 +267,8 @@ void VentilationProblem::FillInteractionMatrix(bool redoExisting)
             std::vector<double> resistance_to_add(indices.size()*indices.size(), parent_resistance);
 
             MatSetValues(mTerminalInteractionMatrix,
-                         indices.size(), (PetscInt*) &indices[0],
-                         indices.size(), (PetscInt*) &indices[0], &resistance_to_add[0], ADD_VALUES);
+                         indices.size(), (PetscInt*) indices.data(),
+                         indices.size(), (PetscInt*) indices.data(), resistance_to_add.data(), ADD_VALUES);
         }
         else
         {
@@ -378,7 +378,7 @@ void VentilationProblem::SolveFromPressureWithSnes()
 #if (PETSC_VERSION_MAJOR == 2 && PETSC_VERSION_MINOR == 2) //PETSc 2.2
     SNESSolve(snes, mTerminalFluxChangeVector);
 #else
-    SNESSolve(snes, PETSC_NULL, mTerminalFluxChangeVector);
+    SNESSolve(snes, CHASTE_PETSC_NULLPTR, mTerminalFluxChangeVector);
 #endif
 
     ///\todo #2300 If used with time-stepping we should maintain a permanent SNES object

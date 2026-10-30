@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -41,7 +41,8 @@ FarhadifarForce<DIM>::FarhadifarForce()
      mAreaElasticityParameter(1.0), // These parameters are Case I in Farhadifar's paper
      mPerimeterContractilityParameter(0.04),
      mLineTensionParameter(0.12),
-     mBoundaryLineTensionParameter(0.12) // this parameter as such does not exist in Farhadifar's model.
+     mBoundaryLineTensionParameter(0.12), // This parameter as such does not exist in Farhadifar's model
+     mTargetAreaParameter(1.0)
 {
 }
 
@@ -65,6 +66,13 @@ void FarhadifarForce<DIM>::AddForceContribution(AbstractCellPopulation<DIM>& rCe
     unsigned num_nodes = p_cell_population->GetNumNodes();
     unsigned num_elements = p_cell_population->GetNumElements();
 
+    /*
+     * Check if a subclass of AbstractTargetAreaModifier is being used by
+     * interrogating the first cell (assuming either all cells, or no cells, in
+     * the population have the CellData item "target area").
+     */
+    bool using_target_area_modifier = p_cell_population->Begin()->GetCellData()->HasItem("target area");
+
     // Begin by computing the area and perimeter of each element in the mesh, to avoid having to do this multiple times
     std::vector<double> element_areas(num_elements);
     std::vector<double> element_perimeters(num_elements);
@@ -76,17 +84,14 @@ void FarhadifarForce<DIM>::AddForceContribution(AbstractCellPopulation<DIM>& rCe
         unsigned elem_index = elem_iter->GetIndex();
         element_areas[elem_index] = p_cell_population->rGetMesh().GetVolumeOfElement(elem_index);
         element_perimeters[elem_index] = p_cell_population->rGetMesh().GetSurfaceAreaOfElement(elem_index);
-        try
+
+        if (using_target_area_modifier)
         {
-            // If we haven't specified a growth modifier, there won't be any target areas in the CellData array and CellData
-            // will throw an exception that it doesn't have "target area" entries.  We add this piece of code to give a more
-            // understandable message. There is a slight chance that the exception is thrown although the error is not about the
-            // target areas.
             target_areas[elem_index] = p_cell_population->GetCellUsingLocationIndex(elem_index)->GetCellData()->GetItem("target area");
         }
-        catch (Exception&)
+        else
         {
-            EXCEPTION("You need to add an AbstractTargetAreaModifier to the simulation in order to use a FarhadifarForce");
+            target_areas[elem_index] = mTargetAreaParameter;
         }
     }
 
@@ -128,8 +133,7 @@ void FarhadifarForce<DIM>::AddForceContribution(AbstractCellPopulation<DIM>& rCe
             unsigned local_index = p_element->GetNodeLocalIndex(node_index);
 
             // Add the force contribution from this cell's area elasticity (note the minus sign)
-            c_vector<double, DIM> element_area_gradient =
-                    p_cell_population->rGetMesh().GetAreaGradientOfElementAtNode(p_element, local_index);
+            c_vector<double, DIM> element_area_gradient = p_cell_population->rGetMesh().GetAreaGradientOfElementAtNode(p_element, local_index);
             area_elasticity_contribution -= GetAreaElasticityParameter()*(element_areas[elem_index] -
                     target_areas[elem_index])*element_area_gradient;
 
@@ -146,8 +150,7 @@ void FarhadifarForce<DIM>::AddForceContribution(AbstractCellPopulation<DIM>& rCe
             double next_edge_line_tension_parameter = GetLineTensionParameter(p_this_node, p_next_node, *p_cell_population);
 
             // Compute the gradient of each these edges, computed at the present node
-            c_vector<double, DIM> previous_edge_gradient =
-                    -p_cell_population->rGetMesh().GetNextEdgeGradientOfElementAtNode(p_element, previous_node_local_index);
+            c_vector<double, DIM> previous_edge_gradient = -p_cell_population->rGetMesh().GetNextEdgeGradientOfElementAtNode(p_element, previous_node_local_index);
             c_vector<double, DIM> next_edge_gradient = p_cell_population->rGetMesh().GetNextEdgeGradientOfElementAtNode(p_element, local_index);
 
             // Add the force contribution from cell-cell and cell-boundary line tension (note the minus sign)
@@ -222,6 +225,12 @@ double FarhadifarForce<DIM>::GetBoundaryLineTensionParameter()
 }
 
 template<unsigned DIM>
+double FarhadifarForce<DIM>::GetTargetAreaParameter()
+{
+    return mTargetAreaParameter;
+}
+
+template<unsigned DIM>
 void FarhadifarForce<DIM>::SetAreaElasticityParameter(double areaElasticityParameter)
 {
     mAreaElasticityParameter = areaElasticityParameter;
@@ -246,12 +255,19 @@ void FarhadifarForce<DIM>::SetBoundaryLineTensionParameter(double boundaryLineTe
 }
 
 template<unsigned DIM>
+void FarhadifarForce<DIM>::SetTargetAreaParameter(double targetAreaParameter)
+{
+    mTargetAreaParameter = targetAreaParameter;
+}
+
+template<unsigned DIM>
 void FarhadifarForce<DIM>::OutputForceParameters(out_stream& rParamsFile)
 {
     *rParamsFile << "\t\t\t<AreaElasticityParameter>" << mAreaElasticityParameter << "</AreaElasticityParameter>\n";
     *rParamsFile << "\t\t\t<PerimeterContractilityParameter>" << mPerimeterContractilityParameter << "</PerimeterContractilityParameter>\n";
     *rParamsFile << "\t\t\t<LineTensionParameter>" << mLineTensionParameter << "</LineTensionParameter>\n";
     *rParamsFile << "\t\t\t<BoundaryLineTensionParameter>" << mBoundaryLineTensionParameter << "</BoundaryLineTensionParameter>\n";
+    *rParamsFile << "\t\t\t<TargetAreaParameter>" << mTargetAreaParameter << "</TargetAreaParameter>\n";
 
     // Call method on direct parent class
     AbstractForce<DIM>::OutputForceParameters(rParamsFile);

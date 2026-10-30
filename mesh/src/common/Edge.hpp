@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2019, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -39,13 +39,13 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <set>
 #include <vector>
 #include "ChasteSerialization.hpp"
+#include <boost/serialization/serialization.hpp>
 #include <boost/serialization/set.hpp>
+#include <boost/serialization/vector.hpp>
 #include "Node.hpp"
 
-typedef std::pair<unsigned ,unsigned> UIndexPair;
-
 /**
- * An edge in a finite element mesh.
+ * An edge in a mutable mesh.
  */
 template<unsigned SPACE_DIM>
 class Edge
@@ -74,6 +74,8 @@ private:
     void serialize(Archive & archive, const unsigned int version)
     {
         archive & mElementIndices;
+        archive & mIndex;
+        archive & mNodes;
     }
 public:
 
@@ -83,159 +85,155 @@ public:
      *
      * @param index Index of this edge within the mesh
      */
-    Edge(unsigned index);
+    explicit Edge(unsigned index);
 
     /**
      * Create an Edge that has an index and associated nodes.
      *
      * @param index Index of this edge within the mesh
-     * @param pNode0
-     * @param pNode1
+     * @param pNodeA A Node that forms one point of the edge
+     * @param pNodeB A different Node that forms the other point of the edge
      */
-    Edge(unsigned index, Node<SPACE_DIM>* pNode0, Node<SPACE_DIM>* pNode1);
+    Edge(unsigned index, Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB);
 
     /**
-     * Destructor.
+     * Generate an ordered pair from two node indices.
+     *
+     * @param index1 Index of first node
+     * @param index2 Index of second node
+     *
+     * @return (index1, index2) if index1 < index2, else (index2, index1)
      */
-    ~Edge();
+    static std::pair<unsigned, unsigned> GenerateMapIndex(unsigned index1, unsigned index2);
 
     /**
-     * Mark the Edge to be deleted
+     * Mark the Edge to be deleted.
      */
     void MarkAsDeleted();
 
     /**
-     *
-     * @return True if Edge has been marked as deleted
+     * @return if Edge has been marked as deleted
      */
     bool IsDeleted();
 
     /**
-     * Sets the index of this edge within the mesh
+     * Set the index of this edge within the mesh.
+     *
      * @param index The index of this edge within the mesh
      */
     void SetIndex(unsigned index);
 
     /**
-     * Gets the index of this edge within the mesh
-     * @return
+     * @return the index of this edge within the mesh
      */
     unsigned GetIndex() const;
 
     /**
-     * Obtains a pair of associated nodes' indices
-     * @return Obtains a pair of associated nodes' indices
+     * @return a pair of associated nodes' indices
      */
-    UIndexPair GetMapIndex();
-
+    std::pair<unsigned, unsigned> GetMapIndex();
 
     /**
-     * Clear all associated nodes
+     * Clear all associated nodes.
      */
     void RemoveNodes();
 
     /**
-     * Set the Edge's associated nodes
-     * @param pNode0 A Node that forms one point of the edge
-     * @param pNode1 A different Node that forms the other point of the edge
+     * Set the Edge's associated nodes.
+     *
+     * @param pNodeA A Node that forms one point of the edge
+     * @param pNodeB A different Node that forms the other point of the edge
      */
-    void SetNodes(Node<SPACE_DIM>* pNode0, Node<SPACE_DIM>* pNode1);
+    void SetNodes(Node<SPACE_DIM>* pNodeA, Node<SPACE_DIM>* pNodeB);
 
     /**
-     * Replace a Node in this Edge with another
+     * Replace a Node in this Edge with another.
+     *
      * @param pOldNode The old Node to be replaced
      * @param pNewNode New Node to replace the old Node
      */
     void ReplaceNode(Node<SPACE_DIM>* pOldNode, Node<SPACE_DIM>* pNewNode);
 
     /**
-     * Gets the Node at index
-     * @param index
-     * @return
+     * @param index local index of the Node
+     *
+     * @return pointer to the Node with given local index.
      */
     Node<SPACE_DIM>* GetNode(unsigned index) const;
 
     /**
-     * Gets the number of Nodes associated with this edge
-     * @return
+     * @return the number of Nodes associated with this Edge.
      */
     unsigned GetNumNodes();
 
     /**
-     * Checks that the Edge contains pNode
-     * @param pNode
+     * @param pNode pointer to a Node
+     *
      * @return true if pNode is containd in Edge, otherwise false
      */
     bool ContainsNode(Node<SPACE_DIM>* pNode) const;
 
     /**
-     *
      * @return The centre location of this edge, which is middle of two Nodes associated with the Edge
      */
     c_vector<double, SPACE_DIM> rGetCentreLocation();
 
     /**
-     *
      * @return The length of the Edge, i.e. the distance between the Edge's two Nodes
      */
     double rGetLength();
 
     /**
      * Gets other Element indices that the edge is associated to.
-     * element.
+     *
      * @param elementIndex The Element index to exclude
+     *
      * @return A set of Element indices or an empty set if there's no association.
      */
     std::set<unsigned> GetOtherElements(unsigned elementIndex);
 
     /**
-     * Add an Element index that the Edge is associated to
-     * @param elementIndex
+     * Add an Element index that the Edge is associated to.
+     *
+     * @param elementIndex an element index
      */
     void AddElement(unsigned elementIndex);
 
     /**
-     * Remove an Element index association from the Edge
-     * @param elementIndex
+     * Remove an Element index association from the Edge.
+     *
+     * @param elementIndex an element index
      */
     void RemoveElement(unsigned elementIndex);
 
     /**
-    * Gets all Element indices that the edge is associated to. Used for testing the accounting of Add and Remove
-    * element.
+    * Get all Element indices that the edge is associated to.
+    * Used for testing the accounting of Add and Remove element.
     *
     * @return A set of Element indices or an empty set if there's no association.
     */
     std::set<unsigned> GetNeighbouringElementIndices();
 
     /**
-     *
      * @return The number of Elements associated with this Edge
      */
     unsigned GetNumElements();
 
     /**
-     * Checks whether this edge is valid i.e. must have 2 valid Nodes, can't have associated Elements if 1D
-     * and maximum of 2 associated Elements if 2D. A consistency check is also performed for Edge's associated elements
-     * and contain Nodes' associated elements.
-     * @return
-     */
-    bool IsEdgeValid();
-
-    /**
-     * Checks whether the edge is on the boundary
-     * @return true if on boundary
+     * @return whether the edge is on the boundary.
      */
     bool IsBoundaryEdge() const;
 
     /**
      * Comparison operator.
-     * @param edge_1
-     * @param edge_2
-     * @return true if edges are equal
+     *
+     * @param rEdge another Edge
+     *
+     * @return true if the edges are equal
      */
-    bool operator==(const Edge<SPACE_DIM>& edge) const;
+    bool operator==(const Edge<SPACE_DIM>& rEdge) const;
 };
+
 #include "SerializationExportWrapper.hpp"
 // Declare identifier for the serializer
 EXPORT_TEMPLATE_CLASS_SAME_DIMS(Edge)
@@ -282,4 +280,4 @@ inline void load_construct_data(
 
 }
 } // namespace ...
-#endif //EDGE_HPP_
+#endif /* EDGE_HPP_ */

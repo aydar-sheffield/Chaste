@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -54,16 +54,19 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "LuoRudy1991.hpp"
 #include "LuoRudy1991Opt.hpp"
-#include "LuoRudy1991BackwardEuler.hpp"
+#include "LuoRudy1991BackwardEulerOpt.hpp"
 
 #include "NobleVargheseKohlNoble1998a.hpp"
 #include "NobleVargheseKohlNoble1998aOpt.hpp"
-#include "NobleVargheseKohlNoble1998aBackwardEuler.hpp"
+#include "NobleVargheseKohlNoble1998aBackwardEulerOpt.hpp"
 
-#ifdef CHASTE_CVODE
+#include "negative_concentration_paci_hyttinen_aaltosetala_severi_ventricularVersion.hpp"
+#include "negative_concentration_paci_hyttinen_aaltosetala_severi_ventricularVersionOpt.hpp"
+#include "negative_concentration_paci_hyttinen_aaltosetala_severi_ventricularVersionBackwardEulerOpt.hpp"
+
 #include "LuoRudy1991Cvode.hpp"
 #include "LuoRudy1991CvodeOpt.hpp"
-#endif // CHASTE_CVODE
+#include "negative_concentration_paci_hyttinen_aaltosetala_severi_ventricularVersionCvodeOpt.hpp"
 
 //This test is always run sequentially (never in parallel)
 #include "FakePetscSetup.hpp"
@@ -159,8 +162,14 @@ public:
         double end_time = 1000.0; //One second in milliseconds
         double i_ionic_end_time = 60.0; // ms
         double i_ionic = 1.9411; // test value
-
         // Normal model
+#ifndef NDEBUG
+        double sampling_interval = 1.0; // for testing codegen error check
+        // test error from codegen about concentration
+        Cellnegative_concentration_paci_hyttinen_aaltosetala_severi_ventricularVersionFromCellML normal_model(p_solver, p_stimulus);
+        TS_ASSERT_THROWS_CONTAINS(normal_model.Compute(0.0, end_time, sampling_interval), "Concentration JSR_calcium_concentration below 0");
+#endif // NDEBUG
+
         CellLuoRudy1991FromCellML normal(p_solver, p_stimulus);
         TS_ASSERT_EQUALS(normal.GetVoltageIndex(), 0u);
         CheckCai(normal, true, 0.0002);
@@ -169,13 +178,23 @@ public:
         normal.SetTimestep(HeartConfig::Instance()->GetOdeTimeStep());
 
         // Optimised model
+        // test error from codegen about concentration
+#ifndef NDEBUG
+        Cellnegative_concentration_paci_hyttinen_aaltosetala_severi_ventricularVersionFromCellMLOpt opt_model(p_solver, p_stimulus);
+        TS_ASSERT_THROWS_CONTAINS(opt_model.Compute(0.0, end_time, sampling_interval), "Concentration JSR_calcium_concentration below 0");
+#endif // NDEBUG
         AbstractLookupTableCollection::EventHandler::Enable();
         CellLuoRudy1991FromCellMLOpt opt(p_solver, p_stimulus);
         TS_ASSERT_EQUALS(opt.GetVoltageIndex(), 0u);
         CheckCai(opt, true, 0.0002);
 
         // Backward Euler optimised model
-        CellLuoRudy1991FromCellMLBackwardEuler be(p_solver, p_stimulus);
+        // test error from codegen about concentration
+#ifndef NDEBUG
+        Cellnegative_concentration_paci_hyttinen_aaltosetala_severi_ventricularVersionFromCellMLBackwardEulerOpt be_model(p_solver, p_stimulus);
+        TS_ASSERT_THROWS_CONTAINS(be_model.Compute(0.0, end_time, sampling_interval), "Concentration JSR_calcium_concentration below 0");
+#endif // NDEBUG
+        CellLuoRudy1991FromCellMLBackwardEulerOpt be(p_solver, p_stimulus);
 
         TS_ASSERT_EQUALS(be.GetVoltageIndex(), 0u);
         CheckCai(be, true, 0.0002);
@@ -214,25 +233,25 @@ public:
         TS_ASSERT_THROWS_CONTAINS(opt.GetIIonic(), "membrane_voltage outside lookup table range");
         opt.SetVoltage(v);
 
-	// Set up for dynamic loading
-	FileFinder cellml_file("heart/src/odes/cellml/LuoRudy1991.cellml", RelativeTo::ChasteSourceRoot);
+    // Set up for dynamic loading
+    FileFinder cellml_file("heart/src/odes/cellml/LuoRudy1991.cellml", RelativeTo::ChasteSourceRoot);
 
-	// Dynamic load with different lookup table start to the default
-	OutputFileHandler handler_lut("TestCodegen", true);
-       	FileFinder copied_file = handler_lut.CopyFileTo(cellml_file);
-	CellMLToSharedLibraryConverter converter(true);
-       	converter.SetOptions({"--opt", "--lookup-table", "membrane_voltage", "-150.0001", "199.9999", "0.001",
+    // Dynamic load with different lookup table start to the default
+    OutputFileHandler handler_lut("TestCodegen", true);
+           FileFinder copied_file = handler_lut.CopyFileTo(cellml_file);
+    CellMLToSharedLibraryConverter converter(true);
+           converter.SetOptions({"--opt", "--lookup-table", "membrane_voltage", "-150.0001", "199.9999", "0.001",
                               "--lookup-table", "cytosolic_calcium_concentration", "0.00001", "30.00001", "0.0001"});
         DynamicCellModelLoaderPtr p_loader_lut = converter.Convert(copied_file);
-	AbstractCardiacCell* opt_lut = dynamic_cast<AbstractCardiacCell*>(p_loader_lut->CreateCell(p_solver, p_stimulus));
+    AbstractCardiacCell* opt_lut = dynamic_cast<AbstractCardiacCell*>(p_loader_lut->CreateCell(p_solver, p_stimulus));
 
-	// Dynamic load with different lookup table start to the default
-	OutputFileHandler handler_be_lut("TestCodegen/BE", true);
-       	copied_file = handler_be_lut.CopyFileTo(cellml_file);
-       	converter.SetOptions({"--backward-euler", "--opt", "--lookup-table", "membrane_voltage", "-150.0001", "199.9999", "0.001",
+    // Dynamic load with different lookup table start to the default
+    OutputFileHandler handler_be_lut("TestCodegen/BE", true);
+           copied_file = handler_be_lut.CopyFileTo(cellml_file);
+           converter.SetOptions({"--backward-euler", "--opt", "--lookup-table", "membrane_voltage", "-150.0001", "199.9999", "0.001",
                               "--lookup-table", "cytosolic_calcium_concentration", "0.00001", "30.00001", "0.0001"});
         DynamicCellModelLoaderPtr p_loader_be_lut = converter.Convert(copied_file);
-	AbstractCardiacCell* be_lut = dynamic_cast<AbstractCardiacCell*>(p_loader_be_lut->CreateCell(p_solver, p_stimulus));
+    AbstractCardiacCell* be_lut = dynamic_cast<AbstractCardiacCell*>(p_loader_be_lut->CreateCell(p_solver, p_stimulus));
 
 
         // Check tables using AbstractLookupTableCollection interface, with different lookup table options
@@ -313,8 +332,14 @@ public:
         CheckAttributes(opt);
         CheckAttributes(be);
 
-#ifdef CHASTE_CVODE
         // CVODE version
+        // test error from codegen about concentration
+        Cellnegative_concentration_paci_hyttinen_aaltosetala_severi_ventricularVersionFromCellMLCvodeOpt cvode_model(p_solver, p_stimulus);
+        // Normal model
+#ifndef NDEBUG
+        TS_ASSERT_THROWS_CONTAINS(cvode_model.Compute(0.0, end_time, sampling_interval), "Concentration JSR_calcium_concentration below 0");
+#endif // NDEBUG
+
         CellLuoRudy1991FromCellMLCvode cvode_cell(p_solver, p_stimulus);
         TS_ASSERT_EQUALS(cvode_cell.GetVoltageIndex(), 0u);
         // Optimised CVODE version
@@ -341,8 +366,8 @@ public:
 
         // Dynamic load with different lookup table start to the default
         OutputFileHandler handler_cvode_lut("TestC/CVODE", true);
-       	copied_file = handler_cvode_lut.CopyFileTo(cellml_file);
-       	converter.SetOptions({"--opt", "--cvode",
+           copied_file = handler_cvode_lut.CopyFileTo(cellml_file);
+           converter.SetOptions({"--opt", "--cvode",
                               "--lookup-table", "membrane_voltage", "-150.0001", "199.9999", "0.001",
                               "--lookup-table", "cytosolic_calcium_concentration", "0.00001", "30.00001", "0.0001"});
         DynamicCellModelLoaderPtr p_loader_cvode_lut = converter.Convert(copied_file);
@@ -390,9 +415,8 @@ public:
         // Attributes
         CheckAttributes(cvode_cell);
         CheckAttributes(cvode_opt);
-        
+
         delete cvode_lut;
-#endif // CHASTE_CVODE
 
         // Test the archiving code too
         OutputFileHandler handler("archive", false);
@@ -490,7 +514,6 @@ public:
                                    "Lr91BEFromCodegenZeroGna");
         CheckCellModelResults("Lr91BEFromCodegenZeroGna", "Lr91FromCodegenZeroGna", 2e-2);
 
-#ifdef CHASTE_CVODE
         // CVODE
         double max_dt = 1.0; //ms
         ck_start = clock();
@@ -534,7 +557,6 @@ public:
 
         // No stimulus at end time
         TS_ASSERT_DELTA(cvode_opt.GetIntracellularAreaStimulus(i_ionic_end_time), 0.0, 1e-12);
-#endif // CHASTE_CVODE
 
         // Load and check simulation results still match
         {
@@ -589,7 +611,7 @@ public:
         CheckCai(opt, false);
 
         // Backward Euler model
-        CellNobleVargheseKohlNoble1998aFromCellMLBackwardEuler be(p_solver, p_stimulus);
+        CellNobleVargheseKohlNoble1998aFromCellMLBackwardEulerOpt be(p_solver, p_stimulus);
         CheckCai(be, false);
     }
 };

@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -44,7 +44,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "MonodomainProblem.hpp"
 #include "ZeroStimulusCellFactory.hpp"
 #include "AbstractCardiacCellFactory.hpp"
-#include "LuoRudy1991BackwardEuler.hpp"
+#include "LuoRudy1991BackwardEulerOpt.hpp"
 #include "PlaneStimulusCellFactory.hpp"
 #include "TetrahedralMesh.hpp"
 #include "PetscTools.hpp"
@@ -80,11 +80,11 @@ public:
 
         if (fabs(x)<0.02+1e-6)
         {
-            return new CellLuoRudy1991FromCellMLBackwardEuler(this->mpSolver, this->mpStimulus);
+            return new CellLuoRudy1991FromCellMLBackwardEulerOpt(this->mpSolver, this->mpStimulus);
         }
         else
         {
-            return new CellLuoRudy1991FromCellMLBackwardEuler(this->mpSolver, this->mpZeroStimulus);
+            return new CellLuoRudy1991FromCellMLBackwardEulerOpt(this->mpSolver, this->mpZeroStimulus);
         }
     }
 };

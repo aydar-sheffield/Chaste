@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -34,6 +34,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "AbstractOffLatticeCellPopulation.hpp"
+#include "StepSizeException.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>::AbstractOffLatticeCellPopulation( AbstractMesh<ELEMENT_DIM, SPACE_DIM>& rMesh,
@@ -50,6 +51,32 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>::AbstractOffLatticeCellPopulation(AbstractMesh<ELEMENT_DIM, SPACE_DIM>& rMesh)
     : AbstractCellPopulation<ELEMENT_DIM, SPACE_DIM>(rMesh)
 {
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>::CheckForStepSizeException(unsigned nodeIndex, c_vector<double,SPACE_DIM>& rDisplacement, double dt)
+{
+    double length = norm_2(rDisplacement);
+
+    if (length > this->mAbsoluteMovementThreshold)
+    {
+        std::ostringstream message;
+        message << "Cells are moving by " << length;
+        message << ", which is more than the AbsoluteMovementThreshold: use a smaller timestep to avoid this exception.";
+
+        /* Divide dt by the smallest power of 2 such that the node moves less than the threshold
+         * Note that this is the optimal power of 2 to divide by for the Forward Euler Method.
+         * For higher order methods, the optimal divisor may be different, but this is an upper bound that works for all methods.
+         */
+        double divisor = 1.0;
+        while (length / divisor >= this->mAbsoluteMovementThreshold)
+        {
+            divisor *= 2.0;
+        }
+        double new_step = dt / divisor;
+
+        throw StepSizeException(new_step, message.str(), true); // terminate
+    }
 }
 
 // LCOV_EXCL_START
@@ -97,6 +124,18 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 double AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>::GetAbsoluteMovementThreshold()
 {
     return mAbsoluteMovementThreshold;
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+const std::vector<std::pair<Node<SPACE_DIM>*, Node<SPACE_DIM>*> >& AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>::rGetNodePairs() const
+{
+    return mNodePairs;
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+std::vector<std::pair<Node<SPACE_DIM>*, Node<SPACE_DIM>*> >& AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>::rGetModifiableNodePairs()
+{
+    return mNodePairs;
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>

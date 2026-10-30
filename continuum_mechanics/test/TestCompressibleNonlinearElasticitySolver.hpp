@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -45,7 +45,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "CompressibleMooneyRivlinMaterialLaw.hpp"
 #include "MooneyRivlinMaterialLaw.hpp"
 #include "NonlinearElasticityTools.hpp"
-#include "MooneyRivlinMaterialLaw.hpp"
 #include "CompressibleExponentialLaw.hpp"
 #include "NumericFileComparison.hpp"
 #include "FileComparison.hpp"
@@ -722,6 +721,8 @@ public:
         {
             PetscVecTools::SetElement(test_vec, i, 1.0);
 
+            //Make sure test_vec is in good state for multiplication
+            PetscVecTools::Finalise(test_vec);
             MatMult(solver.mrJacobianMatrix,test_vec,product_vec);
             double vT_J_v = 0.0;
             VecDot(product_vec, test_vec, &vT_J_v);

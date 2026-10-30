@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -35,6 +35,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "AbstractMesh.hpp"
 #include "Exception.hpp"
+#include "UblasCustomFunctions.hpp"
+#include <algorithm>
 
 ///////////////////////////////////////////////////////////////////////////////////
 // Implementation
@@ -56,21 +58,10 @@ AbstractMesh<ELEMENT_DIM, SPACE_DIM>::~AbstractMesh()
     {
         delete mNodes[i];
     }
-
     if (mpDistributedVectorFactory)
     {
         delete mpDistributedVectorFactory;
     }
-}
-
-template<unsigned int ELEMENT_DIM, unsigned int SPACE_DIM>
-unsigned AbstractMesh<ELEMENT_DIM, SPACE_DIM>::GetNumEdges() const {
-    return mEdges.GetNumEdges();
-}
-
-template<unsigned int ELEMENT_DIM, unsigned int SPACE_DIM>
-Edge<SPACE_DIM> * AbstractMesh<ELEMENT_DIM, SPACE_DIM>::GetEdge(unsigned index) const {
-    return mEdges[index];
 }
 
 template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -238,8 +229,8 @@ template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 ChasteCuboid<SPACE_DIM> AbstractMesh<ELEMENT_DIM, SPACE_DIM>::CalculateBoundingBox(const std::vector<Node<SPACE_DIM>*>& rNodes) const
 {
     // Work out the max and min location in each co-ordinate direction.
-    c_vector<double, SPACE_DIM> minimum_point;
-    c_vector<double, SPACE_DIM> maximum_point;
+    c_vector<double, SPACE_DIM> minimum_point = zero_vector<double>(SPACE_DIM);
+    c_vector<double, SPACE_DIM> maximum_point = zero_vector<double>(SPACE_DIM);
 
     // Deal with the special case of no nodes by returning a cuboid with zero volume.
     if (rNodes.empty())
@@ -258,9 +249,7 @@ ChasteCuboid<SPACE_DIM> AbstractMesh<ELEMENT_DIM, SPACE_DIM>::CalculateBoundingB
         {
             if (!rNodes[index]->IsDeleted())
             {
-                // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
-                c_vector<double, SPACE_DIM> position;
-                position = rNodes[index]->rGetLocation();
+                c_vector<double, SPACE_DIM> position = rNodes[index]->rGetLocation();
 
                 // Update max/min
                 for (unsigned i = 0; i < SPACE_DIM; i++)
@@ -365,10 +354,12 @@ void AbstractMesh<ELEMENT_DIM, SPACE_DIM>::Translate(
             displacement[2] = zMovement;
         // purposeful fallthrough - Note the presence of this comment stops compiler warning for gcc >= 7!
         // See https://developers.redhat.com/blog/2017/03/10/wimplicit-fallthrough-in-gcc-7/
+        // \TODO When we adopt C++17 this should change to [[fallthrough]];
+        // https://en.cppreference.com/w/cpp/language/attributes/fallthrough
         case 2:
             displacement[1] = yMovement;
         // fallthrough on purpose
-        case 1:
+        case 1: // LCOV_EXCL_LINE
             displacement[0] = xMovement;
             // fallthrough on purpose
     }
@@ -408,13 +399,13 @@ template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void AbstractMesh<ELEMENT_DIM, SPACE_DIM>::Rotate(c_vector<double, 3> axis, double angle)
 {
     assert(SPACE_DIM == 3); // LCOV_EXCL_LINE
-    double norm = norm_2(axis);
+    const double norm = norm_2(axis);
     c_vector<double, 3> unit_axis = axis / norm;
 
-    c_matrix<double, SPACE_DIM, SPACE_DIM> rotation_matrix;
+    c_matrix<double, 3, 3> rotation_matrix;
 
-    double c = cos(angle);
-    double s = sin(angle);
+    const double c = cos(angle);
+    const double s = sin(angle);
 
     rotation_matrix(0, 0) = unit_axis(0) * unit_axis(0) + c * (1 - unit_axis(0) * unit_axis(0));
     rotation_matrix(0, 1) = unit_axis(0) * unit_axis(1) * (1 - c) - unit_axis(2) * s;
@@ -436,7 +427,7 @@ void AbstractMesh<ELEMENT_DIM, SPACE_DIM>::RotateX(const double theta)
     {
         EXCEPTION("This rotation is only valid in 3D");
     }
-    c_matrix<double, SPACE_DIM, SPACE_DIM> x_rotation_matrix = identity_matrix<double>(SPACE_DIM);
+    c_matrix<double, 3, 3> x_rotation_matrix = identity_matrix<double>(3);
 
     x_rotation_matrix(1, 1) = cos(theta);
     x_rotation_matrix(1, 2) = sin(theta);
@@ -452,7 +443,7 @@ void AbstractMesh<ELEMENT_DIM, SPACE_DIM>::RotateY(const double theta)
     {
         EXCEPTION("This rotation is only valid in 3D");
     }
-    c_matrix<double, SPACE_DIM, SPACE_DIM> y_rotation_matrix = identity_matrix<double>(SPACE_DIM);
+    c_matrix<double, 3, 3> y_rotation_matrix = identity_matrix<double>(3);
 
     y_rotation_matrix(0, 0) = cos(theta);
     y_rotation_matrix(0, 2) = -sin(theta);
@@ -499,16 +490,17 @@ bool AbstractMesh<ELEMENT_DIM, SPACE_DIM>::IsMeshChanging() const
 template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 unsigned AbstractMesh<ELEMENT_DIM, SPACE_DIM>::CalculateMaximumContainingElementsPerProcess() const
 {
-    unsigned max_num = 0u;
-    for (unsigned local_node_index = 0; local_node_index < mNodes.size(); local_node_index++)
+    if (mNodes.empty())
     {
-        unsigned num = mNodes[local_node_index]->GetNumContainingElements();
-        if (num > max_num)
-        {
-            max_num = num;
-        }
+        // This can happen in parallel if a process isn't assigned any nodes.
+        // Covered in TestDistributedTetrahedralMesh::TestConstructLinearMeshSmallest but only when there are 3 or more processes
+        return 0u; // LCOV_EXCL_LINE
     }
-    return max_num;
+    return (*std::max_element(mNodes.begin(), mNodes.end(),
+                              [](const Node<SPACE_DIM>* a, const Node<SPACE_DIM>* b)
+                              {
+                                  return a->GetNumContainingElements() < b->GetNumContainingElements();
+                              }))->GetNumContainingElements();
 }
 
 template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>

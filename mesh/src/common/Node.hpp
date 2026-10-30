@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -63,7 +63,7 @@ private:
     unsigned mIndex;
 
     /** The location of this node within the mesh. */
-    c_vector<double, SPACE_DIM> mLocation;
+    c_vector<double, SPACE_DIM> mLocation = {};
 
     /** A pointer to a NodeAttributes object associated with this node. */
     NodeAttributes<SPACE_DIM>* mpNodeAttributes;
@@ -79,9 +79,6 @@ private:
      * mesh can be re-used (for use in the MutableMesh class).
      */
     bool mIsDeleted;
-
-    /** Set of indices of edges that contains this node **/
-    std::set<unsigned> mEdgeIndices;
 
     /** Set of indices of elements containing this node as a vertex. */
     std::set<unsigned> mElementIndices;
@@ -252,26 +249,6 @@ public:
      * @return whether this node is a boundary node.
      */
     bool IsBoundaryNode() const;
-
-    /**
-     * Add an edge that contains this node
-     * @param index of the edge to add
-     */
-    void AddEdge(unsigned index);
-    /**
-     * Remove an edge that contains this node
-     * @param index of the edge to add
-     */
-    void RemoveEdge(unsigned index);
-
-    /**
-     * Set edge indices that contain this node
-     */
-    void SetEdgeIndices(std::set<unsigned int> edge_indices);
-    /**
-     * @return set of edge indices associated with the node.
-     */
-    std::set<unsigned int> GetEdgeIndices() const;
 
     /**
      * Add an element that contains this node.

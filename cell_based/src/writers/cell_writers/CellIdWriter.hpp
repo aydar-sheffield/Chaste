@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -43,9 +43,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /**
  * A class written using the visitor pattern for writing cell IDs to file.
  *
- * The output file is called loggedcell.dat by default. If VTK is switched on,
- * then the writer also specifies the VTK output for each cell, which is stored in
- * the VTK cell data "Cell IDs" by default.
+ * The output file is called loggedcell.dat by default. The writer also specifies the VTK
+ * output for each cell, which is stored in the VTK cell data "Cell IDs" by default.
  */
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 class CellIdWriter : public AbstractCellWriter<ELEMENT_DIM, SPACE_DIM>

@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -36,8 +36,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "AbstractNumericalMethod.hpp"
 #include "StepSizeException.hpp"
 #include "Warnings.hpp"
-#include "AbstractCentreBasedCellPopulation.hpp"
 #include "NodeBasedCellPopulationWithBuskeUpdate.hpp"
+#include "ImmersedBoundaryCellPopulation.hpp"
 #include "MeshBasedCellPopulationWithGhostNodes.hpp"
 #include "CellBasedEventHandler.hpp"
 
@@ -46,10 +46,9 @@ AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::AbstractNumericalMethod()
     : mpCellPopulation(nullptr),
       mpForceCollection(nullptr),
       mUseAdaptiveTimestep(false),
-      mUseUpdateNodeLocation(false),
       mGhostNodeForcesEnabled(true)
 {
-    // mpCellPopulation and mpForceCollection are initialized by the OffLatticeSimulation constructor
+    // mpCellPopulation, mpForceCollection and mpBoundaryConditions are initialized by the OffLatticeSimulation constructor
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -62,11 +61,18 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetCellPopulation(AbstractO
 {
     mpCellPopulation = pPopulation;
 
-    // Set other member variables according to the type of the cell population
-    if (dynamic_cast<NodeBasedCellPopulationWithBuskeUpdate<SPACE_DIM>*>(mpCellPopulation))
+    // Cell populations whose UpdateNodeLocations() is meaningful (rather than NEVER_REACHED)
+    // manage their own node position updates, and must be paired with NoNumericalMethod; every
+    // other population must be paired with a numerical method that does its own integration.
+    bool population_requires_delegation =
+        (dynamic_cast<NodeBasedCellPopulationWithBuskeUpdate<SPACE_DIM>*>(mpCellPopulation) != nullptr) ||
+        (dynamic_cast<ImmersedBoundaryCellPopulation<SPACE_DIM>*>(mpCellPopulation) != nullptr);
+
+    if (population_requires_delegation != this->DelegatesToPopulation())
     {
-        mUseUpdateNodeLocation = true;
-        WARNING("Non-Euler steppers are not yet implemented for NodeBasedCellPopulationWithBuskeUpdate");
+        EXCEPTION("NoNumericalMethod must be used if and only if the cell population manages its own "
+                  "node position updates (currently NodeBasedCellPopulationWithBuskeUpdate and "
+                  "ImmersedBoundaryCellPopulation).");
     }
 
     if (dynamic_cast<MeshBasedCellPopulationWithGhostNodes<SPACE_DIM>*>(mpCellPopulation))
@@ -86,6 +92,12 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetForceCollection(std::vec
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetBoundaryConditions(std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM, SPACE_DIM> > >* pBoundaryConditions)
+{
+    mpBoundaryConditions = pBoundaryConditions;
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetUseAdaptiveTimestep(bool useAdaptiveTimestep)
 {
     mUseAdaptiveTimestep = useAdaptiveTimestep;
@@ -95,6 +107,33 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 bool AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::HasAdaptiveTimestep()
 {
     return mUseAdaptiveTimestep;
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SaveCurrentNodeLocations()
+{
+    std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > node_locations;
+
+    for (typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = mpCellPopulation->rGetMesh().GetNodeIteratorBegin();
+            node_iter != mpCellPopulation->rGetMesh().GetNodeIteratorEnd();
+            ++node_iter)
+    {
+        node_locations[&(*node_iter)] = (node_iter)->rGetLocation();
+    }
+
+    return node_locations;
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::ImposeBoundaryConditions(std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> >& rOldNodeLocations)
+{
+    // Apply any boundary conditions
+    for (typename std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM,SPACE_DIM> > >::iterator bcs_iter = mpBoundaryConditions->begin();
+         bcs_iter != mpBoundaryConditions->end();
+         ++bcs_iter)
+    {
+        (*bcs_iter)->ImposeBoundaryCondition(rOldNodeLocations);
+    }
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -190,15 +229,9 @@ void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::DetectStepSizeExceptions(un
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::SetUseUpdateNodeLocation(bool useUpdateNodeLocation)
+bool AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::DelegatesToPopulation()
 {
-    mUseUpdateNodeLocation = useUpdateNodeLocation;
-}
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-bool AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::GetUseUpdateNodeLocation()
-{
-    return mUseUpdateNodeLocation;
+    return false;
 }
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
@@ -215,7 +248,7 @@ template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>::OutputNumericalMethodParameters(out_stream& rParamsFile)
 {
     *rParamsFile << "\t\t\t<UseAdaptiveTimestep>" << mUseAdaptiveTimestep << "</UseAdaptiveTimestep> \n";
-    *rParamsFile << "\t\t\t<UseUpdateNodeLocation>" << mUseUpdateNodeLocation << "</UseUpdateNodeLocation> \n";
+    *rParamsFile << "\t\t\t<DelegatesToPopulation>" << this->DelegatesToPopulation() << "</DelegatesToPopulation> \n";
     *rParamsFile << "\t\t\t<GhostNodeForcesEnabled>" << mGhostNodeForcesEnabled << "</GhostNodeForcesEnabled> \n";
 }
 

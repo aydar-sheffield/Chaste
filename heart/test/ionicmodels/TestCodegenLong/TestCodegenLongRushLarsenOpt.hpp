@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -38,7 +38,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "CodegenLongHelperTestSuite.hpp"
 
-#include <boost/foreach.hpp>
 #include <vector>
 
 #include "HeartConfig.hpp"
@@ -60,18 +59,21 @@ public:
         args.push_back("--opt");
 
         // Models that need a very small dt
-        std::vector<std::string> small_dt_models = spectail_streatment_models(models, {"li_mouse_2010",
-                                                                                       "courtemanche_ramirez_nattel_model_1998",
-                                                                                       "demir_model_1994",
-                                                                                       "grandi2010ss",
-                                                                                       "Shannon2004"});
+        std::vector<std::string> small_dt_models = special_treatment_models(models, {"difrancesco_noble_model_1985",
+                                                                                     "pandit_clark_giles_demir_2001_epicardial_cell",
+                                                                                     "li_mouse_2010",
+                                                                                     "courtemanche_ramirez_nattel_1998",
+                                                                                     "demir_model_1994",
+                                                                                     "grandi_pasqualini_bers_2010_ss",
+                                                                                     "shannon_wang_puglisi_weber_bers_2004"});
+
 
         HeartConfig::Instance()->SetOdePdeAndPrintingTimeSteps(0.01, 0.1, 1.0);
         RunTests(dirname, models, args, true, -1000, false);
 
         // See Cooper Spiteri Mirams paper table 2
         HeartConfig::Instance()->SetOdePdeAndPrintingTimeSteps(0.0001953125, 0.1, 1.0);
-        RunTests(dirname + "-small-dt", small_dt_models, args, true, -1000, true);       
+        RunTests(dirname + "-small-dt", small_dt_models, args, true, -1000, true);
     }
 };
 

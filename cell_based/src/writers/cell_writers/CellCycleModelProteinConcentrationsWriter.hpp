@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -43,9 +43,9 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /**
  * A class written using the visitor pattern for writing cell-cycle model protein concentrations to file.
  *
- * The output file is called proteinconcentrations.dat by default. If VTK is switched on, then the
- * writer also specifies the VTK output for each cell, which is stored in
- * the VTK cell data "Protein concentrations" by default.
+ * The output file is called proteinconcentrations.dat by default. The writer also
+ * specifies the VTK output for each cell, which is stored in the VTK cell data "Protein
+ * concentrations" by default.
  */
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 class CellCycleModelProteinConcentrationsWriter : public AbstractCellWriter<ELEMENT_DIM, SPACE_DIM>

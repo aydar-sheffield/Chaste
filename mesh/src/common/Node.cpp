@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -258,33 +258,6 @@ void Node<SPACE_DIM>::SetRadius(double radius)
     ConstructNodeAttributes();
 
     mpNodeAttributes->SetRadius(radius);
-}
-
-template<unsigned int SPACE_DIM>
-void Node<SPACE_DIM>::AddEdge(unsigned index)
-{
-    mEdgeIndices.insert(index);
-}
-
-template<unsigned int SPACE_DIM>
-void Node<SPACE_DIM>::RemoveEdge(unsigned index)
-{
-    unsigned count = mEdgeIndices.erase(index);
-    if (count == 0)
-    {
-        EXCEPTION("Tried to remove an edge index which was not in the set");
-    }
-}
-
-template<unsigned int SPACE_DIM>
-void Node<SPACE_DIM>::SetEdgeIndices(std::set<unsigned int> edge_indices)
-{
-    mEdgeIndices = edge_indices;
-}
-template<unsigned int SPACE_DIM>
-std::set<unsigned int> Node<SPACE_DIM>::GetEdgeIndices() const
-{
-    return mEdgeIndices;
 }
 
 //////////////////////////////////////////////////////////////////////////

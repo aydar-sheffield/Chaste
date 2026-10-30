@@ -1,13 +1,10 @@
 message(STATUS "Adding compiler flags...")
 
-# default flags added to all compilers except MSVC
+# default flags added to all compilers
 set(default_flags "-Wall")
 if (Chaste_ERROR_ON_WARNING)
     set(default_flags "${default_flags} -Werror")
 endif()
-
-# Set the C++ Standard
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 
 set(default_exe_linker_flags "")
 if (UNIX)
@@ -17,6 +14,9 @@ if (UNIX)
         set(default_shared_link_flags "-Wl,--no-undefined")
     endif()
 endif()
+
+# Define a custom project-wide variable for linker flags
+set(Chaste_SHARED_LINKER_FLAGS "${default_shared_link_flags}")
 
 if (Chaste_COVERAGE)
     message(STATUS "adding --coverage to CXX flags for coverage checking")
@@ -29,8 +29,8 @@ if (Chaste_COVERAGE)
 endif()
 
 if (Chaste_PROFILE_GPROF)
-    message(STATUS "adding -O2 and -pg to CXX flags for Gprof profiling")
-    set(default_flags "${default_flags} -O2 -pg -Wno-array-bounds")
+    message(STATUS "adding -Og and -pg to CXX flags for Gprof profiling")
+    set(default_flags "${default_flags} -Og -pg -Wno-array-bounds")
     set(default_shared_link_flags "${default_shared_link_flags} -pg")
     set(default_exe_linker_flags "${default_exe_linker_flags} -pg")
 endif()
@@ -41,35 +41,61 @@ if (Chaste_PROFILE_GPERFTOOLS)
     set(default_flags "${default_flags} -O3")
 endif()
 
+# Allow easier checks in source files for specific compilers. See here for possible
+# values: https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_COMPILER_ID.html
+add_compile_definitions(Chaste_COMPILER_IS_${CMAKE_CXX_COMPILER_ID})
+
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "Cray")
     message(STATUS "\t...for Cray compiler, version ${CMAKE_CXX_COMPILER_VERSION}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${default_flags} -Wnon-virtual-dtor -Woverloaded-virtual -Wextra -Wno-unused-parameter -Wvla")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${default_flags} -Wextra -Wno-unused-parameter -Wvla")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${default_shared_link_flags}")
 elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
     message(STATUS "\t...for GNU compiler, version ${CMAKE_CXX_COMPILER_VERSION}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${default_flags} -Wnon-virtual-dtor -Woverloaded-virtual -Wextra -Wno-unused-parameter -Wvla")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${default_flags} -Wnon-virtual-dtor -Woverloaded-virtual -Wextra -Wno-attributes -Wno-unused-parameter -Wvla")
     if (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7))
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wimplicit-fallthrough=2")  # See https://developers.redhat.com/blog/2017/03/10/wimplicit-fallthrough-in-gcc-7/
     endif (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7))
+
+    # The following flags allow us to ignore (in a judicious manner) some spurious GCC warnings about potentially
+    # uninitialised c_vectors in Release mode. See https://github.com/Chaste/Chaste/issues/231 for full details.
+    if (CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo|MinSizeRel"
+            AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 9.4
+            AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16)
+
+        if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 11.1)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-maybe-uninitialized -Wno-array-bounds -Wno-stringop-overflow")
+        else ()
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-maybe-uninitialized -Wno-array-bounds -Wno-stringop-overflow -Wno-stringop-overread")
+        endif ()
+    endif ()
+
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${default_flags}  -Wextra -Wno-unused-parameter -Wvla")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${default_shared_link_flags}")
-elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang")
+elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL "IntelLLVM")
     message(STATUS "\t... for ${CMAKE_CXX_COMPILER_ID} compiler, version ${CMAKE_CXX_COMPILER_VERSION}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${default_flags} -Wnon-virtual-dtor -Woverloaded-virtual -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-undefined-var-template -Wno-unknown-warning-option -ftemplate-depth-512")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${default_flags} -Wnon-virtual-dtor -Woverloaded-virtual -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-undefined-var-template -Wno-unknown-warning-option -Wno-tautological-constant-compare -ftemplate-depth-512")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${default_flags}  -Wextra -Wno-unused-parameter -Wno-unused-variable -ftemplate-depth-512")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${default_shared_link_flags}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${default_exe_linker_flags}")
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    if (${CMAKE_CXX_COMPILER_ID} STREQUAL "IntelLLVM")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Rno-debug-disables-optimization -Wno-unused-but-set-variable")
+        option(Chaste_USE_INTEL_PRECISE_FP_MODEL "Use Intel -fp-model precise" ON)
+        if (Chaste_USE_INTEL_PRECISE_FP_MODEL)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fp-model precise")
+            message(STATUS
+                    "Using Intel floating point model \"precise\". "
+                    "To use the default fast floating point model, set -DChaste_USE_INTEL_PRECISE_FP_MODEL=OFF. "
+                    "Note that this may reduce the precision of calculations and change other behaviour.")
+        endif ()
+    endif ()
+elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
     message(STATUS "\t... for Intel compiler, version ${CMAKE_CXX_COMPILER_VERSION}")
     set(CMAKE_INCLUDE_SYSTEM_FLAG_CXX "-isystem ")
     set(Intel_flags
         # Not available on 10.0
         -Wnon-virtual-dtor -Woverloaded-virtual -Wno-unused-parameter
-        
+
         -wr2304 #2304: non-explicit constructor with single argument
-        
-        # Switch these ones on for compatibility 
+
+        # Switch these ones on for compatibility
         -wr271 #271: trailing comma is nonstandard
 
         #Following doesn't seem to play
@@ -115,36 +141,105 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
          #2305: declaration of 'explicit' constructor without a single argument is redundant
         )
     string (REPLACE ";" " " Intel_flags_str "${Intel_flags}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${default_flags} ${Intel_flags_str}") 
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${default_flags} ${Intel_flags_str}") 
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${default_shared_link_flags}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${default_flags} ${Intel_flags_str}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${default_flags} ${Intel_flags_str}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${default_exe_linker_flags}")
-elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "MSVC")
-    message(STATUS "\t... for MSVC compiler, version ${CMAKE_CXX_COMPILER_VERSION}")
-    #For GUI configs. Change C, and CXX compiler flags dynamically to static, debug build.
-    #The overrides.cmake include takes care of non GUI builds.
-    foreach(flag_var
-        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-        if(${flag_var} MATCHES "/MD")
-            string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-       endif(${flag_var} MATCHES "/MD")
-    endforeach(flag_var)
-
-    # A bunch of compiler flags. Since we now propagate the compiler and linker flags to all external projects
-    # this is one place to set all the flags.
-    add_definitions(
-        -Z7     # => embed debugging info in library as opposed to using an external .pdb database
-        -wd4996 # => disable insecure api warnings
-        -wd4267 # => disable "possible loss of data due to 'narrowing' conversion, e.g. size_t to int"
-        -wd4290 # => disable warning "C++ exception specification ignored except to indicate a function is not __declspec(nothrow)"
-        -wd4005 # => 'identifier' : macro redefinition
-        -wd4018 # => 'expression' : signed/unsigned mismatch
-        -wd4244 # => 'argument' : conversion from 'type1' to 'type2', possible loss of data
-        -wd4101 # => 'identifier' : unreferenced local variable
-        -wd4661 # => 'identifier' : no suitable definition provided for explicit template instantiation request
-    )
-
 else()
     message(WARNING "Unknown CXX compiler type ${CMAKE_CXX_COMPILER_ID}")
 endif()
+
+################################
+#  Faster linker (optional)   #
+################################
+# Chaste links each test individually. mold/lld are substantially faster than the
+# system default linker. Chaste_FAST_LINKER selects which to use:
+#   AUTO    (default) - mold if available and new enough, else lld, else the default linker
+#   MOLD    - require mold (>= Chaste_MOLD_MIN_VERSION); error if unavailable
+#   LLD     - require lld; error if unavailable
+#   DEFAULT - always use the system default linker
+# The selected linker is applied via CMake's native linker-selection mechanism
+# (CMAKE_LINKER_TYPE, CMake >= 3.29) or by passing -fuse-ld= flags directly on older
+# CMake / on compilers CMake doesn't document LINKER_TYPE support for (IntelLLVM).
+set(Chaste_FAST_LINKER_COMPILERS "GNU" "Clang" "AppleClang" "IntelLLVM")
+if (UNIX AND ${CMAKE_CXX_COMPILER_ID} IN_LIST Chaste_FAST_LINKER_COMPILERS)
+    set(Chaste_FAST_LINKER "AUTO" CACHE STRING "Linker to use: AUTO, MOLD, LLD, or DEFAULT")
+    set_property(CACHE Chaste_FAST_LINKER PROPERTY STRINGS AUTO MOLD LLD DEFAULT)
+
+    if (NOT Chaste_FAST_LINKER STREQUAL "DEFAULT")
+        find_program(MOLD_EXECUTABLE mold)
+        find_program(LLD_EXECUTABLE ld.lld)
+
+        # Older mold releases (e.g. 1.0.3, as shipped by some distros' package managers)
+        # are known to produce binaries that crash at runtime. Require at least the
+        # version shipped with Ubuntu 24.04 (Noble), which is known to be reliable.
+        # On ARM64, mold < 2.42.0 can also crash linking large binaries with an
+        # internal "max_thunk_size" assertion in its range-extension-thunk code
+        # (mold issue #1538, fixed by mold commit 5beb02714c); require that floor
+        # there instead.
+        if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+            set(Chaste_MOLD_MIN_VERSION 2.42.0)
+        else ()
+            set(Chaste_MOLD_MIN_VERSION 2.30.0)
+        endif ()
+        set(Chaste_mold_new_enough FALSE)
+        if (MOLD_EXECUTABLE)
+            execute_process(COMMAND ${MOLD_EXECUTABLE} --version OUTPUT_VARIABLE Chaste_mold_version_output)
+            string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" Chaste_mold_version "${Chaste_mold_version_output}")
+            if (Chaste_mold_version VERSION_GREATER_EQUAL Chaste_MOLD_MIN_VERSION)
+                set(Chaste_mold_new_enough TRUE)
+            endif ()
+        endif ()
+
+        set(Chaste_LINKER_TYPE "")
+        if (Chaste_FAST_LINKER STREQUAL "MOLD")
+            if (NOT Chaste_mold_new_enough)
+                message(FATAL_ERROR "Chaste_FAST_LINKER=MOLD, but no suitable mold (>= ${Chaste_MOLD_MIN_VERSION}) was found")
+            endif ()
+            set(Chaste_LINKER_TYPE "MOLD")
+            message(STATUS "Using mold ${Chaste_mold_version} as the linker")
+        elseif (Chaste_FAST_LINKER STREQUAL "LLD")
+            if (NOT LLD_EXECUTABLE)
+                message(FATAL_ERROR "Chaste_FAST_LINKER=LLD, but lld was not found")
+            endif ()
+            set(Chaste_LINKER_TYPE "LLD")
+            message(STATUS "Using lld as the linker")
+        else () # AUTO
+            if (Chaste_mold_new_enough)
+                set(Chaste_LINKER_TYPE "MOLD")
+                message(STATUS "Using mold ${Chaste_mold_version} as the linker")
+            elseif (MOLD_EXECUTABLE)
+                message(STATUS "Found mold ${Chaste_mold_version}, older than the required ${Chaste_MOLD_MIN_VERSION}; ignoring it")
+            endif ()
+
+            if (NOT Chaste_LINKER_TYPE AND LLD_EXECUTABLE)
+                set(Chaste_LINKER_TYPE "LLD")
+                message(STATUS "Using lld as the linker")
+            endif ()
+
+            if (NOT Chaste_LINKER_TYPE)
+                message(STATUS "No suitable fast linker found; using the default linker. "
+                                "Install one with 'sudo apt install mold' or 'sudo apt install lld'.")
+            endif ()
+        endif ()
+
+        if (Chaste_LINKER_TYPE)
+            if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.29 AND NOT ${CMAKE_CXX_COMPILER_ID} STREQUAL "IntelLLVM")
+                # Native mechanism: CMake picks the right invocation for the active
+                # compiler/toolchain and applies it to every target's LINKER_TYPE.
+                set(CMAKE_LINKER_TYPE "${Chaste_LINKER_TYPE}")
+                message(STATUS "Selected via CMAKE_LINKER_TYPE (CMake ${CMAKE_VERSION})")
+            else ()
+                # Pre-3.29 CMake (or IntelLLVM, undocumented for LINKER_TYPE): pass
+                # the flag directly, as before.
+                string(TOLOWER "${Chaste_LINKER_TYPE}" Chaste_fast_linker_suffix)
+                set(Chaste_FAST_LINKER_FLAG "-fuse-ld=${Chaste_fast_linker_suffix}")
+                set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${Chaste_FAST_LINKER_FLAG}")
+                set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${Chaste_FAST_LINKER_FLAG}")
+                set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${Chaste_FAST_LINKER_FLAG}")
+                message(STATUS "Selected via -fuse-ld= linker flags (CMake ${CMAKE_VERSION} / ${CMAKE_CXX_COMPILER_ID})")
+            endif ()
+        endif ()
+    endif ()
+endif ()
+
+set(Chaste_SHARED_LINKER_FLAGS "${Chaste_SHARED_LINKER_FLAGS}" CACHE STRING "Project-wide shared linker flags" FORCE)

@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -139,7 +139,7 @@ public:
 
     void TestSendAndReceiveCells()
     {
-        unsigned index_of_node_to_send = mpNodesOnlyMesh->GetNodeIteratorBegin()->GetIndex();;
+        unsigned index_of_node_to_send = mpNodesOnlyMesh->GetNodeIteratorBegin()->GetIndex();
         mpNodeBasedCellPopulation->AddNodeAndCellToSendRight(index_of_node_to_send);
         mpNodeBasedCellPopulation->AddNodeAndCellToSendLeft(index_of_node_to_send);
 
@@ -168,7 +168,7 @@ public:
 
     void TestSendAndReceiveCellsNonBlocking()
     {
-        unsigned index_of_node_to_send = mpNodesOnlyMesh->GetNodeIteratorBegin()->GetIndex();;
+        unsigned index_of_node_to_send = mpNodesOnlyMesh->GetNodeIteratorBegin()->GetIndex();
         mpNodeBasedCellPopulation->AddNodeAndCellToSendRight(index_of_node_to_send);
         mpNodeBasedCellPopulation->AddNodeAndCellToSendLeft(index_of_node_to_send);
 
@@ -376,7 +376,6 @@ public:
             FileComparison(results_dir + "cellareas.dat", "cell_based/test/data/TestNodeBasedCellPopulationWritersParallel/cellareas.dat").CompareFiles();
         }
 
-#ifdef CHASTE_VTK
         if (PetscTools::IsParallel())
         {
             // Meta-file links to parallel files (which link to the fragments)
@@ -386,7 +385,6 @@ public:
         {
             FileComparison(results_dir + "results.pvd", "cell_based/test/data/TestNodeBasedCellPopulationWritersParallel/results.pvd").CompareFiles();
         }
-#endif //CHASTE_VTK
         // Avoid memory leak
         for (unsigned i=0; i<nodes.size(); i++)
         {

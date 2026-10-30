@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -58,7 +58,7 @@ private:
      */
     c_vector<double,SPACE_DIM> mWidth;
 
-    /*
+    /**
      * Whether a dimension is periodic
      */
     c_vector<bool,SPACE_DIM> mIsDimPeriodic;
@@ -92,7 +92,7 @@ public:
      * Constructor.
      *
      * @param width the periodic widths of the mesh. (Note if width=0.0 then not periodic)
-     * 
+     *
      */
     PeriodicNodesOnlyMesh(c_vector<double,SPACE_DIM> width);
 
@@ -102,7 +102,7 @@ public:
      * @param cutOffLength the cut off length for node neighbours
      * @param domainSize the size of the domain containing the nodes.
      * @param numLocalRows the number of rows of the collection that this process should own.
-     * @param isDimPeriodic whether the box collection should be periodic in the x y and/or z direction. 
+     * @param isDimPeriodic whether the box collection should be periodic in the x y and/or z direction.
      */
     virtual void SetUpBoxCollection(double cutOffLength, c_vector<double, 2*SPACE_DIM> domainSize, int numLocalRows = PETSC_DECIDE,  c_vector<bool,SPACE_DIM> isDimPeriodic = zero_vector<bool>(SPACE_DIM));
 
@@ -129,13 +129,13 @@ public:
      */
     double GetWidth(const unsigned& rDimension) const;
 
-    /*
+    /**
      * Method to get the width of the periodic dimensions
      * @return The value of the mWidth vector
-    */
+     */
     c_vector<double,SPACE_DIM> GetPeriodicWidths() const;
 
-    /*
+    /**
      * Overridden SetNode() method.
      *
      * If the location should be set outside a cylindrical boundary
@@ -145,7 +145,6 @@ public:
      * @param point is the new target location of the node
      * @param concreteMove is set to false if we want to skip the signed area tests in the parent Class Note this should always be false here
      */
-     
     void SetNode(unsigned nodeIndex, ChastePoint<SPACE_DIM> point, bool concreteMove = false);
 
     /**

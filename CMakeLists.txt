@@ -1,12 +1,12 @@
-# Copyright (c) 2005-2021, University of Oxford.
+# Copyright (c) 2005-2026, University of Oxford.
 # All rights reserved.
-# 
+#
 # University of Oxford means the Chancellor, Masters and Scholars of the
 # University of Oxford, having an administrative office at Wellington
 # Square, Oxford OX1 2JD, UK.
-# 
+#
 # This file is part of Chaste.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #  * Redistributions of source code must retain the above copyright notice,
@@ -17,7 +17,7 @@
 #  * Neither the name of the University of Oxford nor the names of its
 #    contributors may be used to endorse or promote products derived from this
 #    software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -28,13 +28,13 @@
 # HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 # OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
+#
 
-cmake_minimum_required (VERSION 3.5.1)
+# The version that ships with Ubuntu 22.04
+cmake_minimum_required (VERSION 3.22.1)
 
-# Set standard to C++14. Note that CMake < 3.6 does not know how to set the standard flag for the Intel compiler, so
-# the ChasteCompilerFlags.cmake also sets the --std=c++14 flag, too.
-set(CMAKE_CXX_STANDARD 14)
+# Set standard to C++17
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -43,8 +43,6 @@ include (EnsureOutOfSourceBuild)
 ensure_out_of_source_build ()
 include (CheckIncludeFile)
 
-include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/overrides.cmake)
-
 message ("\n####################################")
 message ("# Setting compilers and build type")
 message ("####################################\n")
@@ -52,19 +50,17 @@ message ("####################################\n")
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 
 # Since CMake 3.0, version can be supplied to the project() command.  We set it directly, for users on older CMake
-project (Chaste VERSION 2019.1)
-set (Chaste_VERSION_MAJOR 2019 CACHE STRING "Chaste major version number")
+project (Chaste VERSION 2026.1)
+set (Chaste_VERSION_MAJOR 2026 CACHE STRING "Chaste major version number")
 set (Chaste_VERSION_MINOR 1 CACHE STRING "Chaste minor version number")
+
+message(STATUS "Linker: ${CMAKE_LINKER}")
 
 include (ChasteHostOperatingSystem)
 include (ChasteBuildTypes)
 
 option (Chaste_ERROR_ON_WARNING "Error on compiler warnings" ON)
 option (Chaste_VERBOSE "Provide extra information when building Chaste" OFF)
-if (Chaste_VERBOSE AND MSVC)
-    set (CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "/VERBOSE")
-    set (CMAKE_C_FLAGS ${CMAKE_CXX_FLAGS} "/VERBOSE")
-endif ()
 if (UNIX)
     # Memory testing
     option (Chaste_MEMORY_TESTING "Run tests using valgrind for memory testing" OFF)
@@ -120,23 +116,24 @@ include (ChasteMacros)
 set (Chaste_NUM_CPUS_TEST 1 CACHE STRING "Number of cpus to use when running tests.")
 
 
-option (Chaste_USE_VTK "Compile Chaste with VTK support" ON)
-option (Chaste_USE_CVODE "Compile Chaste with CVODE support" ON)
-
-if (NOT (WIN32 OR CYGWIN))
-    option (Chaste_USE_XERCES "Compile Chaste with XERCES and XSD support" ON)
-else ()
-    option (Chaste_USE_XERCES "Compile Chaste with XERCES and XSD support" OFF)
-endif ()
+include (ChasteDeprecatedOptions)
 
 option (Chaste_USE_PETSC_PARMETIS "Prefer to compile Chaste with PARMETIS library used by PETSc" ON)
 option (Chaste_USE_PETSC_HDF5 "Prefer to compile Chaste with HDF5 library used by PETSc" ON)
 
-option (Chaste_UPDATE_PROVENANCE "Update build timestamp. Disable to prevent re-linking of all Chaste libraries" ON)
+# A plain, non-cached snapshot of the current commit, shortened to 12 characters as everywhere
+# else it is displayed, used only to label the coverage and doxygen targets below: both are
+# triggered manually, not part of an ordinary test build, so a value that is fresh as of the last
+# reconfigure (rather than every build) is fine here. The provenance read by ChasteBuildInfo at
+# runtime (see global/CMakeLists.txt) is generated separately, and refreshed on every build.
+include (ChasteSourceRevision)
+chaste_get_source_revision ("${Chaste_SOURCE_DIR}" Chaste_COMMIT Chaste_COMMIT_MODIFIED)
+string (SUBSTRING "${Chaste_COMMIT}" 0 12 Chaste_REVISION)
+message (STATUS "Chaste commit: ${Chaste_COMMIT} (modified: ${Chaste_COMMIT_MODIFIED})")
 
-option (RUN_TESTS "This option simply runs Chaste tests. You should also set the test family." OFF)
-set (TEST_FAMILY "Continuous" CACHE STRING "The name of the test family, e.g, Continuous, Failing, Nightly, Parallel etc.")
-set (TestPackTypes "Continuous;Failing;Nightly;Parallel;Production;Weekly;Profile;ProfileAssembly;ExtraSimulations;Codegen")
+option(RUN_TESTS "This option simply runs Chaste tests. You should also set the test family." OFF)
+set(TEST_FAMILY "Continuous" CACHE STRING "The name of the test family, e.g, Continuous, Failing, Nightly, Parallel etc.")
+set(TestPackTypes "Continuous;Failing;Nightly;Parallel;Production;Weekly;Profile;ProfileAssembly;ExtraSimulations;Codegen")
 
 if (RUN_TESTS)
     list (FIND TestPackTypes ${TEST_FAMILY} found)
@@ -144,11 +141,7 @@ if (RUN_TESTS)
         message (FATAL_ERROR "Test family ${TEST_FAMILY} does not exist. Must be one of ${TestPackTypes}. Aborting.")
     else (found EQUAL -1)
         #get date and time, to append to test result filename
-        execute_process (COMMAND cmd /c echo %DATE% %TIME%
-                         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-                         OUTPUT_VARIABLE date_time
-                         )
-        string (REGEX REPLACE "[:/. \n]" "_" date_time "${date_time}")
+        string (TIMESTAMP date_time "%Y_%m_%d_%H_%M_%S")
         # Note: set 6 minute (360s) timeout for each test
         execute_process (COMMAND ctest -C Debug --output-on-failure -O ${TEST_FAMILY}TestOutputs_${date_time}.txt --timeout 360 -L ${TEST_FAMILY}
                          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -161,38 +154,35 @@ if (RUN_TESTS)
     endif (found EQUAL -1)
 endif (RUN_TESTS)
 
-if (WIN32 OR CYGWIN)
-    option (Chaste_AUTO_INSTALL_DEPS
-            "Set whether we will automatically download and install Chaste dependences (windows-only option). ON by default"
-            ON)
-endif ()
-
-
 #Set whether this is a statically or dynamically-linked build
-if (WIN32 OR CYGWIN)
-    option (BUILD_SHARED_LIBS
-            "Set whether we are set whether to generate dynamic-linked libraries. OFF by default"
-            OFF)
-else ()
-    option (BUILD_SHARED_LIBS
-            "Set whether we are set whether to generate dynamic-linked libraries. ON by default"
-            ON)
-endif ()
+option (BUILD_SHARED_LIBS
+        "Set whether we are set whether to generate dynamic-linked libraries. ON by default"
+        ON)
 
 option (Chaste_ENABLE_TESTING "Enable Chaste Testing" ON)
 option (Chaste_INSTALL_TESTS "Install Chaste Testing infrastructure" OFF)
 
 set (Chaste_CODEGEN_EXTRA_ARGS "" CACHE STRING "Add any extra arguments for chaste_codegen here")
 
+option (Chaste_ENABLE_PYCHASTE "Enable PyChaste" OFF)
+
 #Some Chaste-specific #defines
 add_definitions (-DCHASTE_CMAKE)
 
-if (WIN32 OR CYGWIN)
-    add_definitions (-D_WIN64 -D_AMD64_)
-    # Ensure M_PI is always defined in cmath
-    add_definitions (-D_USE_MATH_DEFINES)
-endif (WIN32 OR CYGWIN)
 
+###############################################
+####  Create interface library for dependencies
+###############################################
+
+# See https://github.com/Chaste/Chaste/issues/36 re supporting VTK 9.x.
+#
+# Approach is to create a interface library (with no source files) that all Chaste dependencies are linked to. This
+# library is then linked against all Chaste libraries and executables.
+#
+# This allows modern CMake imported targets to be used for our dependencies, rather than populating lists of libaries
+# and include directories as we currently to. For now, this will only affect VTK 9.x, but should be expanded to all
+# dependencies in the future.
+add_library(Chaste_COMMON_DEPS INTERFACE)
 
 ################################
 #  FIND THIRD PARTY LIBRARIES  #
@@ -231,7 +221,9 @@ endif ()
 ################################
 if (Chaste_PROFILE_GPERFTOOLS)
     find_package (Gperftools REQUIRED)
-    list (APPEND Chaste_LINK_LIBRARIES "-Wl,--no-as-needed ${GPERFTOOLS_PROFILER} -Wl,--as-needed")
+    # rpath so that binaries can find libprofiler at runtime when gperftools is in a non-system prefix
+    get_filename_component (GPERFTOOLS_LIBRARY_DIR ${GPERFTOOLS_PROFILER} DIRECTORY)
+    list (APPEND Chaste_LINK_LIBRARIES "-Wl,--no-as-needed ${GPERFTOOLS_PROFILER} -Wl,--as-needed -Wl,-rpath,${GPERFTOOLS_LIBRARY_DIR}")
 endif ()
 
 #Gprof executable
@@ -259,35 +251,73 @@ endif ()
 ################################
 ####  Find Python
 ################################
-find_package(PythonInterp 3.5)
-if (PYTHON_VERSION_STRING VERSION_LESS 3.5.0)
-    message(FATAL_ERROR "Python 3.5 or higer is required; found v${PYTHON_VERSION_STRING} instead. Specify interpreter with -DPYTHON_EXECUTABLE=/path/to/python3")
+if (Chaste_ENABLE_PYCHASTE)
+    find_package(Python3 3.5 COMPONENTS Interpreter Development)
+else ()
+    find_package(Python3 3.5)
+endif ()
+
+if (Python3_VERSION VERSION_LESS 3.5.0)
+    message(FATAL_ERROR "Python 3.5 or higher is required; found v${Python3_VERSION} instead. Specify interpreter with -DPython_EXECUTABLE=/path/to/python3")
 endif ()
 
 # Install chaste_codegen in virtual environment
-set(codegen_python3_venv ${PROJECT_BINARY_DIR}/codegen_python3_venv/bin)
+set(chaste_python3_venv ${PROJECT_BINARY_DIR}/chaste_python3_venv/bin)
 
-if (NOT EXISTS ${codegen_python3_venv})
-    message (STATUS "Creating virtual environment for chaste_codegen in ${PROJECT_BINARY_DIR}/codegen_python3_venv")
+if (NOT EXISTS ${chaste_python3_venv})
+    message (STATUS "Creating virtual environment for chaste_codegen in ${PROJECT_BINARY_DIR}/chaste_python3_venv")
     execute_process(
-        COMMAND ${PYTHON_EXECUTABLE} -m venv codegen_python3_venv
+        COMMAND ${Python3_EXECUTABLE} -m venv chaste_python3_venv
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
     )
 endif ()
 
 # Update pip setuptools and wheel
 message (STATUS "Updating pip setuptools and wheel")
-if (${PYTHON_VERSION_STRING} VERSION_LESS 3.6.0)
-    execute_process(COMMAND ${codegen_python3_venv}/pip install --no-cache-dir "pip>=20.0, <21.0")
-    execute_process(COMMAND ${codegen_python3_venv}/pip install --no-cache-dir --upgrade setuptools wheel)
+if (${Python3_VERSION} VERSION_LESS 3.6.0)
+    execute_process(COMMAND ${chaste_python3_venv}/pip install --no-cache-dir "pip>=20.0, <21.0")
+    execute_process(COMMAND ${chaste_python3_venv}/pip install --no-cache-dir --upgrade setuptools wheel)
 else()
-    execute_process(COMMAND ${codegen_python3_venv}/pip install --no-cache-dir --upgrade pip setuptools wheel)
+    execute_process(COMMAND ${chaste_python3_venv}/pip install --no-cache-dir --upgrade pip setuptools wheel)
 endif()
 
 
 # Install chaste_codegen in virtual environment
 message (STATUS "Installing chaste_codegen")
-execute_process(COMMAND ${codegen_python3_venv}/pip install --no-cache-dir --upgrade -r ${CMAKE_SOURCE_DIR}/chaste_codegen.txt)
+execute_process(COMMAND ${chaste_python3_venv}/pip install --no-cache-dir --upgrade -r ${CMAKE_SOURCE_DIR}/chaste_codegen.txt)
+execute_process(COMMAND ${chaste_python3_venv}/chaste_codegen --version
+        OUTPUT_VARIABLE Chaste_CODEGEN_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+message("Codegen version: ${Chaste_CODEGEN_VERSION}")
+
+# Get pychaste dependencies
+if (Chaste_ENABLE_PYCHASTE)
+    # Get pybind11
+    include(FetchContent)
+    FetchContent_Declare(
+        pybind11
+        GIT_REPOSITORY https://github.com/pybind/pybind11
+        GIT_TAG stable
+        GIT_SHALLOW 1
+    )
+    FetchContent_MakeAvailable(pybind11)
+
+    # Install C++ wrapper generator (cppwg) in venv
+    message (STATUS "Installing C++ wrapper generator")
+    FetchContent_Declare(
+        cppwg
+        GIT_REPOSITORY https://github.com/Chaste/cppwg.git
+        GIT_TAG v0.5.0
+        GIT_SHALLOW 1
+    )
+    FetchContent_MakeAvailable(cppwg)
+
+    execute_process(COMMAND ${chaste_python3_venv}/pip install ${cppwg_SOURCE_DIR})
+    execute_process(COMMAND ${chaste_python3_venv}/cppwg --version
+        OUTPUT_VARIABLE Chaste_CPPWG_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    message("CPPWG version: ${Chaste_CPPWG_VERSION}")
+endif ()
 
 if (Chaste_ENABLE_TESTING AND Chaste_ACCEPTANCE)
     find_package (TextTest)
@@ -296,160 +326,166 @@ if (Chaste_ENABLE_TESTING AND Chaste_ACCEPTANCE)
     endif ()
 endif ()
 
-if (Chaste_AUTO_INSTALL_DEPS)
-    set (Chaste_DEPS_ROOT_DIR "${Chaste_BINARY_DIR}/../install/third_party_libs" CACHE PATH "Root directory for installed third party libraries")
-    file (GLOB children RELATIVE ${Chaste_DEPS_ROOT_DIR} ${Chaste_DEPS_ROOT_DIR}/*)
-    foreach (subdir ${children})
-        if (IS_DIRECTORY ${Chaste_DEPS_ROOT_DIR}/${subdir})
-            if (${subdir} MATCHES ".*boost.*" AND NOT BOOST_ROOT)
-                set (BOOST_ROOT "${Chaste_DEPS_ROOT_DIR}/${subdir}")
-                #elseif (${subdir} MATCHES ".*petsc.*" AND NOT ENV{PETSC_DIR})
-                #    set(ENV{PETSC_DIR} "${Chaste_DEPS_ROOT_DIR}/${subdir}")
-                #    set(PETSC_ARCH "")
-            elseif (${subdir} MATCHES ".*vtk.*" AND NOT VTK_DIR)
-                set (VTK_DIR "${Chaste_DEPS_ROOT_DIR}/${subdir}/lib/vtk-5.8")
-            elseif (${subdir} MATCHES ".*sundials.*" AND NOT ENV{SUNDIALS_ROOT})
-                set (ENV{SUNDIALS_ROOT} "${Chaste_DEPS_ROOT_DIR}/${subdir}")
-            elseif (${subdir} MATCHES ".*hdf5.*" AND NOT ENV{HDF5_ROOT})
-                set (ENV{HDF5_ROOT} "${Chaste_DEPS_ROOT_DIR}/${subdir}")
-            endif ()
-        endif ()
-    endforeach ()
-endif ()
-
-
 ################################
 ####  Find VTK
 ################################
-if (Chaste_USE_VTK)
-    # First pass will identify the version number
-    find_package (VTK REQUIRED)
-    message (STATUS "VTK version: ${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}")
+# The complexity here is for two reasons:
+#   1. VTK has renamed its components several times
+#   2. From VTK 9, a simple call to find_package(VTK) will try to find QT, which is not a Chaste dependency
+#
+# We first find the VTK common library, which can have one of two names: this will populate the VTK version
+# number. This is then used to find the specific list of required VTK components.
 
-    # Depending on the VTK version, we need different components. 5.x require the following
-    if (VTK_MAJOR_VERSION EQUAL 5)
-        find_package (VTK COMPONENTS vtkIO vtkCommon vtkGraphics z REQUIRED)
-        # 6.0 and 6.1 require the following
-    elseif ((VTK_MAJOR_VERSION EQUAL 6) AND (VTK_MINOR_VERSION LESS 2))
-        find_package (VTK COMPONENTS vtkCommonCore vtkCommonDataModel vtkFiltersCore vtkFiltersGeneral vtkFiltersGeneric
-                      vtkFiltersGeometry vtkFiltersModeling vtkFiltersSources vtkIOCore vtkIOGeometry
-                      vtkIOLegacy vtkIOXML REQUIRED)
-        # 6.2 and up, up to and including 7.1, require the following
-    else ()
-        find_package (VTK COMPONENTS vtkCommonCore vtkCommonDataModel vtkFiltersCore vtkFiltersGeneral vtkFiltersGeneric
-                      vtkFiltersGeometry vtkFiltersModeling vtkFiltersSources vtkIOCore vtkIOGeometry
-                      vtkIOLegacy vtkIOParallelXML vtkIOXML REQUIRED)
+# List of possible base modules across different VTK versions
+set(POSSIBLE_VTK_BASE_MODULES vtkCommonCore CommonCore)
+
+foreach (BASE_MODULE ${POSSIBLE_VTK_BASE_MODULES})
+    find_package(VTK COMPONENTS ${BASE_MODULE} QUIET)
+    if (VTK_FOUND)
+        message (STATUS "VTK version: ${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}")
+        break()
     endif ()
+endforeach ()
 
-    add_definitions (-DCHASTE_VTK)
+if (NOT ${VTK_FOUND})
+    message(FATAL_ERROR "Did not find VTK")
 endif ()
+
+# VTK 6.0 introduced the SetInputData()/SetInputConnection() pipeline API, which Chaste's
+# VTK code now uses unconditionally (it used to be optional, guarded by Chaste_USE_VTK), so
+# earlier versions definitely will not build. VTK 7.1 is the oldest version we actually test.
+if ("${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}" VERSION_LESS 6.0)
+    message(FATAL_ERROR "VTK 6.0 or later is required, but found VTK ${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}")
+elseif ("${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}" VERSION_LESS 7.1)
+    message(WARNING "VTK ${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION} found: Chaste might work, but we only test VTK 7.1 and later")
+endif ()
+
+# Depending on the VTK version, we need different components.
+set (_vtk_modules "")
+if (VTK_MAJOR_VERSION LESS 9)
+    list (APPEND _vtk_modules
+            vtkCommonCore vtkCommonDataModel vtkFiltersCore
+            vtkFiltersGeneral vtkFiltersGeneric vtkFiltersGeometry
+            vtkFiltersModeling vtkFiltersSources vtkIOCore vtkIOGeometry
+            vtkIOLegacy vtkIOParallelXML vtkIOXML
+         )
+    if (Chaste_ENABLE_PYCHASTE)
+        # Additional modules required by PyChaste
+        list (APPEND _vtk_modules
+                vtkInteractionStyle vtkIOImage vtkIOMovie
+                vtkRenderingAnnotation vtkRenderingCore vtkRenderingFreeType
+                vtkWrappingPythonCore
+             )
+        list (APPEND _vtk_modules
+                vtkFiltersProgrammable vtkFiltersVerdict
+                vtkRenderingOpenGL2
+             )
+    endif ()
+else ()
+    # VTK 9.0 and above require the following
+    list (APPEND _vtk_modules
+            CommonCore CommonDataModel FiltersCore FiltersGeneral
+            FiltersGeneric FiltersGeometry FiltersModeling FiltersSources
+            IOCore IOGeometry IOLegacy IOParallelXML IOXML
+         )
+    if (Chaste_ENABLE_PYCHASTE)
+        # Additional modules required by PyChaste
+        list (APPEND _vtk_modules
+                FiltersProgrammable FiltersVerdict InteractionStyle IOImage
+                IOMovie IOOggTheora RenderingAnnotation RenderingCore
+                RenderingFreeType RenderingOpenGL2 WrappingPythonCore
+             )
+    endif ()
+endif ()
+find_package (VTK COMPONENTS ${_vtk_modules} REQUIRED)
 
 
 ################################
 ####  Find Boost
 ################################
-add_definitions(-DBOOST_ALL_NO_LIB)
-if (BUILD_SHARED_LIBS)
-    set(Boost_USE_STATIC_LIBS OFF)
-    set(Boost_USE_STATIC_RUNTIME OFF)
-else ()
-    set(Boost_USE_STATIC_LIBS ON)
-    set(Boost_USE_STATIC_RUNTIME ON)
+find_package(Boost 1.71 REQUIRED COMPONENTS headers serialization program_options CONFIG)
+message(STATUS "Boost version: ${Boost_VERSION}")
+
+# Turn off boost auto-linking, which is not required when using CMake
+target_compile_definitions(Chaste_COMMON_DEPS INTERFACE BOOST_ALL_NO_LIB)
+
+# Suppress boost deprecation notices in Boost 1.74.0 (shipped with Ubuntu 22.04), fixed in 1.75
+if (Boost_VERSION VERSION_GREATER_EQUAL 1.74.0 AND Boost_VERSION VERSION_LESS 1.75.0)
+    target_compile_definitions(Chaste_COMMON_DEPS INTERFACE BOOST_ALLOW_DEPRECATED_HEADERS)
 endif ()
-find_package(Boost COMPONENTS filesystem system serialization program_options REQUIRED)
-list(APPEND Chaste_INCLUDES "${Boost_INCLUDE_DIR}")
-list(APPEND Chaste_LINK_LIBRARIES "${Boost_LIBRARIES}")
+
+# Link the Boost targets onto Chaste_COMMON_DEPS
+target_link_libraries(Chaste_COMMON_DEPS INTERFACE
+        Boost::headers
+        Boost::serialization
+        Boost::program_options
+)
 
 
 ################################
 ####  Find PETSc
 ################################
+if (Chaste_ENABLE_PYCHASTE)
+    find_package(PETSc4py REQUIRED)
+endif ()
+
+include(FindPkgConfig REQUIRED)
 find_package (PETSc REQUIRED)
-list (APPEND Chaste_LINK_LIBRARIES "${PETSC_LIBRARIES}")
+
+message(STATUS "PETSc version: ${PETSc_VERSION}")
+target_link_libraries(Chaste_COMMON_DEPS INTERFACE PETSc::PETSc)
+#list(APPEND Chaste_LINK_LIBRARIES "${PETSc_LIBRARIES}")
+list(APPEND Chaste_INCLUDES "${PETSc_INCLUDE_DIRS}")
 
 
 ################################
 ####  Find HDF5
 ################################
 
-# This alters the order that CMake looks for h5pcc h5cc (parallel h5pcc first)
-set (HDF5_PREFER_PARALLEL TRUE)
-
-# If we're using PETSc's HDF5 (ON by default, for more reliable MPI compatibility), we override HDF5_ROOT accordingly
-if (Chaste_USE_PETSC_HDF5)
-    if (EXISTS "${PETSC_DIR}/${PETSC_ARCH}/bin/h5diff")
-        set (ENV{HDF5_ROOT} "${PETSC_DIR}/${PETSC_ARCH}")
-    else ()
-        message (STATUS "No HDF5 found in ${PETSC_DIR}/${PETSC_ARCH}: looking for alternative HDF5 instead")
-    endif ()
-endif ()
-
-# Find the HDF5_C_COMPILER_EXECUTABLE to help the find_package call (else the system HDF5 will always be found)
-find_program (HDF5_C_COMPILER_EXECUTABLE
-              NAMES h5pcc h5cc
-              HINTS ENV HDF5_ROOT
-              PATH_SUFFIXES bin Bin
-              DOC "HDF5 Wrapper compiler.  Used only to detect HDF5 compile flags.")
-find_package (HDF5 REQUIRED)
+# Ensure the wrapper compiler h5pcc (parallel) is found instead of h5cc (serial) if both are in the same directory
+set(HDF5_PREFER_PARALLEL TRUE)
+find_package(HDF5 REQUIRED COMPONENTS C)
+message(STATUS "HDF5 version: ${HDF5_VERSION}")
+target_link_libraries(Chaste_COMMON_DEPS INTERFACE HDF5::HDF5)
 
 # Chaste requires a parallel HDF5 library
-if (NOT HDF5_IS_PARALLEL)
-    message (SEND_ERROR "Hdf5 library found was not build with --enable-parallel, use the HDF5_ROOT environment variable to specify a parallel hdf5 library. Note: include dirs are ${HDF5_INCLUDE_DIRS} and libraries are ${HDF5_LIBRARIES}")
+set(Chaste_HDF5_HAS_PARALLEL FALSE)
+if (HDF5_VERSION VERSION_LESS "2.0.0")
+    set(Chaste_HDF5_HAS_PARALLEL ${HDF5_IS_PARALLEL})
+else ()
+    set(Chaste_HDF5_HAS_PARALLEL ${HDF5_PROVIDES_PARALLEL})
 endif ()
-list (APPEND Chaste_INCLUDES "${HDF5_INCLUDE_DIRS}")
 
-# for some reason the CMake in Homebrew returns a NOTFOUND entry in the Hdf5 libraries
-foreach (dir ${HDF5_LIBRARIES})
-    if (dir)
-        list (APPEND Chaste_LINK_LIBRARIES "${dir}")
-    endif ()
-endforeach ()
-
-# put petsc includes after hdf5 includes or else the hdf5 headers
-# in the petsc include dir will clobber those chosen on FindHdf5.cmake
-list (APPEND Chaste_INCLUDES "${PETSC_INCLUDES}")
+if (NOT Chaste_HDF5_HAS_PARALLEL)
+    message(SEND_ERROR "Hdf5 library found was not build with --enable-parallel, use the HDF5_ROOT environment variable to specify a parallel hdf5 library. Note: include dirs are ${HDF5_INCLUDE_DIRS} and libraries are ${HDF5_LIBRARIES}")
+endif ()
+list(APPEND Chaste_INCLUDES "${HDF5_INCLUDE_DIRS}")
 
 
 ################################
 ####  Find MPI
 ################################
-if (PETSC_COMPILER)
-    string (REPLACE mpicc mpicxx MPI_CXX_COMPILER ${PETSC_COMPILER})
-endif ()
 
-if (PETSC_MPIEXEC)
-    if (IS_ABSOLUTE ${PETSC_MPIEXEC})
-        set (MPIEXEC ${PETSC_MPIEXEC})  # MPIEXEC deprecated in newer FindMPI.cmake (#2967)
-        set (MPIEXEC_EXECUTABLE ${PETSC_MPIEXEC})
-    else ()
-        find_program (MPIEXEC ${PETSC_MPIEXEC})
-    endif ()
-endif ()
-find_package (MPI REQUIRED)
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS}")
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MPI_C_COMPILE_FLAGS}")
-set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${MPI_CXX_LINK_FLAGS}")
-list (APPEND Chaste_INCLUDES "${MPI_CXX_INCLUDE_PATH}")
+find_package (MPI REQUIRED COMPONENTS CXX)
+message(STATUS "MPI version: ${MPI_CXX_VERSION}")
+message(STATUS "MPI executable: ${MPIEXEC_EXECUTABLE}")
+target_link_libraries(Chaste_COMMON_DEPS INTERFACE MPI::MPI_CXX)
+list(APPEND Chaste_INCLUDES "${MPI_CXX_INCLUDE_DIRS}")
 
 if (Chaste_MEMORY_TESTING)
     get_filename_component (openmpi_supp_path ${MPIEXEC} PATH)
     get_filename_component (openmpi_supp_path ${openmpi_supp_path} PATH)
     set (openmpi_supp_path "${openmpi_supp_path}/share/openmpi/openmpi-valgrind.supp")
     set (Chaste_MEMORY_TESTING_SUPPS "--suppressions=${Chaste_SOURCE_DIR}/chaste.supp")
-    set (Chaste_MEMORY_TESTING_SUPPS "${Chaste_MEMORY_TESTING_SUPPS} --suppressions=${Chaste_SOURCE_DIR}/chaste-lucid.supp")
+    set (Chaste_MEMORY_TESTING_SUPPS "${Chaste_MEMORY_TESTING_SUPPS} --suppressions=${Chaste_SOURCE_DIR}/chaste-legacy.supp")
     if (EXISTS ${openmpi_supp_path})
         set (Chaste_MEMORY_TESTING_SUPPS "${Chaste_MEMORY_TESTING_SUPPS} --suppressions=${openmpi_supp_path}")
     endif ()
 endif ()
 
-message (STATUS "Found MPIEXEC_EXECUTABLE: ${MPIEXEC_EXECUTABLE}")
-message (STATUS "Found MPIEXEC: ${MPIEXEC}")
-message (STATUS "Found MPI_CXX_HEADER_DIR: ${MPI_CXX_HEADER_DIR}")
-message (STATUS "Found MPI_C_COMPILER: ${MPI_C_COMPILER}")
-
 
 ################################
-####  Find ParMETIS and METIS
+####  Find ParMETIS
 ################################
 # If we're using PETSc's ParMETIS (ON by default, for more reliable MPI compatibility), override PARMETIS_ROOT accordingly
 if (Chaste_USE_PETSC_PARMETIS)
@@ -461,25 +497,36 @@ if (Chaste_USE_PETSC_PARMETIS)
 endif ()
 find_package (ParMETIS REQUIRED)
 list (APPEND Chaste_LINK_LIBRARIES "${PARMETIS_LIBRARIES}")
+# libscotchparmetis-dev has a parmetis.h adapter include which is in a subdirectory
+list (APPEND Chaste_INCLUDES "${PARMETIS_INCLUDE_DIR}")
 
 
 ################################
 ####  Find Sundials
 ################################
-if (Chaste_USE_CVODE)
-    if (BUILD_SHARED_LIBS)
-        set (SUNDIALS_USE_STATIC_LIBRARIES OFF)
-    else ()
-        set (SUNDIALS_USE_STATIC_LIBRARIES ON)
-    endif ()
-    find_package (SUNDIALS COMPONENTS sundials_cvode sundials_nvecserial REQUIRED)
-    list (APPEND Chaste_INCLUDES "${SUNDIALS_INCLUDE_DIRS}")
-    #chaste_add_libraries(Chaste_LINK_LIBRARIES Chaste_THIRD_PARTY_STATIC_LIBRARIES Chaste_LINK_LIBRARIES)
-    list (APPEND Chaste_LINK_LIBRARIES "${SUNDIALS_LIBRARIES}")
-    add_definitions (-DCHASTE_CVODE)
-    math (EXPR Chaste_SUNDIALS_VERSION "${SUNDIALS_VERSION_MAJOR}*10000 + ${SUNDIALS_VERSION_MINOR}*100 + ${SUNDIALS_VERSION_SUBMINOR}")
-    add_definitions (-DCHASTE_SUNDIALS_VERSION=${Chaste_SUNDIALS_VERSION})
+if (BUILD_SHARED_LIBS)
+    set (SUNDIALS_USE_STATIC_LIBRARIES OFF)
+else ()
+    set (SUNDIALS_USE_STATIC_LIBRARIES ON)
 endif ()
+find_package (SUNDIALS COMPONENTS  sundials_cvode sundials_nvecserial REQUIRED)
+# SUNDIALS 4.0.0 renamed the generic linear-solver API (CVDlsSetLinearSolver -> CVodeSetLinearSolver,
+# SUNDenseLinearSolver -> SUNLinSol_Dense), which Chaste's CVODE code now uses unconditionally (it used
+# to be optional, guarded by Chaste_USE_CVODE), so earlier versions definitely will not build.
+# SUNDIALS 5.8.0 is the oldest version we actually test.
+if ("${SUNDIALS_VERSION_MAJOR}.${SUNDIALS_VERSION_MINOR}.${SUNDIALS_VERSION_SUBMINOR}" VERSION_LESS 4.0.0)
+    message(FATAL_ERROR "SUNDIALS 4.0.0 or later is required, but found SUNDIALS ${SUNDIALS_VERSION_MAJOR}.${SUNDIALS_VERSION_MINOR}.${SUNDIALS_VERSION_SUBMINOR}")
+elseif ("${SUNDIALS_VERSION_MAJOR}.${SUNDIALS_VERSION_MINOR}.${SUNDIALS_VERSION_SUBMINOR}" VERSION_LESS 5.8.0)
+    message(WARNING "SUNDIALS ${SUNDIALS_VERSION_MAJOR}.${SUNDIALS_VERSION_MINOR}.${SUNDIALS_VERSION_SUBMINOR} found: Chaste might work, but we only test SUNDIALS 5.8.0 and later")
+endif ()
+if (SUNDIALS_VERSION_MAJOR GREATER_EQUAL 7) # Newer CVODE requires a core sundials library to be linked in
+    find_package (SUNDIALS COMPONENTS  sundials_core REQUIRED)
+endif ()
+list (APPEND Chaste_INCLUDES "${SUNDIALS_INCLUDE_DIRS}")
+#chaste_add_libraries(Chaste_LINK_LIBRARIES Chaste_THIRD_PARTY_STATIC_LIBRARIES Chaste_LINK_LIBRARIES)
+list (APPEND Chaste_LINK_LIBRARIES "${SUNDIALS_LIBRARIES}")
+math (EXPR Chaste_SUNDIALS_VERSION "${SUNDIALS_VERSION_MAJOR}*10000 + ${SUNDIALS_VERSION_MINOR}*100 + ${SUNDIALS_VERSION_SUBMINOR}")
+add_definitions (-DCHASTE_SUNDIALS_VERSION=${Chaste_SUNDIALS_VERSION})
 
 
 # ParMETIS and Sundials might need MPI, so add MPI libraries after these
@@ -487,54 +534,47 @@ endif ()
 list (APPEND Chaste_LINK_LIBRARIES "${MPI_CXX_LIBRARIES}")
 
 # make sure VTK libraries added after HDF5 so VTK's link with HDF5 isn't used
-if (Chaste_USE_VTK)
-    list (APPEND Chaste_INCLUDES "${VTK_INCLUDE_DIRS}")
-    list (APPEND Chaste_LINK_LIBRARIES "${VTK_LIBRARIES}")
+if (VTK_MAJOR_VERSION LESS 9)
+    list(APPEND Chaste_INCLUDES "${VTK_INCLUDE_DIRS}")
+    list(APPEND Chaste_LINK_LIBRARIES "${VTK_LIBRARIES}")
+else ()
+    target_link_libraries(Chaste_COMMON_DEPS INTERFACE ${VTK_LIBRARIES})
 endif ()
 
 
 ################################
 ####  Find Xerces and XSD
 ################################
-if (Chaste_USE_XERCES)
-    find_package (Xerces REQUIRED)
-    find_package (XSD REQUIRED)
-    list (APPEND Chaste_INCLUDES "${XERCESC_INCLUDE}" "${XSD_INCLUDE_DIRS}")
-    list (APPEND Chaste_LINK_LIBRARIES "${XERCESC_LIBRARY}")
-    add_definitions (-DCHASTE_XERCES)
+find_package (Xerces REQUIRED)
+find_package (XSD REQUIRED)
+# Xerces-C 3.0.0 introduced the DOM Level 3 LS serialization API (DOMLSSerializer /
+# createLSSerializer()), which Chaste's XML writing code now uses unconditionally (it used
+# to be optional, guarded by Chaste_USE_XERCES), so earlier versions definitely will not build.
+# Xerces-C 3.2.0 is the oldest version we actually test.
+if (XERCESC_VERSION AND XERCESC_VERSION VERSION_LESS 3.0.0)
+    message (FATAL_ERROR "Xerces-C 3.0.0 or later is required, but found Xerces-C ${XERCESC_VERSION}")
+elseif (XERCESC_VERSION AND XERCESC_VERSION VERSION_LESS 3.2.0)
+    message (WARNING "Xerces-C ${XERCESC_VERSION} found: Chaste might work, but we only test Xerces-C 3.2.0 and later")
 endif ()
+if (XSD_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$" AND XSD_VERSION VERSION_LESS 4.0.0)
+    message (FATAL_ERROR "XSD 4.0.0 or later is required, but found XSD ${XSD_VERSION}")
+endif ()
+list (APPEND Chaste_INCLUDES "${XERCESC_INCLUDE}" "${XSD_INCLUDE_DIRS}")
+list (APPEND Chaste_LINK_LIBRARIES "${XERCESC_LIBRARY}")
+
+include (ChasteLegacyDefinitions)
+
 
 add_definitions (-DTRILIBRARY -DTETLIBRARY -DANSI_DECLARATORS)
 
 set (CXXTEST_INCLUDES "${Chaste_BINARY_DIR}/cxxtest")
 set (CXXTEST_PYTHON_TESTGEN_EXECUTABLE ${CXXTEST_INCLUDES}/cxxtestgen.py)
 
-if (WIN32 OR CYGWIN)
-    #MS Includes
-    set (MS_MPI_INCLUDES "C:/MS_HPC_PACK_2012/Inc" CACHE PATH "Path to MS HPC Pack header files.")
-    set (WINDOWS_SDK "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.1A/Include" CACHE PATH "Path to Windows SDK headers.")
-    set (WINDOWS_KITS "C:/Program Files (x86)/Windows Kits/8.0/Include" CACHE PATH "Path to Windows kits headers.")
-
-    if (MSVC11)
-        set (VS_11_INCLUDES "C:/Program Files (x86)/Microsoft Visual Studio 11.0/VC/include" CACHE PATH "You are compiling with MSVC 2012. Set Visual Studio 11 header files.")
-        set (VS_INCLUDES "${VS_11_INCLUnstalled libvtk-java and libvtk5-qt4-devDES}")
-    endif (MSVC11)
-
-    if (MSVC10)
-        set (VS_10_INCLUDES "C:/Program Files (x86)/Microsoft Visual Studio 10.0/VC/include" CACHE PATH "You are compiling with MSVC 2010. Set Visual Studio 10 header files.")
-        set (VS_INCLUDES "${VS_10_INCLUDES}")
-    endif (MSVC10)
-
-    list (APPEND Chaste_INCLUDES "${WINDOWS_SDK}" "${VS_INCLUDES}" "${MS_MPI_INCLUDES}")
-
-endif (WIN32 OR CYGWIN)
-
 if (Chaste_ENABLE_TESTING)
     enable_testing ()
     list (APPEND CMAKE_INCLUDE_PATH "${Chaste_SOURCE_DIR}/cxxtest")
     find_package (CxxTest)
 endif ()
-
 
 ###########################################
 # SETUP AVAILABLE COMPONENTS AND PROJECTS #
@@ -546,9 +586,11 @@ message ("####################################\n")
 
 # List the available Chaste components
 set (Chaste_COMPONENTS global io linalg mesh ode pde continuum_mechanics cell_based crypt)
-if (NOT (WIN32 OR CYGWIN))
-    set (Chaste_COMPONENTS ${Chaste_COMPONENTS} lung heart)
+if (Chaste_ENABLE_PYCHASTE)
+    list (APPEND Chaste_COMPONENTS pychaste)
 endif ()
+
+set (Chaste_COMPONENTS ${Chaste_COMPONENTS} lung heart)
 
 # Find any projects
 file (GLOB potential_dirs RELATIVE "${Chaste_SOURCE_DIR}/projects" "${Chaste_SOURCE_DIR}/projects/*")
@@ -591,6 +633,12 @@ endforeach ()
 foreach (component ${Chaste_COMPONENTS})
     # ${component} target will build library and tests
     add_custom_target (${component})
+    # ${type}_${component} targets build only one test pack of one component, e.g.
+    # Continuous_cell_based. This lets CI build exactly the tests it is about to run,
+    # rather than every test pack of that component via the ${component} target.
+    foreach (type ${TestPackTypes})
+        add_custom_target (${type}_${component})
+    endforeach ()
     # chaste_${component} is the actual library target
     list (APPEND Chaste_ALL_LIBRARIES chaste_${component})
 endforeach ()
@@ -629,6 +677,9 @@ set (Chaste_DEPENDS_crypt cell_based pde ode mesh linalg io global)
 set (Chaste_DEPENDS_continuum_mechanics pde ode mesh linalg io global)
 set (Chaste_DEPENDS_heart ${Chaste_DEPENDS_continuum_mechanics} continuum_mechanics)
 set (Chaste_DEPENDS_lung ${Chaste_DEPENDS_continuum_mechanics} continuum_mechanics)
+if (Chaste_ENABLE_PYCHASTE)
+    set (Chaste_DEPENDS_pychaste cell_based)
+endif ()
 
 # These custom targets depend on other components but are not components themselves
 set (Chaste_DEPENDS_core global io linalg mesh ode pde continuum_mechanics)
@@ -637,6 +688,16 @@ set (Chaste_DEPENDS_all_components ${Chaste_COMPONENTS})
 # Set dependencies for custom targets
 add_dependencies (core ${Chaste_DEPENDS_core})
 add_dependencies (all_components ${Chaste_DEPENDS_all_components})
+
+# Per-test-pack equivalents of the core target, e.g. Continuous_core builds the Continuous
+# tests of every core component. These match the ${type}_core test labels, so CI can use the
+# same name for the build target and the ctest label.
+foreach (type ${TestPackTypes})
+    add_custom_target (${type}_core)
+    foreach (component ${Chaste_DEPENDS_core})
+        add_dependencies (${type}_core ${type}_${component})
+    endforeach ()
+endforeach ()
 
 foreach (component ${Chaste_COMPONENTS})
     set (Chaste_${component}_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${component}/src")
@@ -703,10 +764,7 @@ endforeach ()
 #  BUILD MAIN APPS #
 ####################
 
-#note, heart not supported in windows
-if (NOT (WIN32 OR CYGWIN))
-    add_subdirectory (apps)
-endif ()
+add_subdirectory (apps)
 
 ####################
 # RUN PYTHON TESTS #
@@ -753,62 +811,61 @@ foreach (project ${Chaste_PROJECTS})
     endif ()
 endforeach ()
 
-configure_file (${Chaste_SOURCE_DIR}/cmake/Config/ChasteConfig.cmake.in
-                "${Chaste_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/ChasteConfig.cmake" @ONLY)
-
 # Configure file for build dir
-set (EXPORT_Chaste_PYTHON_DIR "${Chaste_PYTHON_DIR}")
+set(EXPORT_Chaste_PYTHON_DIR "${Chaste_PYTHON_DIR}")
 foreach (component ${Chaste_COMPONENTS})
-    set (EXPORT_Chaste_${component}_INCLUDE_DIRS ${Chaste_${component}_INCLUDE_DIRS})
+    set(EXPORT_Chaste_${component}_INCLUDE_DIRS ${Chaste_${component}_INCLUDE_DIRS})
 endforeach (component)
 
-configure_file (${Chaste_SOURCE_DIR}/cmake/Config/ChasteConfig.cmake.in
-                "${Chaste_BINARY_DIR}/ChasteConfig.cmake" @ONLY)
+configure_file(${Chaste_SOURCE_DIR}/cmake/Config/ChasteConfig.cmake.in
+        "${Chaste_BINARY_DIR}/ChasteConfig.cmake" @ONLY)
 
-file (COPY ${Chaste_SOURCE_DIR}/cmake/Modules/ChasteMacros.cmake
-      DESTINATION ${Chaste_BINARY_DIR}/cmake/Modules)
+file(COPY ${Chaste_SOURCE_DIR}/cmake/Modules/ChasteMacros.cmake
+        DESTINATION ${Chaste_BINARY_DIR}/cmake/Modules)
 
-file (COPY ${Chaste_SOURCE_DIR}/cmake/Modules/ChasteRunTestAndPostProcess.cmake
-      DESTINATION ${Chaste_BINARY_DIR}/cmake/Modules)
+file(COPY ${Chaste_SOURCE_DIR}/cmake/Modules/ChasteLegacyDefinitions.cmake
+        DESTINATION ${Chaste_BINARY_DIR}/cmake/Modules)
 
-file (COPY ${Chaste_SOURCE_DIR}/python
-      DESTINATION ${Chaste_BINARY_DIR})
+file(COPY ${Chaste_SOURCE_DIR}/cmake/Modules/ChasteRunTestAndPostProcess.cmake
+        DESTINATION ${Chaste_BINARY_DIR}/cmake/Modules)
 
-file (COPY ${Chaste_SOURCE_DIR}/cxxtest
-      DESTINATION ${Chaste_BINARY_DIR})
+file(COPY ${Chaste_SOURCE_DIR}/python
+        DESTINATION ${Chaste_BINARY_DIR})
+
+file(COPY ${Chaste_SOURCE_DIR}/cxxtest
+        DESTINATION ${Chaste_BINARY_DIR})
 
 
-install (FILES
-         "${Chaste_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/ChasteConfig.cmake"
-         #    "${Chaste_BINARY_DIR}/ChasteTargets.cmake"
-         DESTINATION lib/chaste
-         COMPONENT Config)
+install(FILES
+        "${Chaste_BINARY_DIR}/ChasteConfig.cmake"
+        DESTINATION lib/chaste
+        COMPONENT Config)
 
-install (FILES
-         "${Chaste_BINARY_DIR}/cmake/Modules/ChasteMacros.cmake"
-         "${Chaste_BINARY_DIR}/cmake/Modules/ChasteRunTestAndPostProcess.cmake"
-         DESTINATION lib/chaste/cmake/Modules
-         COMPONENT Config)
+install(FILES
+        "${Chaste_BINARY_DIR}/cmake/Modules/ChasteMacros.cmake"
+        "${Chaste_BINARY_DIR}/cmake/Modules/ChasteLegacyDefinitions.cmake"
+        "${Chaste_BINARY_DIR}/cmake/Modules/ChasteRunTestAndPostProcess.cmake"
+        DESTINATION lib/chaste/cmake/Modules
+        COMPONENT Config)
 
 # CxxTest folder
-install (DIRECTORY ${Chaste_BINARY_DIR}/cxxtest
-         DESTINATION lib/chaste
-         USE_SOURCE_PERMISSIONS
-         COMPONENT CxxTest)
+install(DIRECTORY ${Chaste_BINARY_DIR}/cxxtest
+        DESTINATION lib/chaste
+        USE_SOURCE_PERMISSIONS
+        COMPONENT CxxTest)
 
 # Python folder
-install (DIRECTORY ${Chaste_BINARY_DIR}/python
-         DESTINATION lib/chaste
-         USE_SOURCE_PERMISSIONS
-         COMPONENT Python)
+install(DIRECTORY ${Chaste_BINARY_DIR}/python
+        DESTINATION lib/chaste
+        USE_SOURCE_PERMISSIONS
+        COMPONENT Python)
 
 # libraries
-install (EXPORT chaste-targets
-         DESTINATION lib/chaste
-         FILE ChasteTargets.cmake
-         #EXPORT_LINK_INTERFACE_LIBRARIES
-         COMPONENT ChasteTargets
-         )
+install(EXPORT chaste-targets
+        DESTINATION lib/chaste
+        FILE ChasteTargets.cmake
+        COMPONENT ChasteTargets
+)
 
 
 ####################
@@ -832,13 +889,14 @@ if (Chaste_COVERAGE)
                        COMMAND ${NICE_COMMAND} ${NICENESS} ${CTEST_COMMAND} "-j${Chaste_COVERAGE_CPUS}" "-L" "Continuous" "--output-on-failure"
                        COMMAND ${NICE_COMMAND} ${NICENESS} ${CTEST_COMMAND} "-L" "Parallel" "--output-on-failure"
 
-                       # Capturing lcov counters and generating report
-                       COMMAND ${LCOV_PATH} --config-file ${Chaste_SOURCE_DIR}/cmake/Config/lcovrc --directory . --capture --output-file ${_outputname}.info
-                       COMMAND ${LCOV_PATH} --config-file ${Chaste_SOURCE_DIR}/cmake/Config/lcovrc --remove ${_outputname}.info /home/bob/petsc* /usr/* */fortests/* */test/* */3rdparty/* */global/src/random/* Debug/* Debug_*/* cxxtest/* --output-file ${_outputname}.info.cleaned
+                       # Capture, then build the HTML. Exclude patterns live in
+                       # cmake/Config/lcovrc (shared with the CI workflow) and apply at
+                       # capture time, so no `lcov --remove` pass is needed.
+                       COMMAND ${LCOV_PATH} --config-file ${Chaste_SOURCE_DIR}/cmake/Config/lcovrc --directory . --capture --parallel ${Chaste_COVERAGE_CPUS} --output-file ${_outputname}.info
                        set (_page_title "\"Chaste Coverage Results for commit ${Chaste_REVISION}\"")
-                       COMMAND ${GENHTML_PATH} --title "${_page_title}" --config-file ${Chaste_SOURCE_DIR}/cmake/Config/lcovrc --no-function-coverage -o ${_outputname} ${_outputname}.info.cleaned
-                       COMMAND ${CMAKE_COMMAND} -E remove ${_outputname}.info ${_outputname}.info.cleaned
-                       COMMAND ${PYTHON_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/process_coverage_output.py" "${_outputname}"
+                       COMMAND ${GENHTML_PATH} --title "${_page_title}" --config-file ${Chaste_SOURCE_DIR}/cmake/Config/lcovrc --no-function-coverage -o ${_outputname} ${_outputname}.info
+                       COMMAND ${CMAKE_COMMAND} -E remove ${_outputname}.info
+                       COMMAND ${Python3_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/process_coverage_output.py" "${_outputname}"
 
                        DEPENDS Continuous Parallel
                        WORKING_DIRECTORY ${Chaste_BINARY_DIR}
@@ -914,14 +972,14 @@ endif ()
 ####################
 
 add_custom_target (doxygen
-                   COMMAND ${PYTHON_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/run-doxygen.py" "${Chaste_SOURCE_DIR}"
+                   COMMAND ${Python3_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/run-doxygen.py" "${Chaste_SOURCE_DIR}"
                    "${Chaste_BINARY_DIR}/doxygen" "${Chaste_REVISION}"
                    WORKING_DIRECTORY ${Chaste_BINARY_DIR}
                    COMMENT "Generating Doxygen documentation"
                    VERBATIM)
 
 add_custom_target (doxygen_coverage
-                   COMMAND ${PYTHON_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/run-doxygen.py" "${Chaste_SOURCE_DIR}"
+                   COMMAND ${Python3_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/run-doxygen.py" "${Chaste_SOURCE_DIR}"
                    "${Chaste_BINARY_DIR}/doxygen_coverage" "${Chaste_REVISION}" "True"
                    WORKING_DIRECTORY ${Chaste_BINARY_DIR}
                    COMMENT "Checking Doxygen coverage"
@@ -938,7 +996,7 @@ if (Chaste_MEMORY_TESTING)
     set (CTEST_COMMAND ctest)
     add_custom_target (memtest
                        COMMAND ${NICE_COMMAND} ${NICENESS} ${CTEST_COMMAND} "-j${Chaste_MEMORY_TESTING_CPUS}" "-L" Continuous "--output-on-failure"
-                       COMMAND ${PYTHON_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/process_valgrind_output.py" "${Chaste_MEMORY_TESTING_OUTPUT_DIR}"
+                       COMMAND ${Python3_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/process_valgrind_output.py" "${Chaste_MEMORY_TESTING_OUTPUT_DIR}"
                        DEPENDS Continuous
                        WORKING_DIRECTORY ${Chaste_BINARY_DIR}
                        VERBATIM)
@@ -950,10 +1008,10 @@ endif ()
 
 if (Chaste_PROFILE_GPROF OR Chaste_PROFILE_GPERFTOOLS)
     if (Chaste_PROFILE_GPERFTOOLS)
-        set (extension svg)
+        set (extension "txt;svg")
         set (NUM_CPUS ${Chaste_PROFILE_GPERFTOOLS_CPUS})
     else ()
-        set (extension gmon)
+        set (extension txt)
         set (NUM_CPUS ${Chaste_PROFILE_GPROF_CPUS})
     endif ()
 
@@ -963,7 +1021,7 @@ if (Chaste_PROFILE_GPROF OR Chaste_PROFILE_GPERFTOOLS)
     set (CTEST_COMMAND ctest)
     add_custom_target (profile
                        COMMAND ${NICE_COMMAND} ${NICENESS} ${CTEST_COMMAND} "-j${NUM_CPUS}" "-L" "^Profile_" "--output-on-failure"
-                       COMMAND ${PYTHON_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/process_profile.py" "${Chaste_PROFILE_OUTPUT_DIR}" ${extension}
+                       COMMAND ${Python3_EXECUTABLE} "${Chaste_SOURCE_DIR}/cmake/process_profile.py" "${Chaste_PROFILE_OUTPUT_DIR}" ${extension}
                        DEPENDS Profile
                        WORKING_DIRECTORY ${Chaste_BINARY_DIR}
                        VERBATIM)
@@ -975,10 +1033,16 @@ endif ()
 
 
 add_custom_target (infrastructure
-                   COMMAND ${PYTHON_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/infra/CheckForCopyrights.py
-                   COMMAND ${PYTHON_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/infra/CheckForDuplicateFileNames.py
-                   COMMAND ${PYTHON_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/infra/CheckForOrphanedTests.py
-                   COMMAND ${PYTHON_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/infra/CheckSchemas.py
+                   COMMAND ${Python3_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/infra/CheckForCopyrights.py
+                   COMMAND ${Python3_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/infra/CheckForDuplicateFileNames.py
+                   COMMAND ${Python3_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/infra/CheckForOrphanedTests.py
+                   COMMAND ${Python3_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/infra/CheckSchemas.py
+
+                   WORKING_DIRECTORY ${Chaste_SOURCE_DIR}
+                   VERBATIM)
+
+add_custom_target (infrastructure_whitespace
+                   COMMAND ${Python3_EXECUTABLE} ${Chaste_SOURCE_DIR}/python/utils/RemoveTabsAndTrailingWhitespace.py
 
                    WORKING_DIRECTORY ${Chaste_SOURCE_DIR}
                    VERBATIM)
@@ -1003,7 +1067,7 @@ set (CPACK_PACKAGE_DESCRIPTION "
  and scientific computing.
  .
  The main website for Chaste can be found at
- http://www.cs.ox.ac.uk/chaste
+ https://chaste.github.io
 ")
 set (CPACK_PACKAGE_VERSION_MAJOR "${Chaste_VERSION_MAJOR}")
 set (CPACK_PACKAGE_VERSION_MINOR "${Chaste_VERSION_MINOR}")
@@ -1050,6 +1114,30 @@ foreach (component ${Chaste_COMPONENTS})
     endforeach (depend_component Chaste_DEPENDS_${component})
 
 endforeach (component ${Chaste_COMPONENTS})
+
+
+# CMake 4.1.0-4.1.4 and 4.2.0-4.2.1 emit spurious "Could not find a package configuration file provided by nvpl"
+# warnings while searching for BLAS/LAPACK (triggered when finding PETSc and SUNDIALS). These warnings are harmless and
+# can safely be ignored.
+# The issue was fixed in CMake 4.1.5 and 4.2.2 respectively:
+# https://gitlab.kitware.com/cmake/cmake/-/work_items/27451
+# https://github.com/Chaste/Chaste/issues/477
+if ((CMAKE_VERSION VERSION_GREATER_EQUAL "4.1.0" AND CMAKE_VERSION VERSION_LESS "4.1.5") OR
+(CMAKE_VERSION VERSION_GREATER_EQUAL "4.2.0" AND CMAKE_VERSION VERSION_LESS "4.2.2"))
+    message(STATUS "NOTE: CMake ${CMAKE_VERSION} is known to emit spurious warnings related to 'nvpl' when searching "
+            "for BLAS/LAPACK. These warnings are harmless and can safely be ignored. Upgrade to CMake >= 4.1.5 or >= "
+            "4.2.2 to suppress them.")
+endif ()
+
+
+message(STATUS "")
+message(STATUS "----------------------------------------------------------")
+message(STATUS "Chaste documentation and tutorials:")
+message(STATUS "    https://chaste.github.io/")
+message(STATUS "Ask questions and get help from the core development team:")
+message(STATUS "    https://github.com/Chaste/Chaste/discussions")
+message(STATUS "----------------------------------------------------------")
+message(STATUS "")
 
 
 set (CPACK_DEBIAN_PACKAGE_DEPENDS "cmake, g++, libopenmpi-dev, petsc-dev (>= 2.3.3-14), libhdf5-openmpi-dev, xsdcxx, libboost-serialization-dev, libboost-filesystem-dev, libparmetis-dev, libxerces-c3-dev, libsundials-serial-dev, libvtk5-dev, python-lxml, python-rdflib")

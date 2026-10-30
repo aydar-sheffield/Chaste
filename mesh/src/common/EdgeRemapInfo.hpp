@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2019, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -37,35 +37,47 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define EDGEREMAPINFO_HPP_
 
 #include "ChasteSerialization.hpp"
+#include <boost/serialization/serialization.hpp>
 #include <boost/serialization/base_object.hpp>
 #include <boost/serialization/vector.hpp>
 
 #include <vector>
 
 /**
- * Storage class contains a mapping to the old local edge indices and status of the new edges.
+ * Storage class contains a mapping to the old local edge indices and status of
+ * the new edges.
  */
-class EdgeRemapInfo {
+class EdgeRemapInfo
+{
 private:
-    /**
-     * Contains a mapping to the old local edge indices. Negative value means a new edge
-     */
-    std::vector<long int> mEdgesMapping;
 
     /**
-     * Status
-     * 0 Edge has not changed
-     * 1 Edge has been split between two elements
-     * 2 Completely new edge was created
-     * 3 Edge above or below the current edge was deleted
-     * 4 Edge above has been merged into the current one
+     * Whether the EdgeMapInfor is unused.
+     * Initialised to false in the constructor.
      */
-    std::vector<unsigned int> mEdgeStatus;
+    bool mUnused = true;
 
     /**
-     * Determines how close the new node on the split edges is to the previous (lower) node
-     * Value of 0 means the new node is at the same position as the lower node,
-     * and value of 1 means that its at the upper node of the edge to be split.
+     * Contains a mapping to the old local edge indices.
+     * Negative value means a new edge.
+     */
+    std::vector<long> mEdgesMapping;
+
+    /**
+     * Status:
+     * 0 - Edge has not changed
+     * 1 - Edge has been split between two elements
+     * 2 - Completely new edge was created
+     * 3 - Edge above or below the current edge was deleted
+     * 4 - Edge above has been merged into the current one
+     */
+    std::vector<unsigned> mEdgeStatus;
+
+    /**
+     * Determines how close the new node on the split edges is to the previous
+     * (lower) node. Value of 0 means the new node is at the same position as
+     * the lower node, and value of 1 means that its at the upper node of the
+     * edge to be split.
      */
     std::vector<double> mSplitProportions;
 
@@ -80,51 +92,62 @@ private:
     template<class Archive>
     void serialize(Archive & archive, const unsigned int version)
     {
+        archive & mUnused;
         archive & mEdgesMapping;
         archive & mEdgeStatus;
         archive & mSplitProportions;
     }
 public:
+
     /**
      * Default constructor. Does nothing.
      */
     EdgeRemapInfo();
 
     /**
-     * Constructor for edge remapping.
-     * @param edgesMapping the map between the new edge indices and their local index in the element prior
-     * to rearrangement
-     * @param edgesStatus status of the edges in the element
-     */
-    EdgeRemapInfo(const std::vector<long int> &edgesMapping, const std::vector<unsigned int> &edgesStatus);
-
-    /**
-     * Here for boost serialization
+     * Destructor.
      */
     ~EdgeRemapInfo();
 
     /**
-     * Contains a mapping to the old local edges index. Negative value means a new edge
+     * Constructor for edge remapping.
+     *
+     * @param rEdgesMapping the map between the new edge indices and their local
+     *                      index in the element prior to rearrangement
+     * @param rEdgesStatus status of the edges in the element
+     */
+    EdgeRemapInfo(const std::vector<long>& rEdgesMapping,
+                  const std::vector<unsigned>& rEdgesStatus);
+
+    /**
+     * Contains a mapping to the old local edges index.
+     * Negative value means a new edge
+     *
      * @return edge map
      */
-    std::vector<long int> GetEdgesMapping() const;
+    std::vector<long> GetEdgesMapping() const;
 
     /**
      * @return vector containing the status of each edge
      */
-    std::vector<unsigned int> GetEdgesStatus() const;
+    std::vector<unsigned> GetEdgesStatus() const;
 
     /**
-     * Gets split proportions. Used in VerteBasedPopulationSrn class
+     * @return split proportions. Used in VertexBasedPopulationSrn class.
      */
     std::vector<double> GetSplitProportions() const;
 
     /**
-     * Sets split proportions. Used in VertexMeshOperationRecorder class
-     * @param thetas
+     * Set split proportions. Used in VertexMeshOperationRecorder class.
+     *
+     * @param proportions new split proportions
      */
-    void SetSplitProportions(const std::vector<double> thetas);
+    void SetSplitProportions(const std::vector<double> proportions);
+
+    /**
+     * @return mUnused.
+     */
+    bool GetUnused() const;
 };
 
-
-#endif //EDGEREMAPINFO_HPP_
+#endif /* EDGEREMAPINFO_HPP_ */

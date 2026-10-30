@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -38,7 +38,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "CodegenLongHelperTestSuite.hpp"
 
-#include <boost/foreach.hpp>
 #include <vector>
 
 #include "HeartConfig.hpp"
@@ -54,7 +53,6 @@ class TestCodegenLongAnalyticCvode : public CodegenLongHelperTestSuite
 public:
     void TestAnalyticCvodeCells()
     {
-#ifdef CHASTE_CVODE
         std::string dirname("TestCodegenLongCvodeAnalyticJ");
         std::vector<std::string> args;
         args.push_back("--Wu");
@@ -62,12 +60,12 @@ public:
         args.push_back("--use-analytic-jacobian");
 
         // These have NaN in the jacobian due to massive exponentials
-        std::vector<std::string> bad_models = spectail_streatment_models(models, {"aslanidi_model_2009",
-                                                                                  "hund_rudy_2004_a",
-                                                                                  "livshitz_rudy_2007"});
+        std::vector<std::string> bad_models = special_treatment_models (models, {"hund_rudy_2004",
+                                                                                 "livshitz_rudy_2007",
+                                                                                 "difrancesco_noble_model_1985",
+                                                                                 "faber_rudy_2000"});
         HeartConfig::Instance()->SetOdePdeAndPrintingTimeSteps(0.005, 0.1, 1.0);
         RunTests(dirname, models, args);
-#endif
     }
 };
 

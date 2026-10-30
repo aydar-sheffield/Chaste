@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -514,6 +514,12 @@ void CaBasedCellPopulation<DIM>::AcceptPopulationCountWriter(boost::shared_ptr<A
 }
 
 template<unsigned DIM>
+void CaBasedCellPopulation<DIM>::AcceptPopulationEventWriter(boost::shared_ptr<AbstractCellPopulationEventWriter<DIM, DIM> > pPopulationEventWriter)
+{
+    pPopulationEventWriter->Visit(this);
+}
+
+template<unsigned DIM>
 void CaBasedCellPopulation<DIM>::AcceptCellWriter(boost::shared_ptr<AbstractCellWriter<DIM, DIM> > pCellWriter, CellPtr pCell)
 {
     pCellWriter->VisitCell(pCell, this);
@@ -618,7 +624,6 @@ void CaBasedCellPopulation<DIM>::OutputCellPopulationParameters(out_stream& rPar
 template<unsigned DIM>
 void CaBasedCellPopulation<DIM>::WriteVtkResultsToFile(const std::string& rDirectory)
 {
-#ifdef CHASTE_VTK
     // Store the present time as a string
     unsigned num_timesteps = SimulationTime::Instance()->GetTimeStepsElapsed();
     std::stringstream time;
@@ -778,7 +783,6 @@ void CaBasedCellPopulation<DIM>::WriteVtkResultsToFile(const std::string& rDirec
     {
         delete nodes[i];
     }
-#endif //CHASTE_VTK
 }
 
 template<unsigned DIM>

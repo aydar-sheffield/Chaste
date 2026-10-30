@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2019, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -35,139 +35,116 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "EdgeHelper.hpp"
 
-template<unsigned int SPACE_DIM>
+template<unsigned SPACE_DIM>
 EdgeHelper<SPACE_DIM>::EdgeHelper()
 {
 }
 
-template<unsigned int SPACE_DIM>
-EdgeHelper<SPACE_DIM>::~EdgeHelper()
+template<unsigned SPACE_DIM>
+Edge<SPACE_DIM>* EdgeHelper<SPACE_DIM>::GetEdgeFromNodes(Node<SPACE_DIM>* pNodeA,
+                                                         Node<SPACE_DIM>* pNodeB)
 {
-    for (unsigned int i=0; i<mEdges.size(); ++i)
-    {
-        delete mEdges[i];
-    }
-}
-
-template<unsigned int SPACE_DIM>
-void EdgeHelper<SPACE_DIM>::Clear()
-{
-    // Iterate over edges and free the memory
-    for (auto edge: mEdges)
-    {
-        delete edge;
-    }
-    mEdges.clear();
-}
-
-template<unsigned int SPACE_DIM>
-Edge<SPACE_DIM> *EdgeHelper<SPACE_DIM>::GetEdgeFromNodes(Node<SPACE_DIM> *node0, Node<SPACE_DIM> *node1)
-{
-    // Swap node so we always have the lower index as node 0
-    if (node0->GetIndex() > node1->GetIndex())
-    {
-        auto swapNode = node0;
-        node0 = node1;
-        node1 = swapNode;
-    }
-
-    auto edgeMapIndices = UIndexPair(node0->GetIndex(), node1->GetIndex());
+    auto edge_map_indices = Edge<SPACE_DIM>::GenerateMapIndex(pNodeA->GetIndex(), pNodeB->GetIndex());
 
     // Check that an edge hasn't been created already
-    Edge<SPACE_DIM>* edge = nullptr;
+    Edge<SPACE_DIM>* p_edge = nullptr;
 
-    auto edgeItt = mEdgesMap.find(edgeMapIndices);
-    if (edgeItt == mEdgesMap.end() || edgeItt->second->IsDeleted())
+    auto edge_iter = mEdgesMap.find(edge_map_indices);
+    if (edge_iter == mEdgesMap.end() || edge_iter->second->IsDeleted())
     {
-        edge = new Edge<SPACE_DIM>(mEdges.size(), node0, node1);
-        mEdgesMap[edgeMapIndices] = edge;
-        mEdges.push_back(edge);
+        mEdges.push_back(std::make_unique<Edge<SPACE_DIM>> (mEdges.size(), pNodeA, pNodeB));
+        p_edge = mEdges.back().get();
+        mEdgesMap[edge_map_indices] = p_edge;
     }
     else
     {
-        edge = edgeItt->second;
-        edge->SetNodes(node0, node1);
+        p_edge = edge_iter->second;
+        p_edge->SetNodes(pNodeA, pNodeB);
     }
 
-    return edge;
+    return p_edge;
 }
 
-template<unsigned int SPACE_DIM>
+template<unsigned SPACE_DIM>
 Edge<SPACE_DIM> *
-EdgeHelper<SPACE_DIM>::GetEdgeFromNodes(unsigned elementIndex, Node<SPACE_DIM> *node0, Node<SPACE_DIM> *node1)
+EdgeHelper<SPACE_DIM>::GetEdgeFromNodes(unsigned elementIndex,
+                                        Node<SPACE_DIM>* pNodeA,
+                                        Node<SPACE_DIM>* pNodeB)
 {
-    auto edge = GetEdgeFromNodes(node0, node1);
-    edge->AddElement(elementIndex);
-    return edge;
+    auto p_edge = GetEdgeFromNodes(pNodeA, pNodeB);
+    p_edge->AddElement(elementIndex);
+    return p_edge;
 }
 
-template<unsigned int SPACE_DIM>
-Edge<SPACE_DIM> *EdgeHelper<SPACE_DIM>::GetEdge(unsigned index)
+template<unsigned SPACE_DIM>
+Edge<SPACE_DIM>* EdgeHelper<SPACE_DIM>::GetEdge(unsigned index) const
 {
-    return mEdges[index];
+    assert(index < mEdges.size());
+    return mEdges[index].get();
 }
 
-template<unsigned int SPACE_DIM>
-Edge<SPACE_DIM> *EdgeHelper<SPACE_DIM>::GetEdge(unsigned index) const
+template<unsigned SPACE_DIM>
+Edge<SPACE_DIM>* EdgeHelper<SPACE_DIM>::operator[](unsigned index) const
 {
-    return mEdges[index];
+    assert(index < mEdges.size());
+    return mEdges[index].get();
 }
 
-template<unsigned int SPACE_DIM>
-Edge<SPACE_DIM> *EdgeHelper<SPACE_DIM>::operator[](unsigned index)
-{
-    return mEdges[index];
-}
-
-template<unsigned int SPACE_DIM>
-Edge<SPACE_DIM> *EdgeHelper<SPACE_DIM>::operator[](unsigned index) const
-{
-    return mEdges[index];
-}
-
-template<unsigned int SPACE_DIM>
+template<unsigned SPACE_DIM>
 void EdgeHelper<SPACE_DIM>::RemoveDeletedEdges()
 {
-    // Remove any edges that have been marked for deletion and store all other nodes in a temporary structure
-    std::vector<Edge<SPACE_DIM>*> live_edges;
-    for (unsigned i=0; i<this->mEdges.size(); i++)
+    /*
+     * Remove any edges that have been marked for deletion and store all other
+     * nodes in a temporary structure.
+     */
+    std::vector<std::unique_ptr<Edge<SPACE_DIM> > > live_edges;
+
+    for (auto& p_edge : mEdges)
     {
-        // An edge can be deleted if it is not contained in any elements
-        if (this->mEdges[i]->GetNumElements() == 0)
-        {
-            delete this->mEdges[i];
-        }
-        else
-        {
-            live_edges.push_back(this->mEdges[i]);
-        }
+      // An edge can be deleted if it is not contained in any elements
+      if (p_edge->GetNumElements() != 0)
+      {
+          live_edges.push_back(std::move(p_edge));
+      }
+      /*
+       * Note: there's no need to manually delete the edge, because the
+       * unique_ptr automatically takes care of that when it goes out of scope.
+       */
     }
 
-    // Repopulate the edges vector
-    this->mEdges = live_edges;
+    /*
+     * Repopulate the edges vector, using std::move to efficiently transfer
+     * ownership of the pointers.
+     */
+    mEdges = std::move(live_edges);
 
-    for (unsigned i=0; i<this->mEdges.size(); i++)
+    // Reset the edge indices
+    for (unsigned i = 0; i < this->mEdges.size(); ++i)
     {
-        this->mEdges[i]->SetIndex(i);
+        mEdges[i]->SetIndex(i);
     }
+
+    UpdateEdgesMapKey();
 }
 
-template<unsigned int SPACE_DIM>
+template<unsigned SPACE_DIM>
 void EdgeHelper<SPACE_DIM>::UpdateEdgesMapKey()
 {
     mEdgesMap.clear();
 
-    for (auto edge : mEdges)
+    for (auto& p_edge : mEdges)
     {
-        mEdgesMap[edge->GetMapIndex()] = edge;
+        mEdgesMap[p_edge->GetMapIndex()] = p_edge.get();
     }
 }
 
-template<unsigned int SPACE_DIM>
-unsigned EdgeHelper<SPACE_DIM>::GetNumEdges() const {
+template<unsigned SPACE_DIM>
+unsigned EdgeHelper<SPACE_DIM>::GetNumEdges() const
+{
     return mEdges.size();
 }
 
+// Explicit instantiation
 template class EdgeHelper<1>;
 template class EdgeHelper<2>;
 template class EdgeHelper<3>;

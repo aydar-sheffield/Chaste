@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -38,7 +38,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "AbstractCvodeSystem.hpp"
 
-#ifdef CHASTE_CVODE
 /**
  * dy/dt = a, y(0) = 0, where a is a user-supplied parameter.
  */
@@ -66,7 +65,5 @@ public:
 
 #include "SerializationExportWrapper.hpp"
 CHASTE_CLASS_EXPORT(ParameterisedCvode)
-
-#endif // CHASTE_CVODE
 
 #endif /*PARAMETERISEDCVODE_HPP_*/

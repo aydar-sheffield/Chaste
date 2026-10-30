@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -367,6 +367,4 @@ VECTOR AbstractParameterisedSystem<VECTOR>::ComputeDerivedQuantitiesFromCurrentS
 //////////////// Explicit instantiation//////////////
 
 template class AbstractParameterisedSystem<std::vector<double> >;
-#ifdef CHASTE_CVODE
 template class AbstractParameterisedSystem<N_Vector>;
-#endif

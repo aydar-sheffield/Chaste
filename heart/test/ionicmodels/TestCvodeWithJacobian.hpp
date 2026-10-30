@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -71,7 +71,6 @@ class TestCvodeWithJacobian : public CxxTest::TestSuite
 public:
     void TestTimingsWithAndWithoutJacobian()
     {
-#ifdef CHASTE_CVODE
         // Set up a default solver and a stimulus
         boost::shared_ptr<AbstractIvpOdeSolver> p_solver;
         boost::shared_ptr<AbstractStimulusFunction> p_stimulus(new RegularStimulus(-25, 5, 1000, 1));
@@ -190,9 +189,6 @@ public:
             p_cell_cvode->SolveAndUpdateState(0, simulation_duration);
             Timer::Print(" 3. CVODE native with Analytic Jacobian");
         }
-#else
-        std::cout << "CVODE is not installed or Chaste hostconfig is not using it." << std::endl;
-#endif
     }
 };
 

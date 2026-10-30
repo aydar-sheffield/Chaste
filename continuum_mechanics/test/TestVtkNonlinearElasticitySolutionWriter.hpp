@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -54,7 +54,6 @@ class TestVtkNonlinearElasticitySolutionWriter : public CxxTest::TestSuite
 public:
     void TestException()
     {
-#ifdef CHASTE_VTK
         QuadraticMesh<3> mesh(1.0, 1.0, 1.0, 1.0);
 
         // set up a solver object
@@ -67,12 +66,10 @@ public:
 
         VtkNonlinearElasticitySolutionWriter<3> vtk_writer(solver);
         TS_ASSERT_THROWS_THIS(vtk_writer.Write(),"No output directory was given to the mechanics solver");
-#endif //CHASTE_VTK
     }
 
     void TestVtuFile()
     {
-#ifdef CHASTE_VTK
         for (unsigned run=0; run<3; run++)
         {
             std::stringstream dir;
@@ -87,6 +84,7 @@ public:
             problem_defn.SetMaterialLaw(INCOMPRESSIBLE,&law);
             problem_defn.SetZeroDisplacementNodes(fixed_nodes);
             IncompressibleNonlinearElasticitySolver<3> solver(bar_mesh,problem_defn,dir.str());
+
             solver.Solve();
 
             // solution is currently no deformation. Hack into the solution and set it to be something known.
@@ -128,8 +126,32 @@ public:
             FileFinder vtk_file(dir.str() + "/vtk/solution.vtu", RelativeTo::ChasteTestOutput);
             TS_ASSERT(vtk_file.Exists());
 
+            {
+                // Check that the reader can see it
+                VtkMeshReader<3,3> vtk_reader(OutputFileHandler::GetChasteTestOutputDirectory() + dir.str() + "/vtk/solution.vtu");
+                TS_ASSERT_EQUALS(vtk_reader.GetNumNodes(), bar_mesh.GetNumNodes());
+                TS_ASSERT_EQUALS(vtk_reader.GetNumElements(), bar_mesh.GetNumElements());
 
-            // we can't really test the vtu file easily, but the strain data is stored in a member variable so we can
+                // Check that it has the correct data
+                std::vector<c_vector<double,3> > displacement_read;
+                vtk_reader.GetPointData("Displacement", displacement_read);
+                for (unsigned i=0; i<displacement_read.size(); i++)
+                {
+                    TS_ASSERT_DELTA(vtk_writer.mDisplacements[i](0), displacement_read[i](0),1e-12);
+                    TS_ASSERT_DELTA(vtk_writer.mDisplacements[i](1), displacement_read[i](1),1e-12);
+                    TS_ASSERT_DELTA(vtk_writer.mDisplacements[i](2), displacement_read[i](2),1e-12);
+                }
+
+                std::vector<double> pressure_read;
+                vtk_reader.GetPointData("Pressure", pressure_read);
+                for (unsigned i=0; i<pressure_read.size(); i++)
+                {
+                    TS_ASSERT_DELTA(solver.rGetPressures()[i], pressure_read[i],1e-12);
+                }
+            }
+
+            // It is difficult to test the content of tensor data as the VTK reader doesn't have a method (yet)
+            // However, the strain data is stored in a member variable so we can
             // test it was computed correctly.
             for (unsigned i=0; i<bar_mesh.GetNumElements(); i++)
             {
@@ -145,7 +167,7 @@ public:
                         for (unsigned N=0; N<3; N++)
                         {
                             double value = (run==0 ? F[M][N] : (run==1 ? C[M][N] : E[M][N]) );
-                            TS_ASSERT_DELTA(vtk_writer.mTensorData[i](M,N), value, 1e-12);
+                            TS_ASSERT_DELTA(vtk_writer.mTensorStrainData[i](M,N), value, 1e-12);
                         }
                     }
                 }
@@ -160,13 +182,13 @@ public:
                         for (unsigned N=0; N<3; N++)
                         {
                             double value = (run==0 ? F[M][N] : (run==1 ? C[M][N] : E[M][N]) );
-                            TS_ASSERT_DELTA(vtk_writer.mTensorData[i](M,N), value, 1e-12);
+                            TS_ASSERT_DELTA(vtk_writer.mTensorStrainData[i](M,N), value, 1e-12);
                         }
                     }
                 }
+
             }
         }
-#endif //CHASTE_VTK
     }
 };
 

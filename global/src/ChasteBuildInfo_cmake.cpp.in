@@ -1,13 +1,18 @@
-#include "ChasteBuildRoot.hpp" 
+#include "ChasteBuildRoot.hpp"
 
-const char* ChasteBuildRootDir() 
-{ 
-    return "${Chaste_BINARY_DIR}/"; 
+const char* ChasteBuildRootDir()
+{
+    return "${Chaste_BINARY_DIR}/";
 }
 
-const char* ChasteSourceRootDir() 
-{ 
-    return "${Chaste_SOURCE_DIR}/"; 
+const char* ChasteSourceRootDir()
+{
+    return "${Chaste_SOURCE_DIR}/";
+}
+
+const char* ChasteInstallRootDir()
+{
+    return "${CMAKE_INSTALL_PREFIX}/";
 }
 
 std::string ChasteComponentBuildDir(const std::string& rComponent)
@@ -20,9 +25,13 @@ std::string ChasteBuildDirName()
     return "${Chaste_BUILD_DIR_NAME}";
 }
 
+std::string DefaultChasteTestOutput()
+{
+    return "${Chaste_DEFAULT_TEST_OUTPUT}";
+}
+
 std::string ChasteBuildType()
 {
     return "${Chaste_BUILD_TYPE}";
 }
 
-${additional}

@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -60,8 +60,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "OrthotropicConductivityTensors.hpp"
 #include "TetrahedralMesh.hpp"
 #include "DistributedTetrahedralMesh.hpp"
-#include "PetscSetupAndFinalize.hpp"
 
+#include "PetscSetupAndFinalize.hpp"
 
 // cell factory for creating 2 cells with both intra and extracellular stimuli
 template <unsigned PROBLEM_DIM=1>
@@ -323,7 +323,7 @@ public:
 
         /*
         * HOW_TO_TAG Cardiac/Problem definition
-        * Set discrete '''ellipsoid''' areas to have heterogeneous (intra- and/or extra-cellular) conductivity tensors.
+        * Set discrete **ellipsoid** areas to have heterogeneous (intra- and/or extra-cellular) conductivity tensors.
         */
         std::vector<ChasteEllipsoid<3> > heterogeneity_area;
         std::vector< c_vector<double,3> > intra_conductivities;

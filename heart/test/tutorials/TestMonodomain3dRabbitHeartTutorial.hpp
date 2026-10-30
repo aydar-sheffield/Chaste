@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -45,7 +45,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define TESTMONODOMAIN3DRABBITHEARTTUTORIAL_HPP_
 
 /*
- * = 3D monodomain rabbit heart example =
+ * ## 3D monodomain rabbit heart example
  *
  * This tutorial runs a simulation on a whole rabbit heart mesh. Note that this
  * mesh is far too coarse for converged simulations, but provides a useful example.
@@ -54,7 +54,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include <cxxtest/TestSuite.h>
 #include "MonodomainProblem.hpp"
-#include "LuoRudy1991BackwardEuler.hpp"
+#include "LuoRudy1991BackwardEulerOpt.hpp"
 #include "GenericMeshReader.hpp"
 #include "SimpleStimulus.hpp"
 #include "DistributedTetrahedralMesh.hpp"
@@ -87,11 +87,11 @@ public:
 
         if (z <= 0.05)
         {
-            return new CellLuoRudy1991FromCellMLBackwardEuler(mpSolver, mpStimulus);
+            return new CellLuoRudy1991FromCellMLBackwardEulerOpt(mpSolver, mpStimulus);
         }
         else
         {
-            return new CellLuoRudy1991FromCellMLBackwardEuler(mpSolver, mpZeroStimulus);
+            return new CellLuoRudy1991FromCellMLBackwardEulerOpt(mpSolver, mpZeroStimulus);
         }
     }
 };
@@ -153,7 +153,7 @@ public:
         /*
          * Here we create an instance of our cell factory, which will tell the `MonodomainProblem`
          * class which action potential models to use at which nodes. The rest of the problem is set up
-         * identically to [wiki:UserTutorials/Monodomain3dExample Monodomain3dExample].
+         * identically to the tutorial [Monodomain 3D Example](/docs/user-tutorials/monodomain3dexample/).
          */
         RabbitHeartCellFactory cell_factory;
         MonodomainProblem<3> monodomain_problem( &cell_factory );
@@ -183,12 +183,12 @@ public:
 };
 
 /*
- * '''Note''' if you were doing a 'real' scientific simulation you would want to use a higher
- * resolution mesh. A version of this can be found on the [http://www.cs.ox.ac.uk/chaste/download.html Chaste download website]
+ * **Note** if you were doing a 'real' scientific simulation you would want to use a higher
+ * resolution mesh. A version of this can be found on the <https://chaste.cs.ox.ac.uk/old-chaste-data/downloads/data/compat/>.
  *
- * Navigate to the "Data" tab, and download either
- *  * [source:/data/public/OxfordRabbitHeart/OxfordRabbitHeart_binary.tgz OxfordRabbitHeart_binary.tgz]  - 599MB, or
- *  * [source:/data/public/OxfordRabbitHeart/OxfordRabbitHeartWithBath_binary.tgz OxfordRabbitHeartWithBath_binary.tgz]  - 846MB.
+ * Download either
+ *  * OxfordRabbitHeart_binary.tgz  - 599MB, or
+ *  * OxfordRabbitHeartWithBath_binary.tgz  - 846MB.
  *
  * These will probably require HPC resources, and finer ODE and PDE time steps than we used here.
  *

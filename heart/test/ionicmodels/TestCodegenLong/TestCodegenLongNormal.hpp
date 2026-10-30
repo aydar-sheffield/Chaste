@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -38,7 +38,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "CodegenLongHelperTestSuite.hpp"
 
-#include <boost/foreach.hpp>
 #include <vector>
 
 #include "HeartConfig.hpp"
@@ -57,11 +56,10 @@ public:
         std::cout << "Search for 'Failure', ': ***', 'Error', or 'Failed' to find problems." << std::endl;
 
         std::string dirname("TestCodegenLongNormal");
-        std::vector<std::string> args; 
+        std::vector<std::string> args;
 
         // Models that need a very small dt
-        std::vector<std::string> small_dt_models = spectail_streatment_models(models, {"li_mouse_2010"});
-
+        std::vector<std::string> small_dt_models = special_treatment_models(models, {"pandit_clark_giles_demir_2001_epicardial_cell", "ten_tusscher_model_2006_epi", "li_mouse_2010"});
         HeartConfig::Instance()->SetOdePdeAndPrintingTimeSteps(0.005, 0.1, 1.0);
         RunTests(dirname, models, args);
 

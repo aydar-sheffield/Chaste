@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -81,7 +81,7 @@ public:
 
         /* If the above fails, and you are happy the new results are correct, uncomment the following line,
          * run the test, and then do
-         cp /tmp/$USER/testoutput/SaveMono1D/SimulationResults.h5 heart/test/data/cardiac_simulations/mono_1d_small.h5
+         cp $CHASTE_TEST_OUTPUT/SaveMono1D/SimulationResults.h5 heart/test/data/cardiac_simulations/mono_1d_small.h5
          */
         //assert(0);
 
@@ -115,7 +115,7 @@ public:
 
             if (p_vector_factory->GetLocalOwnership() > 0)
             {
-                // One warning will come from the lookup table hitting an nan                
+                // One warning will come from the lookup table hitting an nan
                 TS_ASSERT_EQUALS(Warnings::Instance()->GetNumWarnings(), p_vector_factory->GetLocalOwnership());
                 std::stringstream msg;
                 msg << "Cannot apply drug to cell at node " << p_vector_factory->GetLow() << " as it has no parameter named 'not_a_current_conductance'.";
@@ -344,7 +344,7 @@ public:
         TS_ASSERT(file.Exists());
         /* If you want to update the .h5 results for this test for any reason, you need to stop the following test adding to them.
          * So uncomment the assert(), run the test, and then do:
-         cp /tmp/chaste/testoutput/SaveBidomainShort/SimulationResults.h5 heart/test/data/cardiac_simulations/save_bidomain_short_results.h5
+         cp $CHASTE_TEST_OUTPUT/SaveBidomainShort/SimulationResults.h5 heart/test/data/cardiac_simulations/save_bidomain_short_results.h5
          */
         //assert(0);
     }
@@ -382,7 +382,7 @@ public:
         TS_ASSERT(file.Exists());
         /* If you want to update the .h5 results for this test for any reason, you need to stop the following test adding to them.
          * So uncomment the assert(), run the test, and then do:
-         cp /tmp/chaste/testoutput/SaveMonodomainShort/SimulationResults.h5 heart/test/data/cardiac_simulations/save_monodomain_short_results.h5
+         cp $CHASTE_TEST_OUTPUT/SaveMonodomainShort/SimulationResults.h5 heart/test/data/cardiac_simulations/save_monodomain_short_results.h5
          */
         //assert(0);
     }
@@ -419,7 +419,7 @@ public:
 
         /* If you want to update the .h5 results for this test for any reason, you need to stop the following lines adding to them.
          * So uncomment the assert(), run the test, and then do:
-         cp /tmp/chaste/testoutput/SaveMonodomainDynamic/SimulationResults.h5 heart/test/data/cardiac_simulations/save_monodomain_dynamic.h5
+         cp $CHASTE_TEST_OUTPUT/SaveMonodomainDynamic/SimulationResults.h5 heart/test/data/cardiac_simulations/save_monodomain_dynamic.h5
          */
         //assert(0);
 
@@ -438,15 +438,6 @@ public:
     /**
      * Note: from Chaste release 3.1 onward we no longer support Boost 1.33.
      * The earliest version of Boost supported is 1.34
-     * Run TestCardiacSimulationArchiveBidomain on 4 processors to create the archive for this test,
-     * and copy it to the repository using:
-     *
-       scons build=GccOpt_hostconfig,boost=1-34_4 test_suite=heart/test/TestCardiacSimulation.hpp
-       cp -r /tmp/$USER/testoutput/SaveBidomainShort_checkpoints/0.2ms heart/test/data/checkpoint_migration_via_xml/
-       rm -f heart/test/data/checkpoint_migration_via_xml/0.2ms/SaveBidomainShort/progress_status.txt
-       rm -f heart/test/data/checkpoint_migration_via_xml/0.2ms/SaveBidomainShort_0.2ms/mesh.ncl
-       rm -f heart/test/data/checkpoint_migration_via_xml/0.2ms/SaveBidomainShort_0.2ms/ChasteParameters_?_?xsd
-       rm -rf heart/test/data/checkpoint_migration_via_xml/0.2ms/SaveBidomainShort/output
      */
     void TestCardiacSimulationResumeMigration()
     {
@@ -642,23 +633,19 @@ public:
     void TestDynamicallyLoadingCvodeCell()
     {
         // Coverage - using native CVODE cells should no longer throw
-#ifdef CHASTE_CVODE
         OutputFileHandler handler_cvode("DynamicallyLoadedModelCvode");
         FileFinder cellml_file("heart/dynamic/luo_rudy_1991_dyn.cellml", RelativeTo::ChasteSourceRoot);
         handler_cvode.CopyFileTo(cellml_file);
 
         std::vector<std::string> args;
         args.push_back("--cvode");
-	CellMLToSharedLibraryConverter converter(true);
-	converter.SetOptions(args);
-	// Need to perform conversion here as otherwise we can't tell it to convert a cvode
+    CellMLToSharedLibraryConverter converter(true);
+    converter.SetOptions(args);
+    // Need to perform conversion here as otherwise we can't tell it to convert a cvode
         // It would work with a normal model too, without pre-converting this is tested in TestCardiacSimulationPatchwork
-       	FileFinder copied_file("DynamicallyLoadedModelCvode/luo_rudy_1991_dyn.cellml", RelativeTo::ChasteTestOutput);
+           FileFinder copied_file("DynamicallyLoadedModelCvode/luo_rudy_1991_dyn.cellml", RelativeTo::ChasteTestOutput);
         converter.Convert(copied_file);
         CardiacSimulation simulation("heart/test/data/xml/dynamic_cvode_model.xml");
-#else
-        std::cout << "CVODE is not enabled.\n";
-#endif
     }
 };
 

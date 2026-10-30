@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -238,7 +238,38 @@ public:
             TS_ASSERT(mesh.IsOwned(location));
         }
     }
+    void TestConstuctingLargerMesh()
+    {
+        std::vector<Node<2>*> nodes;
+        nodes.push_back(new Node<2>(0, false, 2.0, 2.0));
+        nodes.push_back(new Node<2>(1, false, 2.0, 200.0));
+        nodes.push_back(new Node<2>(2, false, 200.0, 2.0));
+        nodes.push_back(new Node<2>(3, false, 200.0, 200.0));
 
+        NodesOnlyMesh<2> mesh;
+        ChasteCuboid<2> bounding_cuboid = mesh.CalculateBoundingBox(nodes);
+
+        TS_ASSERT_DELTA(bounding_cuboid.rGetUpperCorner()[0], 200.0, 1e-16);
+        TS_ASSERT_DELTA(bounding_cuboid.rGetUpperCorner()[1], 200.0, 1e-16);
+
+        TS_ASSERT_DELTA(bounding_cuboid.rGetLowerCorner()[0], 2.0, 1e-16);
+        TS_ASSERT_DELTA(bounding_cuboid.rGetLowerCorner()[1], 2.0, 1e-16);
+
+        mesh.ConstructNodesWithoutMesh(nodes, 1.5);
+
+        c_vector<double,4> swollen_box = mesh.GetBoxCollection()->rGetDomainSize();
+
+        TS_ASSERT_DELTA(swollen_box(0), 2, 1e-11);
+        TS_ASSERT_DELTA(swollen_box(1),  201.5, 1e-11);
+        TS_ASSERT_DELTA(swollen_box(2), 2, 1e-11);
+        TS_ASSERT_DELTA(swollen_box(3), 201.5,1e-11);
+
+        for (unsigned i=0; i<nodes.size(); i++)
+        {
+            delete nodes[i];
+        }
+
+    }
     void TestConstuctingAndEnlargingInitialBoxCollection()
     {
         double cut_off = 0.5;
@@ -504,8 +535,6 @@ public:
     void TestWriteNodesWithoutMeshUsingVtk()
     {
         EXIT_IF_PARALLEL;    // Cannot write to file yet in parallel.
- #ifdef CHASTE_VTK
-// Requires  "sudo aptitude install libvtk5-dev" or similar
         std::vector<Node<3>*> nodes;
         nodes.push_back(new Node<3>(0, true,  0.0, 0.0, 0.0));
         nodes.push_back(new Node<3>(1, false, 1.0, 0.0, 0.0));
@@ -553,10 +582,6 @@ public:
         {
             delete nodes[i];
         }
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     void TestWriteNodesWithoutMesh()
@@ -677,7 +702,7 @@ public:
         }
 
         // Delete from interior
-        unsigned node_index;
+        unsigned node_index {};
         if (mesh.mpBoxCollection->IsOwned(nodes[0]))
         {
             AbstractMesh<2,2>::NodeIterator node_iter = mesh.GetNodeIteratorBegin();

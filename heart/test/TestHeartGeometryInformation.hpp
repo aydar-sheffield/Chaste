@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -121,9 +121,9 @@ public:
         for (unsigned index=low_index; index<high_index; index++)
         {
             double x = mesh.GetNode(index)->rGetLocation()[0];
-            TS_ASSERT_EQUALS(info.CalculateRelativeWallPosition(index),(5.0-x)/5.0);
-            TS_ASSERT_EQUALS(info.rGetDistanceMapEpicardium()[index],x);
-            TS_ASSERT_EQUALS(info.rGetDistanceMapEndocardium()[index],(5.0-x));
+            TS_ASSERT_DELTA(info.CalculateRelativeWallPosition(index), (5.0 - x) / 5.0, 1e-10);
+            TS_ASSERT_DELTA(info.rGetDistanceMapEpicardium()[index], x, 1e-10);
+            TS_ASSERT_DELTA(info.rGetDistanceMapEndocardium()[index], 5.0 - x, 1e-10);
         }
     }
 
@@ -169,9 +169,9 @@ public:
         for (unsigned index=low_index; index<high_index; index++)
         {
             double x = mesh.GetNode(index)->rGetLocation()[0];
-            TS_ASSERT_EQUALS(info.CalculateRelativeWallPosition(index),(5-x)/5);
-            TS_ASSERT_EQUALS(info.rGetDistanceMapEpicardium()[index],x);
-            TS_ASSERT_EQUALS(info.rGetDistanceMapEndocardium()[index],(5.0-x));
+            TS_ASSERT_DELTA(info.CalculateRelativeWallPosition(index), (5.0 - x) / 5.0, 1e-10);
+            TS_ASSERT_DELTA(info.rGetDistanceMapEpicardium()[index], x, 1e-10);
+            TS_ASSERT_DELTA(info.rGetDistanceMapEndocardium()[index], 5.0 - x, 1e-10);
         }
         ChasteCuboid<3> epi_bounding_box=info.CalculateBoundingBoxOfEpi();
         ChasteCuboid<3> endo_bounding_box=info.CalculateBoundingBoxOfEndo();
@@ -468,8 +468,6 @@ public:
         TS_ASSERT_EQUALS(sequential_layers.size(), info.rGetLayerForEachNode().size());
         TS_ASSERT_EQUALS(sequential_layers.size(), sequential_relative_wall_position.size());
 
-//#ifdef CHASTE_VTK
-//// Requires  "sudo aptitude install libvtk5-dev" or similar
 //        if  (PetscTools::IsParallel())
 //        {
 //            VtkMeshWriter<3,3> writer("", "epi_distance_par", false);
@@ -484,7 +482,6 @@ public:
 //            writer.AddPointData("Error compared to sequential", errors);
 //            writer.WriteFilesUsingMesh(mesh);
 //        }
-//#endif //CHASTE_VTK
 
 
         if (PetscTools::IsSequential())

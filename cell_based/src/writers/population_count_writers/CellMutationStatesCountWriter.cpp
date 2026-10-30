@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -41,6 +41,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "NodeBasedCellPopulation.hpp"
 #include "PottsBasedCellPopulation.hpp"
 #include "VertexBasedCellPopulation.hpp"
+#include "ImmersedBoundaryCellPopulation.hpp"
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 CellMutationStatesCountWriter<ELEMENT_DIM, SPACE_DIM>::CellMutationStatesCountWriter()
@@ -57,8 +58,7 @@ void CellMutationStatesCountWriter<ELEMENT_DIM, SPACE_DIM>::WriteHeader(Abstract
 
         *this->mpOutStream << "Time\t ";
 
-        const std::vector<boost::shared_ptr<AbstractCellProperty> >& r_cell_properties =
-            pCellPopulation->GetCellPropertyRegistry()->rGetAllCellProperties();
+        const std::vector<boost::shared_ptr<AbstractCellProperty> >& r_cell_properties = pCellPopulation->GetCellPropertyRegistry()->rGetAllCellProperties();
 
         for (unsigned i=0; i<r_cell_properties.size(); i++)
         {
@@ -119,6 +119,12 @@ void CellMutationStatesCountWriter<ELEMENT_DIM, SPACE_DIM>::Visit(PottsBasedCell
 
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void CellMutationStatesCountWriter<ELEMENT_DIM, SPACE_DIM>::Visit(VertexBasedCellPopulation<SPACE_DIM>* pCellPopulation)
+{
+    VisitAnyPopulation(pCellPopulation);
+}
+
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+void CellMutationStatesCountWriter<ELEMENT_DIM, SPACE_DIM>::Visit(ImmersedBoundaryCellPopulation<SPACE_DIM>* pCellPopulation)
 {
     VisitAnyPopulation(pCellPopulation);
 }

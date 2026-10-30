@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -82,9 +82,7 @@ void AbstractCardiacCellWithModifiers<CARDIAC_CELL>::SetModifier(const std::stri
 
 // Explicit Instantiation
 template class AbstractCardiacCellWithModifiers<AbstractCardiacCell>;
-#ifdef CHASTE_CVODE
 template class AbstractCardiacCellWithModifiers<AbstractCvodeCell>;
 template class AbstractCardiacCellWithModifiers<AbstractCvodeCellWithDataClamp>;
-#endif
 
 

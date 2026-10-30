@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -133,9 +133,7 @@ public:
         HeartConfig::Instance()->SetSurfaceAreaToVolumeRatio(1400.0); // 1/cm
         HeartConfig::Instance()->SetCapacitance(1.0); // uF/cm^2
         HeartConfig::Instance()->SetVisualizeWithMeshalyzer();
-#ifdef CHASTE_VTK
         HeartConfig::Instance()->SetVisualizeWithVtk();
-#endif
 
         std::vector<std::pair<double,double> > apds_requested;
         apds_requested.push_back(std::pair<double, double>(90,-30)); //repolarisation percentage and threshold

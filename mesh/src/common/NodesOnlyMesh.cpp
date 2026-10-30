@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -103,7 +103,7 @@ void NodesOnlyMesh<SPACE_DIM>::ConstructNodesWithoutMesh(const std::vector<boost
 {
     // This is not efficient. It should replace the corresponding raw ptr method if SetUpBoxCollection and Chaste Cuboid methods are changed to take shared ptrs.
     std::vector<Node<SPACE_DIM>*> temp_nodes(rNodes.size());
-    for (unsigned idx=0; idx<rNodes.size(); idx++)
+    for (unsigned idx = 0; idx < rNodes.size(); idx++)
     {
         temp_nodes[idx] = rNodes[idx].get();
     }
@@ -312,9 +312,9 @@ void NodesOnlyMesh<SPACE_DIM>::CalculateNodesOutsideLocalDomain()
         }
         // Periodic cases
 
-        // LCOV_EXCL_START 
-        /* This block cannot be covered by regular testing, 
-         * but it is covered by the Nightly -np 3 builder 
+        // LCOV_EXCL_START
+        /* This block cannot be covered by regular testing,
+         * but it is covered by the Nightly -np 3 builder
          * See TestGetNodesOutsideLocalDomainwithPeriodicMesh
          */
         else if ( owning_process == (PetscTools::GetNumProcs()-1) )
@@ -502,7 +502,7 @@ unsigned NodesOnlyMesh<SPACE_DIM>::GetNextAvailableIndex()
     return index;
 }
 
-template<unsigned SPACE_DIM>
+template <unsigned SPACE_DIM>
 void NodesOnlyMesh<SPACE_DIM>::EnlargeBoxCollection()
 {
     assert(mpBoxCollection);
@@ -510,19 +510,20 @@ void NodesOnlyMesh<SPACE_DIM>::EnlargeBoxCollection()
     int num_local_rows = mpBoxCollection->GetNumLocalRows();
     int new_local_rows = num_local_rows + (int)(PetscTools::AmTopMost()) + (int)(PetscTools::AmMaster());
 
-    c_vector<double, 2*SPACE_DIM> current_domain_size = mpBoxCollection->rGetDomainSize();
-    c_vector<double, 2*SPACE_DIM> new_domain_size = current_domain_size;
+    c_vector<double, 2 * SPACE_DIM> current_domain_size = mpBoxCollection->rGetDomainSize();
+    c_vector<double, 2 * SPACE_DIM> new_domain_size;
+    new_domain_size = current_domain_size;
 
     double fudge = 1e-14;
     c_vector<bool, SPACE_DIM> is_periodic = mpBoxCollection->GetIsPeriodicAllDims();
-    for (unsigned d=0; d < SPACE_DIM; d++)
+    for (unsigned d = 0; d < SPACE_DIM; d++)
     {
         // We don't enlarge in periodic directions
-        if ( !is_periodic(d) )
-    {
-        new_domain_size[2*d] = current_domain_size[2*d] - (mMaximumInteractionDistance - fudge);
-        new_domain_size[2*d+1] = current_domain_size[2*d+1] + (mMaximumInteractionDistance - fudge);
-    }
+        if (!is_periodic(d))
+        {
+            new_domain_size[2 * d] = current_domain_size[2 * d] - (mMaximumInteractionDistance - fudge);
+            new_domain_size[2 * d + 1] = current_domain_size[2 * d + 1] + (mMaximumInteractionDistance - fudge);
+        }
     }
     SetUpBoxCollection(mMaximumInteractionDistance, new_domain_size, new_local_rows);
 }
@@ -539,14 +540,13 @@ bool NodesOnlyMesh<SPACE_DIM>::IsANodeCloseToDomainBoundary()
          node_iter != this->GetNodeIteratorEnd();
          ++node_iter)
     {
-        // Note that we define this vector before setting it as otherwise the profiling build will break (see #2367)
-        c_vector<double, SPACE_DIM> location;
-        location = node_iter->rGetLocation();
+        c_vector<double, SPACE_DIM> location = node_iter->rGetLocation();
+
         // We need to ignore periodic dimensions
         c_vector<bool, SPACE_DIM> is_periodic = mpBoxCollection->GetIsPeriodicAllDims();
         for (unsigned d=0; d<SPACE_DIM; d++)
         {
-            if ( !is_periodic(d) && 
+            if ( !is_periodic(d) &&
                  ( location[d] < (domain_boundary[2*d] + mMinimumNodeDomainBoundarySeparation) ||  location[d] > (domain_boundary[2*d+1] - mMinimumNodeDomainBoundarySeparation) ) )
             {
                 is_local_node_close = 1;
@@ -582,18 +582,19 @@ void NodesOnlyMesh<SPACE_DIM>::SetInitialBoxCollection(const c_vector<double, 2*
     this->SetUpBoxCollection(maxInteractionDistance, domainSize);
 }
 
-template<unsigned SPACE_DIM>
-void NodesOnlyMesh<SPACE_DIM>::SetUpBoxCollection(const std::vector<Node<SPACE_DIM>* >& rNodes)
+template <unsigned SPACE_DIM>
+void NodesOnlyMesh<SPACE_DIM>::SetUpBoxCollection(const std::vector<Node<SPACE_DIM>*>& rNodes)
 {
     ClearBoxCollection();
 
     ChasteCuboid<SPACE_DIM> bounding_box = this->CalculateBoundingBox(rNodes);
 
-    c_vector<double, 2*SPACE_DIM> domain_size;
-    for (unsigned i=0; i < SPACE_DIM; i++)
+    c_vector<double, 2 * SPACE_DIM> domain_size;
+    for (unsigned i = 0; i < SPACE_DIM; i++)
     {
-        domain_size[2*i] = bounding_box.rGetLowerCorner()[i] - 1e-14;
-        domain_size[2*i+1] = bounding_box.rGetUpperCorner()[i] + 1e-14;
+        // Grow domain to next representable number to ensure all nodes are strictly inside
+        domain_size[2 * i] = std::nextafter(bounding_box.rGetLowerCorner()[i], -std::numeric_limits<double>::infinity());
+        domain_size[2 * i + 1] = std::nextafter(bounding_box.rGetUpperCorner()[i], std::numeric_limits<double>::infinity());
     }
     SetUpBoxCollection(mMaximumInteractionDistance, domain_size);
 }

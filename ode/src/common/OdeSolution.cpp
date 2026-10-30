@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -41,6 +41,10 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "Exception.hpp"
 #include "PetscTools.hpp"
 #include "VectorHelperFunctions.hpp"
+
+#if CHASTE_SUNDIALS_VERSION >= 60000
+#include "CvodeContextManager.hpp"  // access to shared SUNContext object required by Sundials 6.0+
+#endif
 
 OdeSolution::OdeSolution()
     : mNumberOfTimeSteps(0u),
@@ -171,7 +175,6 @@ std::vector<std::vector<double> >& OdeSolution::rGetDerivedQuantities(AbstractPa
     return mDerivedQuantities;
 }
 
-#ifdef CHASTE_CVODE
 std::vector<std::vector<double> >& OdeSolution::rGetDerivedQuantities(AbstractParameterisedSystem<N_Vector>* pOdeSystem)
 {
     assert(pOdeSystem != nullptr);
@@ -180,7 +183,11 @@ std::vector<std::vector<double> >& OdeSolution::rGetDerivedQuantities(AbstractPa
         const unsigned num_solutions = mSolutions.size();
         assert(mTimes.size() == num_solutions); // Paranoia
         mDerivedQuantities.resize(mTimes.size());
+#if CHASTE_SUNDIALS_VERSION >= 60000
+        N_Vector state_vars = num_solutions > 0 ? N_VNew_Serial(mSolutions[0].size(), CvodeContextManager::Instance()->GetSundialsContext()) : nullptr;
+#else
         N_Vector state_vars = num_solutions > 0 ? N_VNew_Serial(mSolutions[0].size()) : nullptr;
+#endif
         for (unsigned i=0; i<num_solutions; i++)
         {
             CopyFromStdVector(mSolutions[i], state_vars);
@@ -193,7 +200,6 @@ std::vector<std::vector<double> >& OdeSolution::rGetDerivedQuantities(AbstractPa
     assert(mDerivedQuantities.size()==mTimes.size());
     return mDerivedQuantities;
 }
-#endif // CHASTE_CVODE
 
 
 void OdeSolution::WriteToFile(std::string directoryName,
@@ -315,10 +321,8 @@ void OdeSolution::WriteToFile(std::string directoryName,
 template std::vector<double>& OdeSolution::rGetParameters(AbstractParameterisedSystem<std::vector<double> >* pOdeSystem);
 template void OdeSolution::CalculateDerivedQuantitiesAndParameters(AbstractParameterisedSystem<std::vector<double> >* pOdeSystem);
 
-#ifdef CHASTE_CVODE
 template std::vector<double>& OdeSolution::rGetParameters(AbstractParameterisedSystem<N_Vector>* pOdeSystem);
 template void OdeSolution::CalculateDerivedQuantitiesAndParameters(AbstractParameterisedSystem<N_Vector>* pOdeSystem);
-#endif // CHASTE_CVODE
 
 /**
  * \endcond

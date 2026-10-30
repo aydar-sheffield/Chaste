@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -365,6 +365,7 @@ void BoundaryConditionsContainer<ELEMENT_DIM,SPACE_DIM,PROBLEM_DIM>::ApplyDirich
                  *   -value*[0 a_21 a_31 .. a_N1]
                  * and will be added to the RHS.
                  */
+                PetscVecTools::Finalise(matrix_col); //PETSc 3.19 doesn't like mixing "set" mode (above) with "add" mode
                 PetscVecTools::AddScaledVector(rLinearSystem.rGetDirichletBoundaryConditionsVector(), matrix_col, minus_value);
                 PetscTools::Destroy(matrix_col);
             }
@@ -553,8 +554,7 @@ bool BoundaryConditionsContainer<ELEMENT_DIM,SPACE_DIM,PROBLEM_DIM>::Validate(Ab
     for (unsigned index_of_unknown=0; index_of_unknown<PROBLEM_DIM; index_of_unknown++)
     {
         // Iterate over surface elements
-        typename AbstractTetrahedralMesh<ELEMENT_DIM,SPACE_DIM>::BoundaryElementIterator elt_iter
-        = pMesh->GetBoundaryElementIteratorBegin();
+        auto elt_iter = pMesh->GetBoundaryElementIteratorBegin();
         while (valid && elt_iter != pMesh->GetBoundaryElementIteratorEnd())
         {
             if (!HasNeumannBoundaryCondition(*elt_iter, index_of_unknown))

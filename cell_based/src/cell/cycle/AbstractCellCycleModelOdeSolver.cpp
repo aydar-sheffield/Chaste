@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -78,46 +78,38 @@ unsigned AbstractCellCycleModelOdeSolver::GetSizeOfOdeSystem()
 
 void AbstractCellCycleModelOdeSolver::CheckForStoppingEvents()
 {
-#ifdef CHASTE_CVODE
     assert(IsSetUp());
     if (boost::dynamic_pointer_cast<CvodeAdaptor>(mpOdeSolver))
     {
         (boost::static_pointer_cast<CvodeAdaptor>(mpOdeSolver))->CheckForStoppingEvents();
     }
-#endif //CHASTE_CVODE
 }
 
-void AbstractCellCycleModelOdeSolver::SetMaxSteps(long int numSteps)
+void AbstractCellCycleModelOdeSolver::SetMaxSteps(long numSteps)
 {
-#ifdef CHASTE_CVODE
     assert(IsSetUp());
     if (boost::dynamic_pointer_cast<CvodeAdaptor>(mpOdeSolver))
     {
         (boost::static_pointer_cast<CvodeAdaptor>(mpOdeSolver))->SetMaxSteps(numSteps);
     }
-#endif //CHASTE_CVODE
 }
 
 void AbstractCellCycleModelOdeSolver::SetTolerances(double relTol, double absTol)
 {
-#ifdef CHASTE_CVODE
     assert(IsSetUp());
     if (boost::dynamic_pointer_cast<CvodeAdaptor>(mpOdeSolver))
     {
         (boost::static_pointer_cast<CvodeAdaptor>(mpOdeSolver))->SetTolerances(relTol, absTol);
     }
-#endif //CHASTE_CVODE
 }
 
 bool AbstractCellCycleModelOdeSolver::IsAdaptive()
 {
     bool adaptive = false;
-#ifdef CHASTE_CVODE
     assert(IsSetUp());
     if (boost::dynamic_pointer_cast<CvodeAdaptor>(mpOdeSolver))
     {
         adaptive = true;
     }
-#endif //CHASTE_CVODE
     return adaptive;
 }

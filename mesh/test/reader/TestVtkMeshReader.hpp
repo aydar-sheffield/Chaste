@@ -6,7 +6,7 @@ Copyright (C) Fujitsu Laboratories of Europe, 2009
 
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -45,8 +45,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cxxtest/TestSuite.h>
 #include <fstream>
 
-#ifdef CHASTE_VTK
-//Requires  "sudo aptitude install libvtk5-dev" or similar
 #define _BACKWARD_BACKWARD_WARNING_H 1 //Cut out the strstream deprecated warning for now (gcc4.3)
 #include <vtkDoubleArray.h>
 #include <vtkCellData.h>
@@ -54,7 +52,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vtkUnstructuredGrid.h>
 #include <vtkUnstructuredGridReader.h>
 #include <vtkXMLUnstructuredGridReader.h>
-#endif //CHASTE_VTK
 
 #include "TrianglesMeshReader.hpp"
 #include "TetrahedralMesh.hpp"
@@ -64,16 +61,25 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "VtkMeshReader.hpp"
 #include "GenericMeshReader.hpp"
 #include "TrianglesMeshWriter.hpp"
-#include "PetscSetupAndFinalize.hpp"
 #include "UblasVectorInclude.hpp"
+#include "PetscSetupAndFinalize.hpp"
 
-#ifdef CHASTE_VTK
+
 typedef VtkMeshReader<3,3> MESH_READER3;
-#endif //CHASTE_VTK
 
 class TestVtkMeshReader : public CxxTest::TestSuite
 {
-//Requires  "sudo aptitude install libvtk5-dev" or similar
+private:
+    bool IsRotation(const std::vector<unsigned>& sequence, const std::vector<unsigned>& target)
+    {
+        // Double the input sequence
+        std::vector<unsigned> doubled_sequence = sequence;
+        doubled_sequence.insert(doubled_sequence.end(), sequence.begin(), sequence.end());
+
+        // Search for the target sequence in the doubled sequence
+        return std::search(doubled_sequence.begin(), doubled_sequence.end(), target.begin(), target.end()) != doubled_sequence.end();
+    }
+
 public:
 
     /**
@@ -81,13 +87,8 @@ public:
      */
     void TestFilesOpen(void)
     {
-#ifdef CHASTE_VTK
         TS_ASSERT_THROWS_NOTHING(MESH_READER3 mesh_reader("mesh/test/data/cube_2mm_12_elements.vtu"));
         TS_ASSERT_THROWS_ANYTHING(MESH_READER3 mesh_reader("mesh/test/data/nofile.vtu"));
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     /**
@@ -95,17 +96,12 @@ public:
      */
     void TestOutputVtkUnstructuredGrid(void)
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<3,3> mesh_reader("mesh/test/data/cube_2mm_12_elements.vtu");
 
         vtkUnstructuredGrid* vtk_unstructed_grid = mesh_reader.OutputMeshAsVtkUnstructuredGrid();
 
         TS_ASSERT_EQUALS(vtk_unstructed_grid->GetNumberOfPoints(), 12);
         TS_ASSERT_EQUALS(vtk_unstructed_grid->GetNumberOfCells(), 12);
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     /**
@@ -115,7 +111,6 @@ public:
      */
     void TestGetNextNode(void)
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<3,3> mesh_reader("mesh/test/data/cube_2mm_12_elements.vtu");
 
         TS_ASSERT_EQUALS(mesh_reader.GetNumNodes(), 12u);
@@ -137,15 +132,10 @@ public:
 
         TS_ASSERT_THROWS_THIS( next_node = mesh_reader.GetNextNode(),
                                "Trying to read data for a node that doesn't exist" );
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     void TestGetNextElementData(void)
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<3,3> mesh_reader("mesh/test/data/cube_2mm_12_elements.vtu");
 
         // Coverage of GetOrderOfBoundaryElements()
@@ -187,59 +177,93 @@ public:
 
         TS_ASSERT_THROWS_THIS( first_element_data = invalid_mesh_reader.GetNextElementData(),
                                "Element is not of expected type (vtkTetra/vtkTriangle)" );
-
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     void TestGetNextFaceData(void)
     {
-#ifdef CHASTE_VTK
+        /*
+         * Several points to note:
+         *
+         * 1. GetNextFaceData and GetNextEdgeData are synonyms, and this test verifies both
+         *    yield the same behaviour
+         *
+         * 2. GetNextFaceData uses a vtkGeometryFilter which was updated after v9.1: faces are
+         *    now calculated in a different order. See https://github.com/Chaste/Chaste/issues/298
+         *
+         * 3. We don't care which order the nodes are in the face data, as long as they are correct
+         *    up to a rotation. For instance, here, first_face_data.NodeIndices could either be
+         *    {11, 3, 0}, {0, 11, 3} or {3, 0, 11}. VTK 9.2 started producing a different ordering,
+         *    which necessitated updating this test. See https://github.com/Chaste/Chaste/issues/36
+         */
+
         VtkMeshReader<3,3> mesh_reader("mesh/test/data/cube_2mm_12_elements.vtu");
 
         TS_ASSERT_EQUALS(mesh_reader.GetNumFaces(), 20u);
         TS_ASSERT_EQUALS(mesh_reader.GetNumEdges(), 20u);
 
-        ElementData first_face_data = mesh_reader.GetNextFaceData();
-        TS_ASSERT_EQUALS(first_face_data.NodeIndices[0], 11u);
-        TS_ASSERT_EQUALS(first_face_data.NodeIndices[1], 3u);
-        TS_ASSERT_EQUALS(first_face_data.NodeIndices[2], 0u);
+        // This is a list of all faces that should be read from the vtu file:
+        std::vector<std::vector<unsigned>> all_faces = {
+            {0u, 4u, 11u},
+            {0u, 8u, 4u},
+            {0u, 3u, 8u},
+            {0u, 11u, 3u},
+            {1u, 5u, 8u},
+            {1u, 9u, 5u},
+            {1u, 8u, 9u},
+            {2u, 9u, 3u},
+            {2u, 3u, 10u},
+            {2u, 10u, 6u},
+            {2u, 6u, 9u},
+            {3u, 9u, 8u},
+            {3u, 7u, 10u},
+            {3u, 11u, 7u},
+            {4u, 5u, 11u},
+            {4u, 8u, 5u},
+            {5u, 9u, 6u},
+            {5u, 6u, 10u},
+            {5u, 10u, 11u},
+            {7u, 11u, 10u}
+        };
 
-        ElementData next_face_data = mesh_reader.GetNextFaceData();
-        TS_ASSERT_EQUALS(next_face_data.NodeIndices[0], 3u);
-        TS_ASSERT_EQUALS(next_face_data.NodeIndices[1], 8u);
-        TS_ASSERT_EQUALS(next_face_data.NodeIndices[2], 0u);
-
-        mesh_reader.Reset();
-
-        first_face_data = mesh_reader.GetNextEdgeData();
-        TS_ASSERT_EQUALS(first_face_data.NodeIndices[0], 11u);
-        TS_ASSERT_EQUALS(first_face_data.NodeIndices[1], 3u);
-        TS_ASSERT_EQUALS(first_face_data.NodeIndices[2], 0u);
-
-        next_face_data = mesh_reader.GetNextEdgeData();
-        TS_ASSERT_EQUALS(next_face_data.NodeIndices[0], 3u);
-        TS_ASSERT_EQUALS(next_face_data.NodeIndices[1], 8u);
-        TS_ASSERT_EQUALS(next_face_data.NodeIndices[2], 0u);
-
-        for (unsigned face=2; face<mesh_reader.GetNumFaces(); face++)
+        // For each of the 20 faces calculated, verify that (up to rotation) it occurs exactly
+        // once in the list above.
+        for (unsigned i = 0u; i < 20; ++i)
         {
-            next_face_data = mesh_reader.GetNextEdgeData();
+            ElementData ed = mesh_reader.GetNextFaceData();
+            const std::vector<unsigned>& node_indices = ed.NodeIndices;
+
+            const long count = std::count_if(all_faces.begin(), all_faces.end(),
+                                             [&node_indices, this](const std::vector<unsigned>& face)
+                                             {
+                                                 return IsRotation(face, node_indices);
+                                             });
+
+            TS_ASSERT_EQUALS(count, 1l);
         }
 
-        TS_ASSERT_THROWS_THIS( next_face_data = mesh_reader.GetNextEdgeData(),
-                               "Trying to read data for a boundary element that doesn't exist" );
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
+        // Reset the reader and verify that calling GetNextEdgeData instead of GetNextFaceData
+        // yields identical results
+        mesh_reader.Reset();
+        for (unsigned i = 0u; i < 20; ++i)
+        {
+            ElementData ed = mesh_reader.GetNextEdgeData();
+            const std::vector<unsigned>& node_indices = ed.NodeIndices;
+
+            const long count = std::count_if(all_faces.begin(), all_faces.end(),
+                                             [&node_indices, this](const std::vector<unsigned>& face)
+                                             {
+                                                 return IsRotation(face, node_indices);
+                                             });
+
+            TS_ASSERT_EQUALS(count, 1l);
+        }
+
+        // Finally, if we read an additional face, we expect an exception.
+        TS_ASSERT_THROWS_THIS(mesh_reader.GetNextFaceData(), "Trying to read data for a boundary element that doesn't exist");
     }
 
     void TestConstructFromVtkUnstructuredGridObject()
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<3,3> mesh_reader_1("mesh/test/data/cube_2mm_12_elements.vtu");
         vtkUnstructuredGrid* vtk_unstructed_grid = mesh_reader_1.OutputMeshAsVtkUnstructuredGrid();
 
@@ -258,15 +282,10 @@ public:
         TS_ASSERT_DELTA(next_node[0], 0.2, 1e-6);
         TS_ASSERT_DELTA(next_node[1], 0.0, 1e-6);
         TS_ASSERT_DELTA(next_node[2], 0.0, 1e-6);
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     void TestGenericReader()
     {
-#ifdef CHASTE_VTK
         std::shared_ptr<AbstractMeshReader<3,3> > p_mesh_reader = GenericMeshReader<3,3>("mesh/test/data/cube_2mm_12_elements.vtu");
 
         TS_ASSERT_EQUALS(p_mesh_reader->GetNumNodes(), 12u);
@@ -286,10 +305,6 @@ public:
         // Exception coverage
         TS_ASSERT_THROWS_THIS((GenericMeshReader<3,3>("mesh/test/data/cube_2mm_12_elements.vtu", 2, 2)),
                               "Quadratic meshes are only supported in Triangles format.");
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     /**
@@ -297,7 +312,6 @@ public:
      */
     void TestBuildTetrahedralMeshFromMeshReader(void)
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<3,3> mesh_reader("mesh/test/data/heart_decimation.vtu");
 
         TetrahedralMesh<3,3> mesh;
@@ -307,6 +321,19 @@ public:
         TS_ASSERT_EQUALS(mesh.GetNumNodes(), 173u);
         TS_ASSERT_EQUALS(mesh.GetNumElements(), 610u);
         TS_ASSERT_EQUALS(mesh.GetNumBoundaryElements(), 312u);
+
+        // Check that the boundary is properly marked
+        /* Change to indexing in vtkGeometryFilter happened in VTK 9.1
+         * This means that when the boundary faces are extracted by vtkGeometryFilter
+         * the mesh of faces has the subset of boundary nodes reindexed, so the
+         * following checks we are using the original numbering */
+        TS_ASSERT_EQUALS(mesh.GetNode(27)->IsBoundaryNode(), false);
+        TS_ASSERT_EQUALS(mesh.GetNode(49)->IsBoundaryNode(), false);
+        TS_ASSERT_EQUALS(mesh.GetNode(170)->IsBoundaryNode(), false);
+
+        TS_ASSERT_EQUALS(mesh.GetNode(0)->IsBoundaryNode(), true);
+        TS_ASSERT_EQUALS(mesh.GetNode(171)->IsBoundaryNode(), true);
+        TS_ASSERT_EQUALS(mesh.GetNode(172)->IsBoundaryNode(), true);
 
         // Check some node co-ordinates
         TS_ASSERT_DELTA(mesh.GetNode(0)->GetPoint()[0], 0.0963, 1e-4);
@@ -381,10 +408,6 @@ public:
         TS_ASSERT_THROWS_ANYTHING( mesh_reader.GetPointData( "Non-existent data", not_there) );
         TS_ASSERT_THROWS_ANYTHING( mesh_reader.GetCellData( "Non-existent data", vectors_not_there) );
         TS_ASSERT_THROWS_ANYTHING( mesh_reader.GetPointData( "Non-existent data", vectors_not_there) );
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     /**
@@ -392,7 +415,6 @@ public:
      */
     void TestBuildDistributedTetrahedralMeshFromVtkMeshReader(void)
     {
- #ifdef CHASTE_VTK
         VtkMeshReader<3,3> mesh_reader("mesh/test/data/heart_decimation.vtu");
 
         DistributedTetrahedralMesh<3,3> mesh(DistributedTetrahedralMeshPartitionType::DUMB);
@@ -402,6 +424,30 @@ public:
         TS_ASSERT_EQUALS(mesh.GetNumNodes(), 173u);
         TS_ASSERT_EQUALS(mesh.GetNumElements(), 610u);
         TS_ASSERT_EQUALS(mesh.GetNumBoundaryElements(), 312u);
+
+        // Check that the boundary is properly marked
+        /* Change to indexing in vtkGeometryFilter happened in VTK 9.1
+         * This means that when the boundary faces are extracted by vtkGeometryFilter
+         * the mesh of faces has the subset of boundary nodes reindexed, so the
+         * following checks we are using the original numbering */
+        try
+        {
+            Node<3> *node = mesh.GetNode(27);
+            TS_ASSERT_EQUALS(node->IsBoundaryNode(), false);
+        }
+        catch (Exception&)
+        {
+            // Don't own this node
+        }
+        try
+        {
+            Node<3> *node = mesh.GetNode(172);
+            TS_ASSERT_EQUALS(node->IsBoundaryNode(), true);
+        }
+        catch (Exception&)
+        {
+            // Don't own this node
+        }
 
         // Check some node co-ordinates
         try
@@ -443,11 +489,6 @@ public:
             Node<3> *iterator_node = (it)->GetNode(1);
             TS_ASSERT_EQUALS(iterator_node, mesh_node);
         }
-
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     /**
@@ -455,7 +496,6 @@ public:
      */
     void TestBuild2DFromVtkMeshReader(void)
     {
-#ifdef CHASTE_VTK
     VtkMeshReader<2,2> mesh_reader("mesh/test/data/2D_0_to_1mm_200_elements.vtu");
 
     TS_ASSERT_EQUALS(mesh_reader.GetNumFaces(), 40u);
@@ -473,17 +513,12 @@ public:
     TS_ASSERT_EQUALS(centroid.size(), 200u);
     TS_ASSERT_DELTA(centroid[0](0), 0.0033, 1e-4);
     TS_ASSERT_DELTA(centroid[0](1), 0.0033, 1e-4);
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
     /**
      * Check that we can build a 2D MixedDimensionMesh using the VTK mesh reader.
      */
     void TestBuildMixedMesh2DFromVtkMeshReader(void)
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<2,2> mesh_reader("mesh/test/data/mixed_dimension_meshes/mixed_mesh_2d.vtu");
         TS_ASSERT_EQUALS(mesh_reader.GetNumCableElements(), 10u);
         TS_ASSERT_EQUALS(mesh_reader.GetNumCableElementAttributes(), 1u);
@@ -504,18 +539,12 @@ public:
             TS_ASSERT_EQUALS(element_data.AttributeValue, i + 1.5);
         }
         TS_ASSERT_THROWS_THIS(mesh_reader.GetNextCableElementData(), "Trying to read data for a cable element that doesn't exist");
-
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
     /**
      * Check that we can build a 3D MixedDimensionMesh using the VTK mesh reader.
      */
     void TestBuildMixedMeshTetrahedralMeshFromVtkMeshReader(void)
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<3,3> mesh_reader("mesh/test/data/mixed_dimension_meshes/mixed_mesh_3d.vtu");
         TS_ASSERT_EQUALS(mesh_reader.GetNumFaces(), 616u);
         TS_ASSERT_EQUALS(mesh_reader.GetNumCableElements(), 5u);
@@ -536,10 +565,6 @@ public:
         {
             TS_ASSERT_DELTA((*iter)->GetAttribute(), 2.0, 1e-9);
         }
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
     /**
@@ -547,7 +572,6 @@ public:
      */
     void TestLoadingSurfaceMeshFromVtkMeshReader(void)
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<2,3> mesh_reader("mesh/test/data/cylinder.vtu");
         TS_ASSERT_EQUALS(mesh_reader.GetNumElements(), 1632u);
         TS_ASSERT_EQUALS(mesh_reader.GetNumFaces(), 32u);
@@ -562,10 +586,6 @@ public:
         TS_ASSERT_EQUALS(mesh.GetNumElements(), 1632u);
         TS_ASSERT_EQUALS(mesh.GetNumBoundaryElements(), 32u);
         TS_ASSERT_EQUALS(mesh.GetNumCableElements(), 0u);
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 
 
@@ -574,7 +594,6 @@ public:
      */
     void TestLoading1Din3DMeshFromVtkMeshReader(void)
     {
-#ifdef CHASTE_VTK
         VtkMeshReader<1,3> mesh_reader("mesh/test/data/branched_1d_in_3d_mesh.vtu");
         TS_ASSERT_EQUALS(mesh_reader.GetNumElements(), 30u);
         TS_ASSERT_EQUALS(mesh_reader.GetNumNodes(), 31u);
@@ -590,10 +609,6 @@ public:
         TS_ASSERT_EQUALS(mesh.GetNumElements(), mesh_reader.GetNumElements());
         TS_ASSERT_EQUALS(mesh.GetNumBoundaryElements(), mesh_reader.GetNumEdges());
         TS_ASSERT_EQUALS(mesh.GetNumCableElements(), 0u);
-#else
-        std::cout << "This test was not run, as VTK is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste VTK support." << std::endl;
-#endif //CHASTE_VTK
     }
 };
 

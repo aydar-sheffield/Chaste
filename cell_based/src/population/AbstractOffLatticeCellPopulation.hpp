@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -41,8 +41,15 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /**
  * An abstract facade class encapsulating an off-lattice (centre- or
  * vertex-based) cell population.
+ *
+ * @tparam ELEMENT_DIM Dimension of the elements.
+ * @tparam SPACE_DIM Dimension of the space. If not specified, it defaults to ELEMENT_DIM.
  */
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM=ELEMENT_DIM>
+#ifdef DOXYGEN_CHASTE_ISSUE_199 // See https://github.com/Chaste/Chaste/issues/199
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+#else
+template<unsigned ELEMENT_DIM, unsigned SPACE_DIM = ELEMENT_DIM>
+#endif
 class AbstractOffLatticeCellPopulation : public AbstractCellPopulation<ELEMENT_DIM,SPACE_DIM>
 {
 private:
@@ -84,6 +91,14 @@ protected:
      *
      */
     double mAbsoluteMovementThreshold;
+
+    /**
+     * Node pairs that may interact, for force calculations.
+     *
+     * Some derived populations (e.g. VertexBased) do not use this, but others (e.g.
+     * NodeBased) need to provide pairs of nodes for force calculations.
+     */
+    std::vector<std::pair<Node<SPACE_DIM>*, Node<SPACE_DIM>*> > mNodePairs = {};
 
     /**
      * Constructor that just takes in a mesh.
@@ -146,14 +161,13 @@ public:
      * for this population. If so, a stepSizeException is generated that contains
      * a warning/error message and a suggested smaller dt that should avoid the problem.
      *
-     * As this method is pure virtual, it must be overridden
-     * in subclasses.
+     * This method may be overridden in subclasses.
      *
      * @param nodeIndex Index of the node in question (allows us to check whether this is a ghost or particle)
      * @param rDisplacement Movement vector of the node at this time step
      * @param dt Current time step size
      */
-    virtual void CheckForStepSizeException(unsigned nodeIndex, c_vector<double,SPACE_DIM>& rDisplacement, double dt)=0;
+    virtual void CheckForStepSizeException(unsigned nodeIndex, c_vector<double,SPACE_DIM>& rDisplacement, double dt);
 
     /**
      * Get the damping constant for this node - ie d in drdt = F/d.
@@ -201,6 +215,28 @@ public:
      * @return mDampingConstantMutant
      */
     double GetDampingConstantMutant();
+
+    /**
+     * Method to return the connected nodes in an off-lattice population.
+     *
+     * Note that the derived populations are responsible for updating this vector. If
+     * you call this method on a population that doesn't use mNodePairs, you will just
+     * receive a reference to an empty vector.
+     *
+     * @return A vector of pairs of nodes that may interact mechanically.
+     */
+    [[nodiscard]] virtual const std::vector<std::pair<Node<SPACE_DIM>*, Node<SPACE_DIM>*> >& rGetNodePairs() const;
+
+    /**
+     * Return modifiable mNodePairs vector.
+     *
+     * This method should only be used if you need to modify the underlying vector
+     * itself. To simply iterate over pairs of nodes, call the const rGetNodePairs
+     * method instead.
+     *
+     * @return A modifiable reference to mNodePairs.
+     */
+    [[nodiscard]] virtual std::vector<std::pair<Node<SPACE_DIM>*, Node<SPACE_DIM>*> >& rGetModifiableNodePairs();
 
     /**
      * Overridden OutputCellPopulationParameters() method.

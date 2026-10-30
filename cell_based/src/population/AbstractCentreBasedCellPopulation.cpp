@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -34,35 +34,36 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "AbstractCentreBasedCellPopulation.hpp"
+
 #include "RandomDirectionCentreBasedDivisionRule.hpp"
 #include "RandomNumberGenerator.hpp"
 #include "StepSizeException.hpp"
 #include "WildTypeCellMutationState.hpp"
 
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-AbstractCentreBasedCellPopulation<ELEMENT_DIM, SPACE_DIM>::AbstractCentreBasedCellPopulation( AbstractMesh<ELEMENT_DIM, SPACE_DIM>& rMesh,
-                                                                    std::vector<CellPtr>& rCells,
-                                                                  const std::vector<unsigned> locationIndices)
-    : AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>(rMesh, rCells, locationIndices),
-      mMeinekeDivisionSeparation(0.3) // educated guess
+template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+AbstractCentreBasedCellPopulation<ELEMENT_DIM, SPACE_DIM>::AbstractCentreBasedCellPopulation(AbstractMesh<ELEMENT_DIM, SPACE_DIM>& rMesh,
+                                                                                             std::vector<CellPtr>& rCells,
+                                                                                             const std::vector<unsigned> locationIndices)
+        : AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>(rMesh, rCells, locationIndices),
+          mMeinekeDivisionSeparation(0.3) // educated guess
 {
     // If no location indices are specified, associate with nodes from the mesh.
     std::list<CellPtr>::iterator it = this->mCells.begin();
     typename AbstractMesh<ELEMENT_DIM, SPACE_DIM>::NodeIterator node_iter = rMesh.GetNodeIteratorBegin();
 
-    for (unsigned i=0; it != this->mCells.end(); ++it, ++i, ++node_iter)
+    for (unsigned i = 0; it != this->mCells.end(); ++it, ++i, ++node_iter)
     {
         unsigned index = locationIndices.empty() ? node_iter->GetIndex() : locationIndices[i]; // assume that the ordering matches
-        AbstractCellPopulation<ELEMENT_DIM, SPACE_DIM>::AddCellUsingLocationIndex(index,*it);
+        AbstractCellPopulation<ELEMENT_DIM, SPACE_DIM>::AddCellUsingLocationIndex(index, *it);
     }
 
     mpCentreBasedDivisionRule.reset(new RandomDirectionCentreBasedDivisionRule<ELEMENT_DIM, SPACE_DIM>());
 }
 
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 AbstractCentreBasedCellPopulation<ELEMENT_DIM, SPACE_DIM>::AbstractCentreBasedCellPopulation(AbstractMesh<ELEMENT_DIM, SPACE_DIM>& rMesh)
-    : AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>(rMesh),
-      mMeinekeDivisionSeparation(0.3) // educated guess
+        : AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>(rMesh),
+          mMeinekeDivisionSeparation(0.3) // educated guess
 {
 }
 
@@ -194,18 +195,10 @@ std::set<unsigned> AbstractCentreBasedCellPopulation<ELEMENT_DIM,SPACE_DIM>::Get
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 void AbstractCentreBasedCellPopulation<ELEMENT_DIM, SPACE_DIM>::CheckForStepSizeException(unsigned nodeIndex, c_vector<double,SPACE_DIM>& rDisplacement, double dt)
 {
-    double length = norm_2(rDisplacement);
-
-    if ((length > this->mAbsoluteMovementThreshold) && (!this->IsGhostNode(nodeIndex)) && (!this->IsParticle(nodeIndex)))
+    if ((!this->IsGhostNode(nodeIndex)) && (!this->IsParticle(nodeIndex)))
     {
-        std::ostringstream message;
-        message << "Cells are moving by " << length;
-        message << ", which is more than the AbsoluteMovementThreshold: use a smaller timestep to avoid this exception.";
-
-        // Suggest a net time step that will give a movement smaller than the movement threshold
-        double new_step = 0.95*dt*(this->mAbsoluteMovementThreshold/length);
-
-        throw StepSizeException(new_step, message.str(), true); // terminate
+        // Call method on parent class
+        AbstractOffLatticeCellPopulation<ELEMENT_DIM, SPACE_DIM>::CheckForStepSizeException(nodeIndex, rDisplacement, dt);
     }
 }
 

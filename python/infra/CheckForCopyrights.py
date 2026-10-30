@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Copyright (c) 2005-2021, University of Oxford.
+"""Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -32,6 +32,7 @@ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
+import ast
 import os
 import re
 import sys
@@ -70,7 +71,7 @@ deprecated_notice = re.compile(r"""(# ){0,1}Copyright \(c\) 2005-\d{4}, Universi
 """, re.MULTILINE)
 
 
-current_notice = """Copyright (c) 2005-2021, University of Oxford.
+current_notice = """Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -108,7 +109,7 @@ cpp_current_notice = '/*\n\n'+current_notice+'\n*/'
 
 
 def AddHashesToBeginningOfLines(message):
-    message = '# ' + message.replace("\n", "\n# ")
+    message = ('# ' + message.replace("\n", "\n# ")).replace("\n# \n", "\n#\n")
     return message[:-2]
 
 
@@ -172,7 +173,9 @@ py_lgpl_notice = """# This library is free software; you can redistribute it and
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # Lesser General Public License for more details."""
-
+opensimplex_notice = """* K.jpg's OpenSimplex 2, smooth variant ("SuperSimplex")"""
+dolfinx_notice = """// This file is part of DOLFINx (https://www.fenicsproject.org)"""
+smtk_notice = """//  Copyright (c) Kitware, Inc."""
 
 def CheckForCopyrightNotice(findStrOrRe, fileIn):
     """Test if the (possibly multi-line) string/regexp findStr is contained anywhere in fileIn."""
@@ -223,13 +226,75 @@ def HeadAppendStringInFile(appendString, filePath):
     print('Notice: applied copyright notice in %s' % filePath)
 
 
+def InsertPyNoticeInFile(notice, filePath):
+    """Insert notice just after a Python module's header, after shebangs,
+    encoding declarations, docstrings and __future__ imports. The notice
+    never displaces something that must stay at the top of the file."""
+    with open(filePath) as input:
+        source = input.read()
+
+    # Keep the original line endings so the file can be reassembled.
+    lines = source.splitlines(keepends=True)
+
+    # Count the leading statements the notice must go after: the module
+    # docstring if any, then any __future__ imports.
+    try:
+        body = ast.parse(source).body
+    except SyntaxError:
+        # A file that does not parse has no detectable docstring.
+        body = []
+    header_stmts = 0  # number of leading statements to keep above the notice
+    # A module's first statement is a docstring if it's a bare string literal:
+    #   1. body[0] is an ast.Expr           - just an expression (not an import, def, ...)
+    #   2. body[0].value is an ast.Constant - the expression is a literal (not a call, name, ...)
+    #   3. body[0].value.value is a str     - the literal is a string (not a number)
+    if (body and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)):
+        header_stmts = 1
+
+    # __future__ imports must stay at the very top (after a docstring), so the
+    # notice must go after those too, otherwise it's a SyntaxError.
+    while (header_stmts < len(body) and isinstance(body[header_stmts], ast.ImportFrom)
+            and body[header_stmts].module == '__future__'):
+        header_stmts += 1
+
+    # end_lineno of the last leading statement is 1-based, which is the same as
+    # the 0-based index of the line after it, i.e. where to insert.
+    insert_at = body[header_stmts - 1].end_lineno if header_stmts else 0
+
+    # A shebang and a PEP 263 encoding declaration are comments, so ast never
+    # sees them; when there is no docstring or __future__ import to anchor to,
+    # skip them by line.
+    if not header_stmts:
+        if lines and lines[0].startswith('#!'):
+            insert_at = 1  # shebang: only recognised on line 1
+        if (insert_at < min(2, len(lines))
+                and re.match(r'[ \t\f]*#.*coding[:=]', lines[insert_at])):
+            insert_at += 1  # encoding: only recognised on line 1 or 2
+
+    # Separate the notice from any preceding lines with a blank line.
+    block = ('\n' if insert_at else '') + notice
+
+    # Write to a temp file, then swap it in, so a failure part-way through
+    # cannot leave a half-written source file behind.
+    tempName = filePath+'~'
+    with open(tempName, 'w') as output:
+        # lines[:insert_at] is the module header kept above the notice (if any).
+        output.write(''.join(lines[:insert_at]))
+        output.write(block)
+        output.write(''.join(lines[insert_at:]))
+    UpdateFile(filePath, tempName)
+    print('Notice: applied copyright notice in %s' % filePath)
+
+
 def InspectFile(fileName):
     file_in = open(fileName)
     if fileName[-21:] == 'CheckForCopyrights.py':
         # Can't really check this one, since it knows all the licences
         return True
-    if "codegen_python3_venv" in fileName:
-        # Can't really check the codegen virtual environment as it would start checking 3rd party packages
+    if "chaste_python3_venv" in fileName:
+        # Can't really check the chaste virtual environment as it would start checking 3rd party packages
         return True
     valid_notice = False
     if (CheckForCopyrightNotice(cpp_current_notice, file_in) or
@@ -246,7 +311,10 @@ def InspectFile(fileName):
         CheckForCopyrightNotice(triangle_notice, file_in) or
         CheckForCopyrightNotice(tetgen_predicates_notice, file_in) or
         CheckForCopyrightNotice(tetgen_notice, file_in) or
-            CheckForCopyrightNotice(py_lgpl_notice, file_in)):
+        CheckForCopyrightNotice(py_lgpl_notice, file_in) or
+        CheckForCopyrightNotice(opensimplex_notice, file_in) or
+        CheckForCopyrightNotice(smtk_notice, file_in) or
+        CheckForCopyrightNotice(dolfinx_notice, file_in)):
         # print('Found 3rd party notice in %s' % file_name)
         if valid_notice:
             print("Multiple notices on %s" % file_name)
@@ -274,8 +342,8 @@ def InspectFile(fileName):
     print('Found no copyright notice for %s' % fileName)
     if apply_new:
         if fileName[-3:] == '.py':
-            print('Not implemented for .py files')
-            return False
+            # Keep the module docstring in place and add the notice below it as __copyright__.
+            InsertPyNoticeInFile('__copyright__ = ' + py_current_notice, fileName)
         elif fileName[-14:] == 'CMakeLists.txt':
             HeadAppendStringInFile(cmake_current_notice + "\n\n", fileName)
         elif fileName[-7:] == 'LICENSE':
@@ -290,12 +358,12 @@ def InspectFile(fileName):
 
 def ignore_dir(dir_to_check):
 
-    dir_ignores = ['Debug', 'Release', 'build', 'cxxtest', 'codegen_python3_venv',
+    dir_ignores = ['Debug', 'Release', 'build', 'cxxtest', 'chaste_python3_venv',
                    'testoutput', 'doc', 'projects', 'hierwikiplugin']
 
-    dir_ignore_contains = ['Debug_', 'cmake-build', 'venv']
+    dir_ignore_contains = ['Debug_', 'chaste-build', 'cmake-build', 'venv']
 
-    startchar_ignores = ['_', '.']
+    startchar_ignores = ['_']
 
     if dir_to_check in dir_ignores:
         return True
@@ -315,11 +383,10 @@ if __name__ == '__main__':
     # .cpp, .hpp., .py, .java are C++, Python and Java code.
     exts = ['.cpp', '.hpp', '.py', '.java']
 
-    # SCons files
     # output.chaste files in acceptance tests (all Chaste executables should output the valid copyright notice)
     # Version.cpp.in is the provenance file
-    named_files = ['SConscript', 'SConstruct', 'CMakeLists.txt', './LICENSE',
-                   'output.chaste', 'Version.cpp.in', 'Version_cmake.cpp.in']
+    named_files = ['SConstruct', 'CMakeLists.txt', './LICENSE',
+                   'output.chaste', 'Version.cpp.in']
 
     exclusions = []
 
@@ -344,9 +411,9 @@ if __name__ == '__main__':
         for file in files:
             relative_path = os.path.join(relative_root, file)
             name, ext = os.path.splitext(file)
-            if ((ext in exts or file in named_files) and
+            file_name = os.path.join(root, file)
+            if ((ext in exts or file in named_files or file_name in named_files) and
                     relative_path not in exclusions):
-                file_name = os.path.join(root, file)
                 if InspectFile(file_name) == False:
                     num_no_copyrights += 1
                 else:
@@ -358,11 +425,13 @@ if __name__ == '__main__':
     else:
         dir = chaste_dir
 
-    print("Copyright test run over %s (%s%s) files" % (dir, num_no_copyrights , num_copyrights))
+    print("Copyright test run over %s (%s) files" %
+          (dir, num_no_copyrights + num_copyrights))
     if num_no_copyrights > 0:
         print()
         print("The next line is for the benefit of the test summary scripts.")
-        print("Failed %s of %s%s tests" % (num_no_copyrights, num_no_copyrights, num_copyrights))
+        print("Failed %s of %s tests" %
+              (num_no_copyrights, num_no_copyrights + num_copyrights))
 
         # Return a non-zero exit code if orphans were found
         sys.exit(num_no_copyrights)

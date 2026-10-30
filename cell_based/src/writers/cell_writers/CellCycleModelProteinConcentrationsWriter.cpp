@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -51,7 +51,7 @@ double CellCycleModelProteinConcentrationsWriter<ELEMENT_DIM, SPACE_DIM>::GetCel
      * At present it is not possible to output all cell variables via this method, we just return zero.
      * If the user requires cell variables to be output to VTK, the easiest way to do this is to store
      * them in the cell's CellData using a modifier object, since any CellData is automatically output
-     * to VTK (if CHASTE_VTK is turned on).
+     * to VTK.
      */
     return 0.0;
 }

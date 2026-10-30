@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -45,7 +45,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "CellsGenerator.hpp"
 #include "OffLatticeSimulation.hpp"
 #include "NodeBasedCellPopulation.hpp"
-#include "GeneralisedLinearSpringForce.hpp"
+#include "LinearSpringForce.hpp"
+#include "PathmanathanInteractionForce.hpp"
 #include "AbstractCellBasedWithTimingsTestSuite.hpp"
 #include "LogFile.hpp"
 #include "SmartPointers.hpp"
@@ -69,7 +70,7 @@ private:
 
     /**
      * Helper method to generate a simple mesh that works in parallel
-     * 
+     *
      * @param nx number of nodes in the x direction
      * @param ny number of nodes in the y direction
      * @param nz number of nodes in the z direction
@@ -124,7 +125,7 @@ public:
         simulator.SetEndTime(10.0); // 50.0
 
         // Create a force law and pass it to the simulation
-        MAKE_PTR(GeneralisedLinearSpringForce<3>, p_linear_force);
+        MAKE_PTR(PathmanathanInteractionForce<3>, p_linear_force);
         p_linear_force->SetCutOffLength(1.5);
         simulator.AddForce(p_linear_force);
 
@@ -207,7 +208,7 @@ public:
         simulator.SetEndTime(10.0);
 
         // Create a force law and pass it to the simulation
-        MAKE_PTR(GeneralisedLinearSpringForce<3>, p_linear_force);
+        MAKE_PTR(PathmanathanInteractionForce<3>, p_linear_force);
         p_linear_force->SetCutOffLength(1.5);
         simulator.AddForce(p_linear_force);
 
@@ -251,15 +252,15 @@ public:
 
     // Now Test Periodicity
     void TestSimple3dTissueXPeriodic()
-    {   
+    {
         // Set up the node positions
-	    std::vector<Node<3>*> nodes = GenerateMesh(3,3,3);
+        std::vector<Node<3>*> nodes = GenerateMesh(3,3,3);
 
         // Convert this to a PeriodicNodesOnlyMesh
         c_vector<double,3> periodic_width = zero_vector<double>(3);
         periodic_width[0] = 6.0; //periodic in x with width 6.0
-        PeriodicNodesOnlyMesh<3> mesh(periodic_width); 
-	    mesh.ConstructNodesWithoutMesh(nodes,1.5);
+        PeriodicNodesOnlyMesh<3> mesh(periodic_width);
+        mesh.ConstructNodesWithoutMesh(nodes,1.5);
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -278,9 +279,9 @@ public:
         simulator.SetEndTime(5.0);
 
         // Create a force law and pass it to the simulation
-        MAKE_PTR(GeneralisedLinearSpringForce<3>, p_linear_force);
-        p_linear_force->SetCutOffLength(1.5);
-        simulator.AddForce(p_linear_force);
+        MAKE_PTR(PathmanathanInteractionForce<3>, p_force);
+        p_force->SetCutOffLength(1.5);
+        simulator.AddForce(p_force);
 
         simulator.Solve();
 
@@ -312,7 +313,7 @@ public:
 
         // Create cells
         std::vector<CellPtr> cells_2;
-        CellsGenerator<FixedG1GenerationalCellCycleModel, 2> cells_generator_2;
+        CellsGenerator<FixedG1GenerationalCellCycleModel, 3> cells_generator_2;
         cells_generator_2.GenerateBasicRandom(cells_2, mesh_2.GetNumNodes());
 
         // Create a node-based cell population
@@ -327,19 +328,19 @@ public:
         simulator_2.SetEndTime(5.0);
 
         // Pass the same force law to the simulation
-        simulator_2.AddForce(p_linear_force);
+        simulator_2.AddForce(p_force);
 
         simulator_2.Solve();
 
         if ( PetscTools::GetNumProcs() == 1 )
         {
-            // Check that cells are in the same place in each simulation 
+            // Check that cells are in the same place in each simulation
             // Note the way we do this only works on 1 processor
             for (unsigned i=0; i<simulator.rGetCellPopulation().GetNumNodes(); i++)
             {
                 double x_1 = simulator.rGetCellPopulation().GetNode(i)->rGetLocation()[0];
                 double x_2 = simulator_2.rGetCellPopulation().GetNode(i)->rGetLocation()[0];
-                
+
                 if (x_1 < x_offset)
                 {
                     TS_ASSERT_DELTA(x_1+x_offset, x_2, 1e-6)
@@ -388,10 +389,10 @@ public:
             simulator_3.SetEndTime(5.0);
 
             // Pass the same force law to the simulation
-            simulator_3.AddForce(p_linear_force);
+            simulator_3.AddForce(p_force);
 
             simulator_3.Solve();
-        
+
             // Check that cells are in the same place in each simulation
             for (unsigned i=0; i<simulator.rGetCellPopulation().GetNumNodes(); i++)
             {
@@ -411,13 +412,13 @@ public:
     void TestSimple3dTissueYPeriodic()
     {
         // Set up the node positions
-	    std::vector<Node<3>*> nodes = GenerateMesh(3,3,3);
+        std::vector<Node<3>*> nodes = GenerateMesh(3,3,3);
 
         // Convert this to a PeriodicNodesOnlyMesh
         c_vector<double,3> periodic_width = zero_vector<double>(3);
         periodic_width[1] = 6.0; //periodic in y with width 6.0
         PeriodicNodesOnlyMesh<3> mesh(periodic_width);
-	    mesh.ConstructNodesWithoutMesh(nodes,1.5);
+        mesh.ConstructNodesWithoutMesh(nodes,1.5);
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -436,9 +437,9 @@ public:
         simulator.SetEndTime(5.0);
 
         // Create a force law and pass it to the simulation
-        MAKE_PTR(GeneralisedLinearSpringForce<3>, p_linear_force);
-        p_linear_force->SetCutOffLength(1.5);
-        simulator.AddForce(p_linear_force);
+        MAKE_PTR(PathmanathanInteractionForce<3>, p_force);
+        p_force->SetCutOffLength(1.5);
+        simulator.AddForce(p_force);
 
         simulator.Solve();
 
@@ -470,7 +471,7 @@ public:
 
         // Create cells
         std::vector<CellPtr> cells_2;
-        CellsGenerator<FixedG1GenerationalCellCycleModel, 2> cells_generator_2;
+        CellsGenerator<FixedG1GenerationalCellCycleModel, 3> cells_generator_2;
         cells_generator_2.GenerateBasicRandom(cells_2, mesh_2.GetNumNodes());
 
         // Create a node-based cell population
@@ -485,19 +486,19 @@ public:
         simulator_2.SetEndTime(5.0);
 
         // Pass the same force law to the simulation
-        simulator_2.AddForce(p_linear_force);
+        simulator_2.AddForce(p_force);
 
         simulator_2.Solve();
 
         if ( PetscTools::GetNumProcs() == 1 )
         {
-            // Check that cells are in the same place in each simulation 
+            // Check that cells are in the same place in each simulation
             // Note the way we do this only works on 1 processor
             for (unsigned i=0; i<simulator.rGetCellPopulation().GetNumNodes(); i++)
             {
                 double y_1 = simulator.rGetCellPopulation().GetNode(i)->rGetLocation()[1];
                 double y_2 = simulator_2.rGetCellPopulation().GetNode(i)->rGetLocation()[1];
-                
+
                 if (y_1 < y_offset)
                 {
                     TS_ASSERT_DELTA(y_1+y_offset, y_2, 1e-6)
@@ -518,7 +519,7 @@ public:
             // This can only be done on a single processor as the random number generator
             // is set for each process and gives different results with different
             // numbers of nodes on a single process
-        
+
             // First reset the singletons
             SimulationTime::Instance()->Destroy();
             SimulationTime::Instance()->SetStartTime(0.0);
@@ -545,7 +546,7 @@ public:
             simulator_3.SetEndTime(5.0);
 
             // Pass the same force law to the simulation
-            simulator_3.AddForce(p_linear_force);
+            simulator_3.AddForce(p_force);
 
             simulator_3.Solve();
 
@@ -557,7 +558,7 @@ public:
                 TS_ASSERT_DELTA(simulator.rGetCellPopulation().GetNode(i)->rGetLocation()[2],simulator_3.rGetCellPopulation().GetNode(i)->rGetLocation()[2],1e-6);
             }
         }
-        
+
         // Tidy up
         for (unsigned i=0; i<nodes.size(); i++)
         {
@@ -568,13 +569,13 @@ public:
     void TestSimple3dTissueZPeriodic()
     {
         // Set up the node positions
-	    std::vector<Node<3>*> nodes = GenerateMesh(3,3,3);
+        std::vector<Node<3>*> nodes = GenerateMesh(3,3,3);
 
         // Convert this to a PeriodicNodesOnlyMesh
         c_vector<double,3> periodic_width = zero_vector<double>(3);
         periodic_width[2] = 6.0; //periodic in y with width 6.0
         PeriodicNodesOnlyMesh<3> mesh(periodic_width);
-	    mesh.ConstructNodesWithoutMesh(nodes,1.5);
+        mesh.ConstructNodesWithoutMesh(nodes,1.5);
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -593,9 +594,9 @@ public:
         simulator.SetEndTime(5.0);
 
         // Create a force law and pass it to the simulation
-        MAKE_PTR(GeneralisedLinearSpringForce<3>, p_linear_force);
-        p_linear_force->SetCutOffLength(1.5);
-        simulator.AddForce(p_linear_force);
+        MAKE_PTR(PathmanathanInteractionForce<3>, p_force);
+        p_force->SetCutOffLength(1.5);
+        simulator.AddForce(p_force);
 
          simulator.Solve();
 
@@ -627,7 +628,7 @@ public:
 
         // Create cells
         std::vector<CellPtr> cells_2;
-        CellsGenerator<FixedG1GenerationalCellCycleModel, 2> cells_generator_2;
+        CellsGenerator<FixedG1GenerationalCellCycleModel, 3> cells_generator_2;
         cells_generator_2.GenerateBasicRandom(cells_2, mesh_2.GetNumNodes());
 
         // Create a node-based cell population
@@ -642,19 +643,19 @@ public:
         simulator_2.SetEndTime(5.0);
 
         // Pass the same force law to the simulation
-        simulator_2.AddForce(p_linear_force);
+        simulator_2.AddForce(p_force);
 
         simulator_2.Solve();
 
         if ( PetscTools::GetNumProcs() == 1 )
         {
-            // Check that cells are in the same place in each simulation 
+            // Check that cells are in the same place in each simulation
             // Note the way we do this only works on 1 processor
             for (unsigned i=0; i<simulator.rGetCellPopulation().GetNumNodes(); i++)
             {
                 double z_1 = simulator.rGetCellPopulation().GetNode(i)->rGetLocation()[2];
                 double z_2 = simulator_2.rGetCellPopulation().GetNode(i)->rGetLocation()[2];
-                
+
                 if (z_1 < z_offset)
                 {
                     TS_ASSERT_DELTA(z_1+z_offset, z_2, 1e-6)
@@ -667,14 +668,14 @@ public:
                 TS_ASSERT_DELTA(simulator.rGetCellPopulation().GetNode(i)->rGetLocation()[0],simulator_2.rGetCellPopulation().GetNode(i)->rGetLocation()[0],1e-6);
                 TS_ASSERT_DELTA(simulator.rGetCellPopulation().GetNode(i)->rGetLocation()[1],simulator_2.rGetCellPopulation().GetNode(i)->rGetLocation()[1],1e-6);
             }
-        }   
+        }
 
         if ( PetscTools::GetNumProcs() == 1 )
         {
             // Check with a different interaction distance
             // This can only be done on a single processor as the random number generator
             // is set for each process and gives different results with different
-            // numbers of nodes on a single process 
+            // numbers of nodes on a single process
 
             // First reset the singletons
             SimulationTime::Instance()->Destroy();
@@ -702,10 +703,10 @@ public:
             simulator_3.SetEndTime(5.0);
 
             // Pass the same force law to the simulation
-            simulator_3.AddForce(p_linear_force);
+            simulator_3.AddForce(p_force);
 
             simulator_3.Solve();
-             
+
             // Check that cells are in the same place in each simulation
             for (unsigned i=0; i<simulator.rGetCellPopulation().GetNumNodes(); i++)
             {
@@ -726,14 +727,14 @@ public:
     void TestSimple3dTissueXZPeriodic()
     {
         // Set up the node positions
-	    std::vector<Node<3>*> nodes = GenerateMesh(3,3,3);
+        std::vector<Node<3>*> nodes = GenerateMesh(3,3,3);
 
         // Convert this to a PeriodicNodesOnlyMesh
         c_vector<double,3> periodic_width = zero_vector<double>(3);
         periodic_width[0] = 6.0;//periodic in x with width 6.0
         periodic_width[2] = 6.0;//periodic in z with width 6.0
         PeriodicNodesOnlyMesh<3> mesh(periodic_width);
-	    mesh.ConstructNodesWithoutMesh(nodes,1.5);
+        mesh.ConstructNodesWithoutMesh(nodes,1.5);
 
         // Create cells
         std::vector<CellPtr> cells;
@@ -752,9 +753,9 @@ public:
         simulator.SetEndTime(5.0);
 
         // Create a force law and pass it to the simulation
-        MAKE_PTR(GeneralisedLinearSpringForce<3>, p_linear_force);
-        p_linear_force->SetCutOffLength(1.5);
-        simulator.AddForce(p_linear_force);
+        MAKE_PTR(PathmanathanInteractionForce<3>, p_force);
+        p_force->SetCutOffLength(1.5);
+        simulator.AddForce(p_force);
 
         simulator.Solve();
 
@@ -788,7 +789,7 @@ public:
 
         // Create cells
         std::vector<CellPtr> cells_2;
-        CellsGenerator<FixedG1GenerationalCellCycleModel, 2> cells_generator_2;
+        CellsGenerator<FixedG1GenerationalCellCycleModel, 3> cells_generator_2;
         cells_generator_2.GenerateBasicRandom(cells_2, mesh_2.GetNumNodes());
 
         // Create a node-based cell population
@@ -803,13 +804,13 @@ public:
         simulator_2.SetEndTime(5.0);
 
         // Pass the same force law to the simulation
-        simulator_2.AddForce(p_linear_force);
+        simulator_2.AddForce(p_force);
 
         simulator_2.Solve();
 
         if ( PetscTools::GetNumProcs() == 1 )
         {
-            // Check that cells are in the same place in each simulation 
+            // Check that cells are in the same place in each simulation
             // Note the way we do this only works on 1 processor
             for (unsigned i=0; i<simulator.rGetCellPopulation().GetNumNodes(); i++)
             {
@@ -817,7 +818,7 @@ public:
                 double x_2 = simulator_2.rGetCellPopulation().GetNode(i)->rGetLocation()[0];
                 double z_1 = simulator.rGetCellPopulation().GetNode(i)->rGetLocation()[2];
                 double z_2 = simulator_2.rGetCellPopulation().GetNode(i)->rGetLocation()[2];
-                
+
                 if (x_1 < offset)
                 {
                     TS_ASSERT_DELTA(x_1+offset, x_2, 1e-6)
@@ -845,7 +846,7 @@ public:
             // Check with a different interaction distance
             // This can only be done on a single processor as the random number generator
             // is set for each process and gives different results with different
-            // numbers of nodes on a single process 
+            // numbers of nodes on a single process
 
             // First reset the singletons
             SimulationTime::Instance()->Destroy();
@@ -873,7 +874,7 @@ public:
             simulator_3.SetEndTime(5.0);
 
             // Pass the same force law to the simulation
-            simulator_3.AddForce(p_linear_force);
+            simulator_3.AddForce(p_force);
 
             simulator_3.Solve();
 
@@ -886,7 +887,7 @@ public:
             }
 
         }
-        
+
         // Tidy up
         for (unsigned i=0; i<nodes.size(); i++)
         {

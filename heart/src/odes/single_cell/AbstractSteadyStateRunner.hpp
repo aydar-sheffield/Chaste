@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -36,8 +36,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _ABSTRACTSTEADYSTATERUNNER_HPP_
 #define _ABSTRACTSTEADYSTATERUNNER_HPP_
 
-#ifdef CHASTE_CVODE
-
 #include <boost/shared_ptr.hpp>
 #include "AbstractCvodeCell.hpp"
 #include "Exception.hpp"
@@ -69,6 +67,9 @@ protected:
 
     /** Whether to suppress output from this class (defaults to false) */
     bool mSuppressOutput;
+
+    /** Whether to suppress warnings from this class (defaults to false) */
+    bool mSuppressWarnings;
 
     /**
      * Run the cell model to steady state
@@ -114,6 +115,13 @@ public:
     void SuppressOutput(bool suppress = true);
 
     /**
+     * Prevent this class and subclasses from emitting warnings
+     *
+     * @param  suppress  whether to suppress warnings.
+     */
+    void SuppressWarnings(bool suppress = true);
+
+    /**
      * @return The number of cell model 'paces/beats' that had to be evaluated.
      */
     unsigned GetNumEvaluations();
@@ -123,6 +131,5 @@ public:
      */
     void SetMaxNumPaces(unsigned numPaces);
 };
-#endif // CHASTE_CVODE
 
 #endif // _ABSTRACTSTEADYSTATERUNNER_HPP_

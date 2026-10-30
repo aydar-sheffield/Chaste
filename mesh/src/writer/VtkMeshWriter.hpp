@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -36,8 +36,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef VTKMESHWRITER_HPP_
 #define VTKMESHWRITER_HPP_
 
-#ifdef CHASTE_VTK
-//Requires  "sudo aptitude install libvtk5-dev" or similar
 #define _BACKWARD_BACKWARD_WARNING_H 1 //Cut out the strstream deprecated warning for now (gcc4.3)
 #include <vtkDoubleArray.h>
 #include <vtkCellData.h>
@@ -70,11 +68,15 @@ class NodesOnlyMesh;
 template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 class VtkMeshWriter : public AbstractTetrahedralMeshWriter<ELEMENT_DIM, SPACE_DIM>
 {
-
-//Requires  "sudo aptitude install libvtk5-dev" or similar
-
 private:
     bool mWriteParallelFiles; /**< Whether to write parallel (.pvtu + .vtu for each process) files, defaults to false */
+
+    /**
+     * Whether or not the information on mesh cells (aka mesh elements) need to be printed.
+     * Defaults to true. When calling the "write" method multiple times,
+     * you may need to set it to false after the first time.
+     */
+    bool mWriteMeshCells;
 
     std::map<unsigned, unsigned> mGlobalToNodeIndexMap; /**< Map a global node index into a local index (into mNodes and mHaloNodes as if they were concatenated) */
 
@@ -213,6 +215,19 @@ public:
                                      bool keepOriginalElementIndexing=true);
 
     /**
+     * Specify whether the next call to MakeVtkMesh() - which is called when writing with WriteFiles()-
+     * will need to insert information on the mesh cells (aka mesh elements) or not.
+     * When requesting multiple WriteFiles() from this same object, the information on mesh
+     * cells must be included only the first time. This method can then be called after the
+     * first time by setting the flag to false.
+     *
+     * @param writeMeshCells true if the next call to MakeVtkMesh() will need to include
+     *                       information on the mesh cells (aka mesh elements)
+     */
+    void SetWriteMeshCells(bool writeMeshCells);
+
+
+    /**
      * Add Chaste provenance data to a VTK file as an XML comment string
      * @param fileName is the file name relative to mpOutputFileHandler
      * The file is assumed have been written to and to be closed - so that it can safely be appended to.
@@ -224,7 +239,5 @@ public:
      */
     virtual ~VtkMeshWriter();
 };
-
-#endif //CHASTE_VTK
 
 #endif /*VTKMESHWRITER_HPP_*/

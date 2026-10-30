@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -143,12 +143,10 @@ void CellCycleModelOdeSolver<CELL_CYCLE_MODEL, ODE_SOLVER>::Initialise()
     // If this is a CVODE solver we need to tell it to reset. Otherwise
     // the fact this is a singleton will lead to all sorts of problems
     // as CVODE will have the internal state for the wrong ODE system!
-#ifdef CHASTE_CVODE
     if (boost::dynamic_pointer_cast<CvodeAdaptor>(mpOdeSolver))
     {
         (boost::static_pointer_cast<CvodeAdaptor>(mpOdeSolver))->SetForceReset(true);
     }
-#endif //CHASTE_CVODE
 }
 
 template<class CELL_CYCLE_MODEL, class ODE_SOLVER>

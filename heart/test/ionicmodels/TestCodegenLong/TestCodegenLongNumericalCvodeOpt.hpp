@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -38,7 +38,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "CodegenLongHelperTestSuite.hpp"
 
-#include <boost/foreach.hpp>
 #include <vector>
 
 #include "HeartConfig.hpp"
@@ -54,14 +53,13 @@ class TestCodegenLongNumericalCvodeOpt : public CodegenLongHelperTestSuite
 public:
     void TestCvodeCellsOpt()
     {
-#ifdef CHASTE_CVODE
         std::string dirname("TestCodegenLongCvodeNumericalJ-opt");
         std::vector<std::string> args;
         args.push_back("--cvode");
         args.push_back("--opt");
 
         // Models we need to run it wirth finer tolerances
-        std::vector<std::string> different_lookup_table_models = spectail_streatment_models(models, {"ten_tusscher_model_2004_endo"});
+        std::vector<std::string> different_lookup_table_models = special_treatment_models(models, {"ten_tusscher_model_2004_endo"});
 
         SetUseCvodeJacobian(false);
         HeartConfig::Instance()->SetOdePdeAndPrintingTimeSteps(0.01, 0.1, 1.0);
@@ -71,7 +69,6 @@ public:
         RunTests(dirname, different_lookup_table_models, args);
 
         SetUseCvodeJacobian(true);
-#endif
     }
 };
 

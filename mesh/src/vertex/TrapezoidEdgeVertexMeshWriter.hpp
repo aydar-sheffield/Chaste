@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2019, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -36,34 +36,31 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define TRAPEZOIDEDGEVERTEXMESHWRITER_HPP_
 
 // Forward declaration prevents circular include chain
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 class VertexMesh;
 
-#ifdef CHASTE_VTK
-//Requires  "sudo aptitude install libvtk5-dev" or similar
-#define _BACKWARD_BACKWARD_WARNING_H 1 //Cut out the strstream deprecated warning for now (gcc4.3)
-#include <vtkDoubleArray.h>
+#define _BACKWARD_BACKWARD_WARNING_H 1 // Cut out the strstream deprecated warning for now (gcc4.3)
 #include <vtkCellData.h>
-#include <vtkPointData.h>
 #include <vtkConvexPointSet.h>
-#include <vtkQuad.h>
-#include <vtkPolygon.h>
+#include <vtkDataCompressor.h>
+#include <vtkDoubleArray.h>
 #include <vtkHexahedron.h>
+#include <vtkPointData.h>
+#include <vtkPolygon.h>
+#include <vtkQuad.h>
 #include <vtkUnstructuredGrid.h>
 #include <vtkUnstructuredGridWriter.h>
 #include <vtkXMLUnstructuredGridWriter.h>
-#include <vtkDataCompressor.h>
-#endif //CHASTE_VTK
 
-#include "VertexMesh.hpp"
 #include "AbstractMeshWriter.hpp"
 #include "NodeMap.hpp"
+#include "VertexMesh.hpp"
 
 // Forward declaration prevents circular include chain
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 class VertexMesh;
 
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 struct MeshWriterIterators;
 
 /**
@@ -79,25 +76,20 @@ struct MeshWriterIterators;
  *  \      /       \      /
  *   \ __ /         \ __ /
  */
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 class TrapezoidEdgeVertexMeshWriter : public AbstractMeshWriter<ELEMENT_DIM, SPACE_DIM>
 {
 private:
-
     /**
      * If writing from a mesh object, the mesh to write to disk.
      * Otherwise NULL.
      */
-    VertexMesh<ELEMENT_DIM,SPACE_DIM>* mpMesh;
+    VertexMesh<ELEMENT_DIM, SPACE_DIM>* mpMesh = nullptr;
 
-#ifdef CHASTE_VTK
-//Requires  "sudo aptitude install libvtk5-dev" or similar
-///\todo Merge into VtkMeshWriter (#1076)
-    vtkUnstructuredGrid* mpVtkUnstructedMesh;
-#endif //CHASTE_VTK
+    ///\todo Merge into VtkMeshWriter (#1076)
+    vtkUnstructuredGrid* mpVtkUnstructedMesh = nullptr;
 
 public:
-
     /**
      * Constructor.
      *
@@ -106,8 +98,8 @@ public:
      * @param clearOutputDir whether to clear the output directory prior to writing files
      */
     TrapezoidEdgeVertexMeshWriter(const std::string& rDirectory,
-                             const std::string& rBaseName,
-                             const bool clearOutputDir=true);
+                                  const std::string& rBaseName,
+                                  const bool clearOutputDir = true);
 
     /**
      * Write VTK file using a mesh.
@@ -115,7 +107,7 @@ public:
      * @param rMesh reference to the vertex-based mesh
      * @param stamp is an optional stamp (like a time-stamp) to put into the name of the file
      */
-    void WriteVtkUsingMesh(VertexMesh<ELEMENT_DIM, SPACE_DIM>& rMesh, std::string stamp="");
+    void WriteVtkUsingMesh(VertexMesh<ELEMENT_DIM, SPACE_DIM>& rMesh, const std::string& stamp = "");
 
     /**
      * Populate mpVtkUnstructedMesh using a vertex-based mesh.
@@ -138,8 +130,7 @@ public:
      */
     ~TrapezoidEdgeVertexMeshWriter();
 
-    void WriteFiles() override;
+    void WriteFiles();
 };
-
 
 #endif /*TRAPEZOIDEDGEVERTEXMESHWRITER_HPP_*/

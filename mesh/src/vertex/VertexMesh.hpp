@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -49,6 +49,8 @@ class VertexMeshWriter;
 #include "ChasteSerialization.hpp"
 
 #include "AbstractMesh.hpp"
+#include "Edge.hpp"
+#include "EdgeHelper.hpp"
 #include "ArchiveLocationInfo.hpp"
 #include "TetrahedralMesh.hpp"
 #include "VertexElement.hpp"
@@ -83,6 +85,9 @@ protected:
 
     /** Vector of pointers to VertexElements. */
     std::vector<VertexElement<ELEMENT_DIM - 1, SPACE_DIM>*> mFaces;
+
+    /** Object that owns and manages edges **/
+    EdgeHelper<SPACE_DIM> mEdgeHelper;
 
     /**
      * Map that is used only when the vertex mesh is used to represent
@@ -131,9 +136,9 @@ protected:
 
     /**
      * Build edges from elements. Populates edges in EdgeHelper class
-     * @param elements from which edges are built
+     * @param rElements from which edges are built
      */
-    void GenerateEdgesFromElements(std::vector<VertexElement<ELEMENT_DIM, SPACE_DIM>*> &elements);
+    void GenerateEdgesFromElements(std::vector<VertexElement<ELEMENT_DIM, SPACE_DIM>*>& rElements);
 
     /**
      * Populate mNodes with locations corresponding to the element
@@ -261,9 +266,18 @@ public:
      * \todo Merge with 3D Voronoi constructor? (see #1075)
      *
      * @param rMesh a tetrahedral mesh
-     * @param isPeriodic a boolean that indicates whether the mesh is periodic or not
+     * @param isPeriodic a boolean that indicates whether the mesh is periodic or not. Defaults to false.
+     * @param isBounded a boolean to indicate whether to bound the voronoi tesselation. Defaults to false.
+     * @param scaleBoundByEdgeLength whether to scale the distance bounding nodes are placed from the mesh. Defaults to true.
+     * @param maxDelaunayEdgeLength the maximum edge length in the mesh. Edges longer than this are ignored in boundary calculation. Defaults to DBL_MAX so there ia no max length.
+     * @param offsetNewBoundaryNodes whether to add new node towards the centre of the boundary edges or not. Defaults to false.
      */
-    VertexMesh(TetrahedralMesh<2, 2>& rMesh, bool isPeriodic = false);
+    VertexMesh(TetrahedralMesh<2, 2>& rMesh,
+               bool isPeriodic = false,
+               bool isBounded = false,
+               bool scaleBoundByEdgeLength = true,
+               double maxDelaunayEdgeLength = DBL_MAX,
+               bool offsetNewBoundaryNodes = false);
 
     /**
      * Alternative 3D 'Voronoi' constructor. Creates a Voronoi tessellation of a given tetrahedral mesh,
@@ -284,6 +298,26 @@ public:
      * Destructor.
      */
     virtual ~VertexMesh();
+
+    /**
+     * Gets the number of edges in the mesh
+     * @return The number of edges in the mesh
+     */
+    unsigned GetNumEdges() const;
+
+    /**
+     * Fetches an edge.
+     *
+     * @param index global index of the edge
+     * @return Pointer to the edge at the index
+     */
+    Edge<SPACE_DIM>* GetEdge(unsigned index) const;
+
+    /**
+     * Fetches EdgeHelper.
+     * @return Const reference to the edge helper
+     */
+    const EdgeHelper<SPACE_DIM>& rGetEdgeHelper() const;
 
     /**
      * @return the number of Nodes in the mesh.
@@ -602,6 +636,18 @@ public:
      * @return a pointer to the vertex mesh
      */
     virtual VertexMesh<ELEMENT_DIM, SPACE_DIM>* GetMeshForVtk();
+
+    /**
+     * Helper method to determine if a point in space is near to any existing nodes. Used when making bounded Voronoi Tesselations
+     *
+     * @param newNodeLocation the location of the proposed node
+     * @param nodesToCheck the nodes to check for proximity to the proposed node
+     * @param minClearance the minimum clearance
+     *
+     * @return if the new node is near to any existing node
+     *
+     */
+    bool IsNearExistingNodes(c_vector<double,SPACE_DIM> newNodeLocation, std::vector<Node<SPACE_DIM> *> nodesToCheck, double minClearance);
 
     /**
      * A smart iterator over the elements in the mesh.

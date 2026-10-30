@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -39,8 +39,6 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <map>
 #include "LungTools.hpp"
-
-#ifdef CHASTE_VTK
 
 #define _BACKWARD_BACKWARD_WARNING_H 1 //Cut out the strstream deprecated warning for now (gcc4.3)
 #include "vtkSmartPointer.h"
@@ -118,7 +116,5 @@ private:
     /** A map containing the lobar surface definitions */
     std::map< std::string, std::pair< vtkSmartPointer<vtkPolyData>, LungLocation> > mLobesMap;
 };
-
-#endif //CHASTE_VTK
 
 #endif // LOBE_PROPERTIES_CALCULATOR

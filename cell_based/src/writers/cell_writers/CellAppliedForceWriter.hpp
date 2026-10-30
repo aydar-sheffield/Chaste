@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -46,9 +46,9 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * subclasses) only; if used with other cell populations, the writer will output
  * DOUBLE_UNSET for each component of cell's applied force.
  *
- * The output file is called cellappliedforce.dat by default. If VTK is switched on,
- * then the writer also specifies the VTK output for each cell, which is stored in
- * the VTK cell data "Cell applied force" by default.
+ * The output file is called cellappliedforce.dat by default. The writer also specifies
+ * the VTK output for each cell, which is stored in the VTK cell data "Cell applied force"
+ * by default.
  */
 template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
 class CellAppliedForceWriter : public AbstractCellWriter<ELEMENT_DIM, SPACE_DIM>

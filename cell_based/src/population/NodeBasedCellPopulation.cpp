@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -112,7 +112,7 @@ TetrahedralMesh<DIM, DIM>* NodeBasedCellPopulation<DIM>::GetTetrahedralMeshForPd
 template<unsigned DIM>
 void NodeBasedCellPopulation<DIM>::Clear()
 {
-    mNodePairs.clear();
+    this->mNodePairs.clear();
 }
 
 template<unsigned DIM>
@@ -166,11 +166,11 @@ void NodeBasedCellPopulation<DIM>::Update(bool hasHadBirthsOrDeaths)
 
     RefreshHaloCells();
 
-    mpNodesOnlyMesh->CalculateInteriorNodePairs(mNodePairs);
+    mpNodesOnlyMesh->CalculateInteriorNodePairs(this->mNodePairs);
 
     AddReceivedHaloCells();
 
-    mpNodesOnlyMesh->CalculateBoundaryNodePairs(mNodePairs);
+    mpNodesOnlyMesh->CalculateBoundaryNodePairs(this->mNodePairs);
 
     /*
      * Update cell radii based on CellData
@@ -286,12 +286,6 @@ void NodeBasedCellPopulation<DIM>::UpdateParticlesAfterReMesh(NodeMap& rMap)
 }
 
 template<unsigned DIM>
-std::vector< std::pair<Node<DIM>*, Node<DIM>* > >& NodeBasedCellPopulation<DIM>::rGetNodePairs()
-{
-    return mNodePairs;
-}
-
-template<unsigned DIM>
 void NodeBasedCellPopulation<DIM>::OutputCellPopulationParameters(out_stream& rParamsFile)
 {
     *rParamsFile << "\t\t<MechanicsCutOffLength>" << mpNodesOnlyMesh->GetMaximumInteractionDistance() << "</MechanicsCutOffLength>\n";
@@ -311,6 +305,12 @@ template<unsigned DIM>
 void NodeBasedCellPopulation<DIM>::AcceptPopulationCountWriter(boost::shared_ptr<AbstractCellPopulationCountWriter<DIM, DIM> > pPopulationCountWriter)
 {
     pPopulationCountWriter->Visit(this);
+}
+
+template<unsigned DIM>
+void NodeBasedCellPopulation<DIM>::AcceptPopulationEventWriter(boost::shared_ptr<AbstractCellPopulationEventWriter<DIM, DIM> > pPopulationEventWriter)
+{
+    pPopulationEventWriter->Visit(this);
 }
 
 template<unsigned DIM>
@@ -491,100 +491,103 @@ std::set<unsigned> NodeBasedCellPopulation<DIM>::GetNeighbouringNodeIndices(unsi
     return neighbouring_node_indices;
 }
 
-template<unsigned DIM>
-double NodeBasedCellPopulation<DIM>::GetVolumeOfCell(CellPtr pCell)
+template <unsigned DIM>
+double NodeBasedCellPopulation<DIM>::GetVolumeOfCell([[maybe_unused]] CellPtr pCell)
 {
     // Not implemented or tested in 1D
-    assert(DIM==2 ||DIM==3); // LCOV_EXCL_LINE
-
-    // Get node index corresponding to this cell
-    unsigned node_index = this->GetLocationIndexUsingCell(pCell);
-    Node<DIM>* p_node = this->GetNode(node_index);
-
-    // Get cell radius
-    double cell_radius = p_node->GetRadius();
-
-    // Begin code to approximate cell volume
-    double averaged_cell_radius = 0.0;
-    unsigned num_cells = 0;
-
-    // Get the location of this node
-    const c_vector<double, DIM>& r_node_i_location = GetNode(node_index)->rGetLocation();
-
-    // Get the set of node indices corresponding to this cell's neighbours
-    std::set<unsigned> neighbouring_node_indices = GetNeighbouringNodeIndices(node_index);
-
-    // THe number of neighbours in equilibrium configuration, from sphere packing problem
-    unsigned num_neighbours_equil;
-    if (DIM==2)
+    if constexpr ((DIM == 2) || (DIM == 3))
     {
-        num_neighbours_equil = 6;
-    }
-    else
-    {
-        assert(DIM==3);
-        num_neighbours_equil = 12;
-    }
+        // Get node index corresponding to this cell
+        unsigned node_index = this->GetLocationIndexUsingCell(pCell);
+        Node<DIM>* p_node = this->GetNode(node_index);
 
-    // Loop over this set
-    for (std::set<unsigned>::iterator iter = neighbouring_node_indices.begin();
-         iter != neighbouring_node_indices.end();
-         ++iter)
-    {
-        Node<DIM>* p_node_j = this->GetNode(*iter);
+        // Get cell radius
+        double cell_radius = p_node->GetRadius();
 
-        // Get the location of the neighbouring node
-        const c_vector<double, DIM>& r_node_j_location = p_node_j->rGetLocation();
+        // Begin code to approximate cell volume
+        double averaged_cell_radius = 0.0;
+        unsigned num_cells = 0;
 
-        double neighbouring_cell_radius = p_node_j->GetRadius();
+        // Get the location of this node
+        const c_vector<double, DIM>& r_node_i_location = GetNode(node_index)->rGetLocation();
 
-        // If this throws then you may not be considering all cell interactions use a larger cut off length
-        assert(cell_radius+neighbouring_cell_radius<mpNodesOnlyMesh->GetMaximumInteractionDistance());
+        // Get the set of node indices corresponding to this cell's neighbours
+        std::set<unsigned> neighbouring_node_indices = GetNeighbouringNodeIndices(node_index);
 
-        // Calculate the distance between the two nodes and add to cell radius
-        double separation = norm_2(mpNodesOnlyMesh->GetVectorFromAtoB(r_node_j_location, r_node_i_location));
-
-        if (separation < cell_radius+neighbouring_cell_radius)
+        // THe number of neighbours in equilibrium configuration, from sphere packing problem
+        unsigned num_neighbours_equil;
+        if (DIM == 2)
         {
-            // The effective radius is the mid point of the overlap
-            averaged_cell_radius = averaged_cell_radius + cell_radius - (cell_radius+neighbouring_cell_radius-separation)/2.0;
-            num_cells++;
+            num_neighbours_equil = 6;
         }
-    }
-    if (num_cells < num_neighbours_equil)
-    {
-        averaged_cell_radius += (num_neighbours_equil-num_cells)*cell_radius;
+        else // DIM == 3
+        {
+            num_neighbours_equil = 12;
+        }
 
-        averaged_cell_radius /= num_neighbours_equil;
+        // Loop over this set
+        for (std::set<unsigned>::iterator iter = neighbouring_node_indices.begin();
+            iter != neighbouring_node_indices.end();
+            ++iter)
+        {
+            Node<DIM>* p_node_j = this->GetNode(*iter);
+
+            // Get the location of the neighbouring node
+            const c_vector<double, DIM>& r_node_j_location = p_node_j->rGetLocation();
+
+            double neighbouring_cell_radius = p_node_j->GetRadius();
+
+            // If this throws then you may not be considering all cell interactions use a larger cut off length
+            assert(cell_radius+neighbouring_cell_radius<mpNodesOnlyMesh->GetMaximumInteractionDistance());
+
+            // Calculate the distance between the two nodes and add to cell radius
+            double separation = norm_2(mpNodesOnlyMesh->GetVectorFromAtoB(r_node_j_location, r_node_i_location));
+
+            if (separation < cell_radius+neighbouring_cell_radius)
+            {
+                // The effective radius is the mid point of the overlap
+                averaged_cell_radius = averaged_cell_radius + cell_radius - (cell_radius+neighbouring_cell_radius-separation)/2.0;
+                num_cells++;
+            }
+        }
+        if (num_cells < num_neighbours_equil)
+        {
+            averaged_cell_radius += (num_neighbours_equil-num_cells)*cell_radius;
+
+            averaged_cell_radius /= num_neighbours_equil;
+        }
+        else
+        {
+            averaged_cell_radius /= num_cells;
+        }
+        assert(averaged_cell_radius < mpNodesOnlyMesh->GetMaximumInteractionDistance()/2.0);
+
+        cell_radius = averaged_cell_radius;
+
+        // End code to approximate cell volume
+
+        // Calculate cell volume from radius of cell
+        double cell_volume = 0.0;
+        if (DIM == 2)
+        {
+            cell_volume = M_PI*cell_radius*cell_radius;
+        }
+        else // DIM == 3
+        {
+            cell_volume = (4.0/3.0)*M_PI*cell_radius*cell_radius*cell_radius;
+        }
+
+        return cell_volume;
     }
     else
     {
-        averaged_cell_radius /= num_cells;
+        NEVER_REACHED;
     }
-    assert(averaged_cell_radius < mpNodesOnlyMesh->GetMaximumInteractionDistance()/2.0);
-
-    cell_radius = averaged_cell_radius;
-
-    // End code to approximate cell volume
-
-    // Calculate cell volume from radius of cell
-    double cell_volume = 0.0;
-    if (DIM == 2)
-    {
-        cell_volume = M_PI*cell_radius*cell_radius;
-    }
-    else if (DIM == 3)
-    {
-        cell_volume = (4.0/3.0)*M_PI*cell_radius*cell_radius*cell_radius;
-    }
-
-    return cell_volume;
 }
 
 template<unsigned DIM>
 void NodeBasedCellPopulation<DIM>::WriteVtkResultsToFile(const std::string& rDirectory)
 {
-#ifdef CHASTE_VTK
     // Store the present time as a string
     std::stringstream time;
     time << SimulationTime::Instance()->GetTimeStepsElapsed();
@@ -691,7 +694,6 @@ void NodeBasedCellPopulation<DIM>::WriteVtkResultsToFile(const std::string& rDir
         // Parallel vtu files  .vtu -> .pvtu
         *(this->mpVtkMetaFile) << ".pvtu\"/>\n";
     }
-#endif //CHASTE_VTK
 }
 
 template<unsigned DIM>
@@ -771,7 +773,7 @@ void NodeBasedCellPopulation<DIM>::SendCellsToNeighbourProcesses()
         mpCellsRecvLeft = mLeftCommunicator.SendRecvObject(p_cells_left, PetscTools::GetNumProcs() - 1, mCellCommunicationTag, PetscTools::GetNumProcs() - 1, mCellCommunicationTag, status);
 }
 
-    // We need to leave this to the end (rather than as an else if for AmTopMost()) 
+    // We need to leave this to the end (rather than as an else if for AmTopMost())
     // otherwise there will be a cyclic send-receive and it will stall
     if ( PetscTools::AmTopMost() && mpNodesOnlyMesh->GetIsPeriodicAcrossProcsFromBoxCollection() )
     {
@@ -789,7 +791,7 @@ unsigned NodeBasedCellPopulation<DIM>::CalculateMessageTag(unsigned senderI, uns
      Instead we use a Cantor pairing function which produces lower paired values
      See: https://en.wikipedia.org/wiki/Pairing_function */
     unsigned tag = 0.5*((senderI+receiverJ)*(senderI+receiverJ+1) + 2*receiverJ);
-    assert(tag < UINT_MAX); //Just make sure doesnt hit UINT_MAX as old method did. 
+    assert(tag < UINT_MAX); //Just make sure doesnt hit UINT_MAX as old method did.
     return tag;
 }
 

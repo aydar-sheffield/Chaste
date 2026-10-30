@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -248,6 +248,14 @@ public:
     // This version uses the problem classes.  It also checks things still work with a permuted mesh.
     void TestMonodomainPurkinjeProblemRunning()
     {
+#ifdef CHASTE_SCOTCH_PARMETIS
+        // Turn off smart partitioning.
+        // PT-Scotch will produce good partitions but it cannot be forced to always
+        // give the same partition of the same mesh twice running (for ortho and axi).
+        TS_ASSERT_EQUALS(HeartConfig::Instance()->GetMeshPartitioning(), DistributedTetrahedralMeshPartitionType::PARMETIS_LIBRARY);
+        HeartConfig::Instance()->SetMeshPartitioning("dumb");
+#endif
+
         // Settings common to both problems
         HeartConfig::Instance()->SetUseAbsoluteTolerance(1e-12);
         HeartConfig::Instance()->SetOdePdeAndPrintingTimeSteps(0.01, 0.01, 0.1);
@@ -331,6 +339,12 @@ public:
         // For coverage, call Solve again to extend the solution
         HeartConfig::Instance()->SetSimulationDuration(1.1);
         purkinje_problem.Solve();
+
+#ifdef CHASTE_SCOTCH_PARMETIS
+        // Make sure smart partitioning is switched back on.
+        TS_ASSERT_EQUALS(HeartConfig::Instance()->GetMeshPartitioning(), DistributedTetrahedralMeshPartitionType::DUMB);
+        HeartConfig::Instance()->SetMeshPartitioning("parmetis");
+#endif
     }
 
     // Solve a Purkinje problem on a branched domain
@@ -428,8 +442,6 @@ public:
             soln_repl.ReplicatePetscVector(purkinje_problem.GetSolution());
         }
 
-#ifdef CHASTE_VTK
-// Requires  "sudo aptitude install libvtk5-dev" or similar
         //Check for VTK file
         std::string filepath = OutputFileHandler::GetChasteTestOutputDirectory() + "TestMonodomainPurkinjeProblem_purkinje_branched/vtk_output/";
 
@@ -444,10 +456,6 @@ public:
             FileFinder pvtk_file(filepath2 + "SimulationResults.pvtu", RelativeTo::Absolute);
             TS_ASSERT(pvtk_file.Exists());
         }
-#else
-        std::cout << "This test ran, but did not test VTK-dependent functions as VTK visualization is not enabled." << std::endl;
-        std::cout << "If required please install and alter your hostconfig settings to switch on chaste support." << std::endl;
-#endif //CHASTE_VTK
 
         for(unsigned i=0; i<mesh.GetNumNodes(); i++)
         {
@@ -930,16 +938,6 @@ public:
             TS_ASSERT_EQUALS(Warnings::Instance()->GetNumWarnings(), 1u);
             TS_ASSERT_EQUALS(Warnings::Instance()->GetNextWarningMessage(), "No Purkinje-Ventricular junction (.pvj) file found. Junctions must be specified manually.");
             Warnings::QuietDestroy();
-        }
-
-        //Cover warning that a .pvj file can't be read
-        if (PetscTools::AmMaster())
-        {
-            HeartConfig::Instance()->SetMeshFileName("mesh/test/data/mixed_dimension_meshes/2D_0_to_1mm_200_elements_cable_and_star");
-
-            chmod("mesh/test/data/mixed_dimension_meshes/2D_0_to_1mm_200_elements_cable_and_star.pvj", 0000);
-            TS_ASSERT_THROWS_CONTAINS(purkinje_problem.Initialise(), "Couldn't open data file:");
-            chmod("mesh/test/data/mixed_dimension_meshes/2D_0_to_1mm_200_elements_cable_and_star.pvj", CHASTE_READ_WRITE);
         }
 
         //Covers empty lines in .pvj file

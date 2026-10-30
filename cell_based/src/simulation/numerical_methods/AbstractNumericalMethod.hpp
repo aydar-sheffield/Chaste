@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -43,6 +43,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "AbstractOffLatticeCellPopulation.hpp"
 #include "AbstractForce.hpp"
+#include "AbstractCellPopulationBoundaryCondition.hpp"
 
 /**
  * An abstract class representing a numerical method for off lattice cell based simulations.
@@ -71,7 +72,6 @@ private:
     void serialize(Archive & archive, const unsigned int version)
     {
         archive & mUseAdaptiveTimestep;
-        archive & mUseUpdateNodeLocation;
         archive & mGhostNodeForcesEnabled;
     }
 
@@ -83,6 +83,9 @@ protected:
     /** Pointer to the force collection to apply*/
     std::vector<boost::shared_ptr<AbstractForce<ELEMENT_DIM, SPACE_DIM> > >* mpForceCollection;
 
+    /** Pointer to the boundary conditions to apply*/
+    std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM, SPACE_DIM> > >* mpBoundaryConditions;
+
     /**
      * Whether the numerical method uses an adaptive time step.
      * Initialized to false in the AbstractNumericalMethod constructor.
@@ -90,21 +93,22 @@ protected:
     bool mUseAdaptiveTimestep;
 
     /**
-     * A boolean flag indicating whether non-forward Euler methods are supported for this type of cell
-     * population. Allows us to fall back to the old method of updating node positions for populations
-     * that require it (This is only for NodeBasedCellPopulationWithBuskeUpdates).
-     *
-     * Initialized to false in the AbstractNumericalMethod constructor.
-     *
-     * \todo #2087 Consider replacing this with static_casts
-     */
-    bool mUseUpdateNodeLocation;
-
-    /**
      * A boolean indicating whether this cell population type contains ghost nodes.
      * Initialized to true in the AbstractNumericalMethod constructor.
      */
     bool mGhostNodeForcesEnabled;
+
+    /**
+     * Helper method to store the node locations used when applying the boundary conditions in higher order methods.
+     * @return the current node locations.
+     */
+    std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> > SaveCurrentNodeLocations();
+
+    /**
+     * Helper method to apply boundary conditions. Used in higher order methods like RK4.
+     * @param rOldNodeLocations the node locations prior to being updated.
+     */
+    void ImposeBoundaryConditions(std::map<Node<SPACE_DIM>*, c_vector<double, SPACE_DIM> >& rOldNodeLocations);
 
     /**
      * Computes and returns the force on each node, including the damping factor
@@ -145,12 +149,12 @@ public:
      * the simulation. The cell population and force collection pointers are then set by the simulation in
      * its constructor.
      */
-    AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>();
+    AbstractNumericalMethod();
 
     /**
      * Destructor.
      */
-    virtual ~AbstractNumericalMethod<ELEMENT_DIM,SPACE_DIM>();
+    virtual ~AbstractNumericalMethod();
 
     /**
      * Sets the pointer to the cell population updated by this method
@@ -167,30 +171,35 @@ public:
     void SetForceCollection(std::vector<boost::shared_ptr<AbstractForce<ELEMENT_DIM, SPACE_DIM> > >* pForces);
 
     /**
+     * Sets the pointer to the boundary conditions applied by this method
+     *
+     * @param pBoundaryConditions Pointer to the simulation's boundary condition collection
+     */
+    void SetBoundaryConditions(std::vector<boost::shared_ptr<AbstractCellPopulationBoundaryCondition<ELEMENT_DIM, SPACE_DIM> > >* pBoundaryConditions);
+
+    /**
      * Set mUseAdaptiveTimestep.
      *
      * @param useAdaptiveTimestep whether to use an adaptive time step
      */
-    void SetUseAdaptiveTimestep(bool useAdaptiveTimestep);
-
-    /**
-     * Set mUseUpdateNodeLocation.
-     *
-     * @param useUpdateNodeLocation whether to use the population method UpdateNodeLocations()
-     */
-    void SetUseUpdateNodeLocation(bool useUpdateNodeLocation);
-
-    /**
-     * Get mUseUpdateNodeLocation.
-     *
-     * @return whether the population method UpdateNodeLocations() is being used
-     */
-    bool GetUseUpdateNodeLocation();
+    virtual void SetUseAdaptiveTimestep(bool useAdaptiveTimestep);
 
     /**
      * @return whether the numerical method uses an adaptive time step.
      */
     bool HasAdaptiveTimestep();
+
+    /**
+     * @return whether this numerical method always delegates position updates to the cell
+     * population's own UpdateNodeLocations() method, rather than performing its own
+     * force-based integration.
+     *
+     * Defaults to false; overridden to return true by NoNumericalMethod, which is the only
+     * numerical method that may be paired with a cell population whose UpdateNodeLocations()
+     * is not NEVER_REACHED (currently NodeBasedCellPopulationWithBuskeUpdate and
+     * ImmersedBoundaryCellPopulation). This pairing is enforced in SetCellPopulation().
+     */
+    virtual bool DelegatesToPopulation();
 
     /**
      * Updates node positions according to Newton's 2nd law with overdamping.

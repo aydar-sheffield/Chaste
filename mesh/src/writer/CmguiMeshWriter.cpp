@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -32,23 +32,24 @@ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
-#include "Exception.hpp"
+
 #include "CmguiMeshWriter.hpp"
-#include "Version.hpp"
+
+#include <string>
+
 #include <boost/shared_ptr.hpp>
 
 #include "AbstractTetrahedralMesh.hpp"
 #include "DistributedTetrahedralMesh.hpp"
+#include "Exception.hpp"
+#include "FilesystemPermissions.hpp"
+#include "Version.hpp"
 
-///////////////////////////////////////////////////////////////////////////////////
-// Implementation
-///////////////////////////////////////////////////////////////////////////////////
-
-template<unsigned ELEMENT_DIM, unsigned SPACE_DIM>
-CmguiMeshWriter<ELEMENT_DIM,SPACE_DIM>::CmguiMeshWriter(const std::string& rDirectory,
-                                                        const std::string& rBaseName,
-                                                        bool cleanDirectory)
-        : AbstractTetrahedralMeshWriter<ELEMENT_DIM,SPACE_DIM>(rDirectory, rBaseName, cleanDirectory)
+template <unsigned ELEMENT_DIM, unsigned SPACE_DIM>
+CmguiMeshWriter<ELEMENT_DIM, SPACE_DIM>::CmguiMeshWriter(const std::string& rDirectory,
+                                                         const std::string& rBaseName,
+                                                         bool cleanDirectory)
+        : AbstractTetrahedralMeshWriter<ELEMENT_DIM, SPACE_DIM>(rDirectory, rBaseName, cleanDirectory)
 {
     this->mIndexFromZero = false;
     mGroupName = this->mBaseName;
@@ -182,14 +183,17 @@ std::vector<boost::shared_ptr<std::ofstream> > CmguiMeshWriter<ELEMENT_DIM, SPAC
     for (unsigned region_index=0; region_index<mRegionNames.size(); region_index++)
     {
         std::string elem_file_name = mRegionNames[region_index] + ".exelem";
+        fs::path elem_file_path(directory);
+        elem_file_path /= elem_file_name;
 
-        boost::shared_ptr<std::ofstream> p_output_file(new std::ofstream((directory+elem_file_name).c_str(), GetOpenMode(append)));
+        boost::shared_ptr<std::ofstream> p_output_file(new std::ofstream(elem_file_path, GetOpenMode(append)));
 // LCOV_EXCL_START
         if (!p_output_file->is_open())
         {
             EXCEPTION("Could not open file \"" + elem_file_name + "\" in " + directory);
         }
 // LCOV_EXCL_STOP
+        FilesystemPermissions::SetFilePermissions(elem_file_path);
 
         // NOTE THAT one could simply do:
         //

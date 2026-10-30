@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -385,8 +385,7 @@ void MutableMesh<ELEMENT_DIM, SPACE_DIM>::MoveMergeNode(unsigned index,
         }
     }
 
-    for (std::set<unsigned>::const_iterator boundary_element_iter=
-                 unshared_boundary_element_indices.begin();
+    for (auto boundary_element_iter = unshared_boundary_element_indices.begin();
              boundary_element_iter != unshared_boundary_element_indices.end();
              boundary_element_iter++)
     {
@@ -487,8 +486,7 @@ unsigned MutableMesh<ELEMENT_DIM, SPACE_DIM>::RefineElement(
             mDeletedElementIndices.pop_back();
         }
 
-        Element<ELEMENT_DIM,SPACE_DIM>* p_new_element=
-            new Element<ELEMENT_DIM,SPACE_DIM>(*pElement, new_elt_index);
+        auto* p_new_element = new Element<ELEMENT_DIM,SPACE_DIM>(*pElement, new_elt_index);
 
         // Second, update the node in the element with the new one
         p_new_element->UpdateNode(ELEMENT_DIM-1-i, this->mNodes[new_node_index]);
@@ -523,8 +521,7 @@ void MutableMesh<ELEMENT_DIM, SPACE_DIM>::DeleteBoundaryNodeAt(unsigned index)
     mDeletedNodeIndices.push_back(index);
 
     // Update the boundary node vector
-    typename std::vector<Node<SPACE_DIM>*>::iterator b_node_iter
-    = std::find(this->mBoundaryNodes.begin(), this->mBoundaryNodes.end(), this->mNodes[index]);
+    auto b_node_iter = std::find(this->mBoundaryNodes.begin(), this->mBoundaryNodes.end(), this->mNodes[index]);
     this->mBoundaryNodes.erase(b_node_iter);
 
     // Remove boundary elements containing this node
@@ -662,7 +659,6 @@ void MutableMesh<ELEMENT_DIM, SPACE_DIM>::ReIndex(NodeMap& map)
 
     for (unsigned i=0; i<this->mElements.size(); i++)
     {
-
         this->mElements[i]->ResetIndex(i);
     }
 
@@ -941,7 +937,7 @@ c_vector<unsigned, 3> MutableMesh<ELEMENT_DIM, SPACE_DIM>::SplitEdge(Node<SPACE_
         Element<ELEMENT_DIM,SPACE_DIM>* p_original_element = this->GetElement(elementIndex);
 
         // First, make a copy of the current element and assign an unused index
-        Element<ELEMENT_DIM,SPACE_DIM>* p_new_element = new Element<ELEMENT_DIM,SPACE_DIM>(*p_original_element, UINT_MAX);
+        auto* p_new_element = new Element<ELEMENT_DIM,SPACE_DIM>(*p_original_element, UINT_MAX);
 
         // Second, add the new element to the set of existing elements. This method will assign a proper index to the element.
         AddElement(p_new_element);
@@ -1032,12 +1028,12 @@ bool MutableMesh<ELEMENT_DIM, SPACE_DIM>::CheckIsVoronoi(Element<ELEMENT_DIM, SP
     }
 
     // Get the circumsphere information
-    c_vector<double, SPACE_DIM+1> this_circum_centre;
+    c_vector<double, SPACE_DIM+1> this_circum_centre = zero_vector<double>(SPACE_DIM+1);
 
     this_circum_centre = pElement->CalculateCircumsphere(this->mElementJacobians[pElement->GetIndex()], this->mElementInverseJacobians[pElement->GetIndex()]);
 
-    // Copy the actualy circumcentre into a smaller vector
-    c_vector<double, ELEMENT_DIM> circum_centre;
+    // Copy the actually circumcentre into a smaller vector
+    c_vector<double, ELEMENT_DIM> circum_centre = zero_vector<double>(ELEMENT_DIM);
     for (unsigned i=0; i<ELEMENT_DIM; i++)
     {
         circum_centre[i] = this_circum_centre[i];
@@ -1047,16 +1043,15 @@ bool MutableMesh<ELEMENT_DIM, SPACE_DIM>::CheckIsVoronoi(Element<ELEMENT_DIM, SP
          it != neighbouring_nodes_indices.end();
          ++it)
     {
-        c_vector<double, ELEMENT_DIM> node_location;
-        node_location = this->GetNode(*it)->rGetLocation();
+        c_vector<double, ELEMENT_DIM> node_location = this->GetNode(*it)->rGetLocation();
 
         // Calculate vector from circumcenter to node
         node_location -= circum_centre;
 
-        // This is to calculate the squared distance betweeen them
+        // This is to calculate the squared distance between them
         double squared_distance = inner_prod(node_location, node_location);
 
-        // If the squared idstance is less than the elements circum-radius(squared),
+        // If the squared distance is less than the elements circum-radius(squared),
         // then the Voronoi property is violated.
         if (squared_distance < this_circum_centre[ELEMENT_DIM])
         {

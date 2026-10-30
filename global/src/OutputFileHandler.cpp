@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -38,11 +38,13 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <cassert>
 
 #include "ArchiveLocationInfo.hpp"
-#include "BoostFilesystem.hpp"
+#include "ChasteBuildRoot.hpp"
 #include "Exception.hpp"
 #include "FileFinder.hpp"
+#include "FilesystemPermissions.hpp"
 #include "GetCurrentWorkingDirectory.hpp"
 #include "PetscTools.hpp"
 
@@ -72,7 +74,7 @@ void CleanFolder(const fs::path& rPath, bool isTop)
         else
         {
             const fs::path& r_item_path(dir_iter->path());
-            if (!isTop || PATH_LEAF_NAME(r_item_path)[0] != '.')
+            if (!isTop || (r_item_path.filename().string())[0] != '.')
             {
                 fs::remove(r_item_path);
             }
@@ -160,24 +162,13 @@ void OutputFileHandler::CommonConstructor(const std::string& rDirectory,
 
 std::string OutputFileHandler::GetChasteTestOutputDirectory()
 {
-    char* chaste_test_output = getenv("CHASTE_TEST_OUTPUT");
+    char* chaste_test_output = std::getenv("CHASTE_TEST_OUTPUT");
     FileFinder directory_root;
+
+    // If CHASTE_TEST_OUTPUT is not set, we use the default (which is ${Chaste_BINARY_DIR}/testoutput)
     if (chaste_test_output == nullptr || *chaste_test_output == 0)
     {
-        // Mimic the old SCons behaviour of setting CHASTE_TEST_OUTPUT: /tmp/'+os.environ['USER']+'/testoutput/
-        std::stringstream  tmp_directory;
-        if (getenv("USER")!=NULL)
-        {
-            tmp_directory << "/tmp/" << getenv("USER") << "/testoutput/";
-        }
-        else
-        {
-            // No $USER in environment (which may be the case in Docker)
-            tmp_directory << "/tmp/chaste/testoutput/"; // LCOV_EXCL_LINE
-        }
-        directory_root.SetPath(tmp_directory.str(), RelativeTo::AbsoluteOrCwd);
-        /* // Former behaviour: default to 'testoutput' folder within the current directory
-         * directory_root.SetPath("testoutput", RelativeTo::CWD); */
+        directory_root.SetPath(DefaultChasteTestOutput(), RelativeTo::AbsoluteOrCwd);
     }
     else
     {
@@ -195,10 +186,15 @@ std::string OutputFileHandler::MakeFoldersAndReturnFullPath(const std::string& r
     fs::path output_root(GetChasteTestOutputDirectory());
     fs::path rel_path(rDirectory);
 
-    if (!rel_path.empty() && (*(--rel_path.end())) == ".")
+    // Boost filesystem needed this, but std::filesystem is okay
+    //if (!rel_path.empty() && (*(--rel_path.end())) == ".")
+    //{
+    //    // rDirectory has a trailing slash, which gives an unhelpful last component
+    //    rel_path.remove_filename();
+    //}
+    if (!rel_path.empty())
     {
-        // rDirectory has a trailing slash, which gives an unhelpful last component
-        rel_path.remove_leaf();
+        assert( (*(--rel_path.end())) != ".");
     }
 
     // Make master wait (because other processes may be checking whether a directory exists)
@@ -209,19 +205,21 @@ std::string OutputFileHandler::MakeFoldersAndReturnFullPath(const std::string& r
         try
         {
             // If necessary make the ChasteTestOutputDirectory - don't make it deleteable by Chaste
-            fs::create_directories(output_root); // Note that this is a no-op if the folder exists already
+            FilesystemPermissions::CreateDirectoriesWithPermissions(output_root); // Note that this is a no-op if the folder exists already
 
             // Now make all the sub-folders requested one-by-one and add the .chaste_deletable_folder file to them
             fs::path next_folder(output_root);
             for (fs::path::iterator path_iter = rel_path.begin(); path_iter != rel_path.end(); ++path_iter)
             {
                 next_folder /= *path_iter;
-                bool created_dir = fs::create_directory(next_folder);
+                bool created_dir = FilesystemPermissions::CreateDirectoryWithPermissions(next_folder);
                 if (created_dir)
                 {
                     // Add the Chaste signature file
-                    fs::ofstream sig_file(next_folder / SIG_FILE_NAME);
+                    fs::path sig_file_path(next_folder / SIG_FILE_NAME);
+                    std::ofstream sig_file(sig_file_path);
                     sig_file.close();
+                    FilesystemPermissions::SetFilePermissions(sig_file_path);
                 }
             }
         }
@@ -260,11 +258,21 @@ std::string OutputFileHandler::GetRelativePath() const
 out_stream OutputFileHandler::OpenOutputFile(const std::string& rFileName,
                                              std::ios_base::openmode mode) const
 {
-    out_stream p_output_file(new std::ofstream((mDirectory+rFileName).c_str(), mode));
+    // A leading '/' in rFileName would make operator/= treat it as an absolute path and
+    // discard mDirectory, so strip any root component before appending.
+    fs::path file_name(rFileName);
+    if (file_name.has_root_path())
+    {
+        file_name = file_name.relative_path();
+    }
+    fs::path output_file = fs::path(mDirectory) / file_name;
+
+    out_stream p_output_file(new std::ofstream(output_file, mode));
     if (!p_output_file->is_open())
     {
         EXCEPTION("Could not open file \"" + rFileName + "\" in " + mDirectory);
     }
+    FilesystemPermissions::SetFilePermissions(output_file);
     return p_output_file;
 }
 
@@ -301,12 +309,12 @@ FileFinder OutputFileHandler::CopyFileTo(const FileFinder& rSourceFile) const
     }
     fs::path from_path(rSourceFile.GetAbsolutePath());
     fs::path to_path(GetOutputDirectoryFullPath());
-    to_path /= from_path.leaf();
+    to_path /= from_path.filename();
     if (PetscTools::AmMaster())
     {
         try
         {
-            fs::copy_file(from_path, to_path);
+            FilesystemPermissions::CopyFileWithPermissions(from_path, to_path);
         }
         // LCOV_EXCL_START
         catch (const fs::filesystem_error& e)

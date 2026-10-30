@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2005-2021, University of Oxford.
+Copyright (c) 2005-2026, University of Oxford.
 All rights reserved.
 
 University of Oxford means the Chancellor, Masters and Scholars of the
@@ -426,10 +426,8 @@ public:
                                                 "pde/test/data", "results", false));
 
         // Test that there is a .vtu file
-#ifdef CHASTE_VTK
         FileFinder vtk_file = file_handler.FindFile("vtk_output/results.vtu");
         TS_ASSERT(vtk_file.Exists());
-#endif //CHASTE_VTK
 
         // Test that there are .txt files
         for (unsigned timestep=0; timestep<101; timestep++)
@@ -636,7 +634,7 @@ public:
         {
             double x = mesh.GetNode(i)->GetPoint()[0];
             double y = mesh.GetNode(i)->GetPoint()[1];
-            init_cond[i] = sin(0.5*M_PI*x)*sin(M_PI*y)+x;;
+            init_cond[i] = sin(0.5*M_PI*x)*sin(M_PI*y)+x;
         }
         Vec initial_condition = PetscTools::CreateVec(init_cond);
         solver.SetInitialCondition(initial_condition);
